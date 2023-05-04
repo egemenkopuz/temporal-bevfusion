@@ -1,0 +1,9 @@
+Pillow==8.4.0
+tqdm
+torchpack
+mmcv==1.4.0
+mmcv-full==1.4.0
+mmdet==2.20.0
+nuscenes-devkit
+mpi4py==3.0.3
+numba==0.48.0
