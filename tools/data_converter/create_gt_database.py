@@ -5,12 +5,12 @@ import mmcv
 import numpy as np
 from mmcv import track_iter_progress
 from mmcv.ops import roi_align
+from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
 from pycocotools import mask as maskUtils
 from pycocotools.coco import COCO
 
 from mmdet3d.core.bbox import box_np_ops as box_np_ops
 from mmdet3d.datasets import build_dataset
-from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
 
 
 def _poly2mask(mask_ann, img_h, img_w):
@@ -71,9 +71,7 @@ def crop_image_patch_v2(pos_proposals, pos_assigned_gt_inds, gt_masks):
 
     device = pos_proposals.device
     num_pos = pos_proposals.size(0)
-    fake_inds = torch.arange(num_pos, device=device).to(dtype=pos_proposals.dtype)[
-        :, None
-    ]
+    fake_inds = torch.arange(num_pos, device=device).to(dtype=pos_proposals.dtype)[:, None]
     rois = torch.cat([fake_inds, pos_proposals], dim=1)  # Nx5
     mask_size = _pair(28)
     rois = rois.to(device=device)
@@ -147,9 +145,7 @@ def create_groundtruth_database(
             Default: False.
     """
     print(f"Create GT Database of {dataset_class_name}")
-    dataset_cfg = dict(
-        type=dataset_class_name, dataset_root=data_path, ann_file=info_path
-    )
+    dataset_cfg = dict(type=dataset_class_name, dataset_root=data_path, ann_file=info_path)
     if dataset_class_name == "KittiDataset":
         dataset_cfg.update(
             test_mode=False,
@@ -175,7 +171,8 @@ def create_groundtruth_database(
             ],
         )
 
-    elif dataset_class_name == "NuScenesDataset":
+    elif dataset_class_name == "A9Dataset":
+        assert with_mask == False, "A9Dataset is eligible for with_mask parameter"
         if not load_augmented:
             dataset_cfg.update(
                 use_valid_flag=True,
@@ -193,9 +190,7 @@ def create_groundtruth_database(
                         pad_empty_sweeps=True,
                         remove_close=True,
                     ),
-                    dict(
-                        type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True
-                    ),
+                    dict(type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True),
                 ],
             )
         else:
@@ -218,9 +213,52 @@ def create_groundtruth_database(
                         remove_close=True,
                         load_augmented=load_augmented,
                     ),
+                    dict(type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True),
+                ],
+            )
+
+    elif dataset_class_name == "NuScenesDataset":
+        if not load_augmented:
+            dataset_cfg.update(
+                use_valid_flag=True,
+                pipeline=[
                     dict(
-                        type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True
+                        type="LoadPointsFromFile",
+                        coord_type="LIDAR",
+                        load_dim=5,
+                        use_dim=5,
                     ),
+                    dict(
+                        type="LoadPointsFromMultiSweeps",
+                        sweeps_num=10,
+                        use_dim=[0, 1, 2, 3, 4],
+                        pad_empty_sweeps=True,
+                        remove_close=True,
+                    ),
+                    dict(type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True),
+                ],
+            )
+        else:
+            dataset_cfg.update(
+                use_valid_flag=True,
+                pipeline=[
+                    dict(
+                        type="LoadPointsFromFile",
+                        coord_type="LIDAR",
+                        load_dim=16,
+                        use_dim=list(range(16)),
+                        load_augmented=load_augmented,
+                    ),
+                    dict(
+                        type="LoadPointsFromMultiSweeps",
+                        sweeps_num=10,
+                        load_dim=16,
+                        use_dim=list(range(16)),
+                        pad_empty_sweeps=True,
+                        remove_close=True,
+                        load_augmented=load_augmented,
+                    ),
+                    dict(type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True),
                 ],
             )
 
@@ -271,7 +309,6 @@ def create_groundtruth_database(
         dataset.pre_pipeline(input_dict)
         example = dataset.pipeline(input_dict)
         annos = example["ann_info"]
-        image_idx = example["sample_idx"]
         points = example["points"].tensor.numpy()
         gt_boxes_3d = annos["gt_bboxes_3d"].tensor.numpy()
         names = annos["gt_names"]
@@ -317,8 +354,19 @@ def create_groundtruth_database(
                 gt_boxes, gt_masks, mask_inds, annos["img"]
             )
 
+        if dataset_class_name == "A9Dataset":
+            temp_name = str(example["lidar_path"]).split("/")
+            temp_name = temp_name[-1].split("_")
+            pcd_idx = temp_name[0] + "_" + temp_name[1]
+        else:
+            image_idx = example["sample_idx"]
+
         for i in range(num_obj):
-            filename = f"{image_idx}_{names[i]}_{i}.bin"
+            if dataset_class_name == "A9Dataset":
+                filename = f"{pcd_idx}_{names[i]}_{i}.bin"
+            else:
+                filename = f"{image_idx}_{names[i]}_{i}.bin"
+
             abs_filepath = osp.join(database_save_path, filename)
             rel_filepath = osp.join(f"{info_prefix}_gt_database", filename)
 
@@ -342,12 +390,14 @@ def create_groundtruth_database(
                 db_info = {
                     "name": names[i],
                     "path": rel_filepath,
-                    "image_idx": image_idx,
                     "gt_idx": i,
                     "box3d_lidar": gt_boxes_3d[i],
                     "num_points_in_gt": gt_points.shape[0],
                     "difficulty": difficulty[i],
                 }
+                if dataset_class_name != "A9Dataset":
+                    db_info["image_idx"] = image_idx
+
                 local_group_id = group_ids[i]
                 # if local_group_id >= 0:
                 if local_group_id not in group_dict:
