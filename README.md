@@ -10,5 +10,5 @@ cd pypcd && pip install .
 ```
 
 ```bash
-$ python tools/create_data.py a9 --root-path ./data/a9 --out-dir ./data/a9_out
+$ python tools/create_data.py a9 --root-path ./data/a9 --out-dir ./data/a9_bevfusion
 ```

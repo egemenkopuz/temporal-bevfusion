@@ -30,4 +30,6 @@ ENV PATH=$CONDA_DIR/bin:$PATH
 RUN conda install python=3.8 && \
     conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=11.3 -c pytorch
 
+RUN pip install setuptools==59.5.0
+
 CMD ["tail", "-f", "/dev/null"]

@@ -2,11 +2,13 @@ import json
 import os
 import tempfile
 import time
+from collections import defaultdict
 from os import path as osp
 from typing import Any, Dict
 
 import mmcv
 import numpy as np
+import torch
 from mmdet.datasets import DATASETS
 from scipy.spatial.transform import Rotation
 
@@ -35,7 +37,6 @@ class A9Dataset(Custom3DDataset):
         "scale_err": "mASE",
         "orient_err": "mAOE",
         "vel_err": "mAVE",
-        "attr_err": "mAAE",
     }
 
     # Modified from the originally used configs of BEVFusion https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/detection/configs/detection_cvpr_2019.json
@@ -53,10 +54,10 @@ class A9Dataset(Custom3DDataset):
     }
     dist_fcn = "center_distance"
     dist_ths = [0.5, 1.0, 2.0, 4.0]
-    dist_th_tp = (2.0,)
-    min_recall = (0.1,)
-    min_precision = (0.1,)
-    max_boxes_per_sample = (500,)
+    dist_th_tp = 2.0
+    min_recall = 0.1
+    min_precision = 0.1
+    max_boxes_per_sample = 500
     mean_ap_weight = 5
 
     def __init__(
@@ -173,16 +174,17 @@ class A9Dataset(Custom3DDataset):
                 data["image_paths"].append(camera_info["data_path"])
 
                 # lidar to camera transform
-                data["lidar2camera"].append(np.linalg.inv(camera_info["sensor2lidar"]))
+                camera2lidar = camera_info["sensor2lidar"]
+                camera2lidar = np.vstack([camera2lidar, [0.0, 0.0, 0.0, 1.0]])
+                lidar2camera = np.linalg.inv(camera2lidar)
+                lidar2camera = lidar2camera[:-1, :]
+                data["lidar2camera"].append(lidar2camera)
 
                 # camera intrinsics
                 data["camera_intrinsics"].append(camera_info["camera_intrinsics"])
 
                 # lidar to image transform
-                camera_intrinsics = camera_info["camera_intrinsics"]
-                lidar2camera = np.linalg.inv(camera_info["sensor2lidar"])
-                lidar2image = camera_intrinsics @ lidar2camera
-                data["lidar2image"].append(lidar2image)
+                data["lidar2image"].append(camera_info["lidar2image"])
 
                 # camera to ego transform
                 data["camera2ego"].append(camera_info["sensor2ego"])
@@ -190,7 +192,10 @@ class A9Dataset(Custom3DDataset):
                 # camera to lidar transform
                 data["camera2lidar"].append(camera_info["sensor2lidar"])
 
-        annos = self.get_ann_info(index)
+        if self.test_mode:
+            annos = None
+        else:
+            annos = self.get_ann_info(index)
         data["ann_info"] = annos
         return data
 
@@ -272,7 +277,7 @@ class A9Dataset(Custom3DDataset):
                     timestamp=ts,
                     translation=box["center"].tolist(),
                     size=box["wlh"].tolist(),
-                    rotation=box["orientation"].elements.tolist(),
+                    rotation=box["orientation"],
                     velocity=box["velocity"][:2].tolist(),
                     detection_name=name,
                     detection_score=box["score"],
@@ -332,7 +337,7 @@ class A9Dataset(Custom3DDataset):
         """
         Loads object predictions from file.
         :param result_path: Path to the .json result file provided by the user.
-        :param max_boxes_per_sample: Maximim number of boxes allowed per sample.
+        :param max_boxes_per_sample: Maximum number of boxes allowed per sample.
         :param verbose: Whether to print messages to stdout.
         :return: The deserialized results and meta data.
         """
@@ -350,11 +355,11 @@ class A9Dataset(Custom3DDataset):
                 box_list.append(
                     {
                         "timestamp": box["timestamp"],
-                        "translation": tuple(box["translation"]),
+                        "translation": box["translation"],
                         "ego_dist": np.sqrt(np.sum(np.array(box["translation"][:2]) ** 2)),
-                        "size": tuple(box["size"]),
-                        "rotation": tuple(box["rotation"]),
-                        "velocity": tuple(box["velocity"]),
+                        "size": box["size"],
+                        "rotation": box["rotation"],
+                        "velocity": box["velocity"],
                         "num_pts": -1 if "num_pts" not in box else int(box["num_pts"]),
                         "detection_name": box["detection_name"],
                         "detection_score": -1.0
@@ -362,7 +367,7 @@ class A9Dataset(Custom3DDataset):
                         else float(box["detection_score"]),
                     }
                 )
-            all_results[box["timestamp"]] = box_list
+            all_results[idx] = box_list
 
         meta = data["meta"]
         if verbose:
@@ -373,8 +378,8 @@ class A9Dataset(Custom3DDataset):
             )
 
         # Check that each sample has no more than x predicted boxes.
-        for idx, result in enumerate(all_results):
-            assert len(all_results[idx]) <= max_boxes_per_sample, (
+        for result in all_results:
+            assert len(all_results[result]) <= max_boxes_per_sample, (
                 "Error: Only <= %d boxes per sample allowed!" % max_boxes_per_sample
             )
 
@@ -382,7 +387,7 @@ class A9Dataset(Custom3DDataset):
 
     def load_gt(self, verbose: bool = False):
         """
-        Loads ground truth boxes from annotation files.
+        Loads ground truth boxes from database.
         :param nusc: A NuScenes instance.
         :param eval_split: The evaluation split for which we load GT boxes.
         :param box_cls: Type of box to load, e.g. DetectionBox or TrackingBox.
@@ -404,7 +409,7 @@ class A9Dataset(Custom3DDataset):
             for j in lidar_annotation["openlabel"]["frames"]:
                 lidar_anno_frame = lidar_annotation["openlabel"]["frames"][j]
 
-            timestamp = lidar_anno_frame["frame_properties"]["timestamp"]
+            timestamp = str(lidar_anno_frame["frame_properties"]["timestamp"])
 
             sample_boxes = []
 
@@ -434,7 +439,7 @@ class A9Dataset(Custom3DDataset):
                         "translation": loc,
                         "ego_dist": np.sqrt(np.sum(np.array(loc[:2]) ** 2)),
                         "size": dim,
-                        "rotation": -yaw - np.pi / 2,
+                        "rotation": yaw,
                         "velocity": [0, 0],
                         "num_pts": num_lidar_pts,
                         "detection_name": object_data["type"],
@@ -614,14 +619,7 @@ class A9Dataset(Custom3DDataset):
         conf = []  # Accumulator of confidences.
 
         # match_data holds the extra metrics we calculate for each match.
-        match_data = {
-            "trans_err": [],
-            "vel_err": [],
-            "scale_err": [],
-            "orient_err": [],
-            "attr_err": [],
-            "conf": [],
-        }
+        match_data = {"trans_err": [], "vel_err": [], "scale_err": [], "orient_err": [], "conf": []}
 
         # ---------------------------------------------
         # Match and accumulate match data.
@@ -744,11 +742,11 @@ class A9Dataset(Custom3DDataset):
         :param verbose: Whether to print to stdout.
         """
         # Accumulators for number of filtered boxes.
-        total, dist_filter, point_filter = 0, 0, 0, 0
+        total, dist_filter, point_filter = 0, 0, 0
         for timestamp in eval_boxes:
             # Filter on distance first.
             total += len(eval_boxes[timestamp])
-            eval_boxes.boxes[timestamp] = [
+            eval_boxes[timestamp] = [
                 box
                 for box in eval_boxes[timestamp]
                 if box["ego_dist"] < max_dist[box["detection_name"]]
@@ -756,7 +754,7 @@ class A9Dataset(Custom3DDataset):
             dist_filter += len(eval_boxes[timestamp])
 
             # Then remove boxes with zero points in them. Eval boxes have -1 points by default.
-            eval_boxes.boxes[timestamp] = [
+            eval_boxes[timestamp] = [
                 box for box in eval_boxes[timestamp] if not box["num_pts"] == 0
             ]
             point_filter += len(eval_boxes[timestamp])
@@ -768,7 +766,7 @@ class A9Dataset(Custom3DDataset):
 
         return eval_boxes
 
-    def calc_ap(md, min_recall: float, min_precision: float) -> float:
+    def calc_ap(self, md, min_recall: float, min_precision: float) -> float:
         """Calculated average precision."""
 
         assert 0 <= min_precision < 1
@@ -782,7 +780,7 @@ class A9Dataset(Custom3DDataset):
         prec[prec < 0] = 0
         return float(np.mean(prec)) / (1.0 - min_precision)
 
-    def calc_tp(md, min_recall: float, metric_name: str) -> float:
+    def calc_tp(self, md, min_recall: float, metric_name: str) -> float:
         """Calculates true positive errors."""
 
         first_ind = round(100 * min_recall) + 1  # +1 to exclude the error at min recall.
@@ -802,8 +800,19 @@ class A9Dataset(Custom3DDataset):
             return 1.0  # Assign 1 here. If this happens for all classes, the score for that TP metric will be 0.
         else:
             return float(
-                np.mean(getattr(md, metric_name)[first_ind : last_ind + 1])
+                np.mean(md[metric_name][first_ind : last_ind + 1])
             )  # +1 to include error at max recall.
+
+    def serializeMetricDara(self, value):
+        return {
+            "recall": value["recall"].tolist(),
+            "precision": value["precision"].tolist(),
+            "confidence": value["confidence"].tolist(),
+            "trans_err": value["trans_err"].tolist(),
+            "vel_err": value["vel_err"].tolist(),
+            "scale_err": value["scale_err"].tolist(),
+            "orient_err": value["orient_err"].tolist(),
+        }
 
     def _evaluate_a9_nusc(
         self, config: dict, result_path: str, output_dir: str = None, verbose: bool = True
@@ -821,10 +830,6 @@ class A9Dataset(Custom3DDataset):
             self.gt_boxes.keys()
         ), "Samples in split doesn't match samples in predictions."
 
-        # Add center distances.
-        self.pred_boxes = self.add_center_dist(self.pred_boxes)
-        self.gt_boxes = self.add_center_dist(self.gt_boxes)
-
         # Filter boxes (distance, points per box, etc.).
         if verbose:
             print("Filtering predictions")
@@ -840,7 +845,7 @@ class A9Dataset(Custom3DDataset):
         # -----------------------------------
         # Step 1: Accumulate metric data for all classes and distance thresholds.
         # -----------------------------------
-        if self.verbose:
+        if verbose:
             print("Accumulating metric data...")
         metric_data_list = {}
         for class_name in self.CLASSES:
@@ -851,9 +856,12 @@ class A9Dataset(Custom3DDataset):
         # -----------------------------------
         # Step 2: Calculate metrics from the data.
         # -----------------------------------
-        if self.verbose:
+        if verbose:
             print("Calculating metrics...")
-        metrics = {}
+        metrics = {
+            "label_aps": defaultdict(lambda: defaultdict(float)),
+            "label_tp_errors": defaultdict(lambda: defaultdict(float)),
+        }
         for class_name in self.CLASSES:
             # Compute APs.
             for dist_th in self.dist_ths:
@@ -862,11 +870,11 @@ class A9Dataset(Custom3DDataset):
                 metrics["label_aps"][class_name][dist_th] = ap
 
             # Compute TP metrics.
-            TP_METRICS = ["trans_err", "scale_err", "orient_err", "vel_err", "attr_err"]
+            TP_METRICS = ["trans_err", "scale_err", "orient_err", "vel_err"]
             for metric_name in TP_METRICS:
                 metric_data = metric_data_list[(class_name, self.dist_th_tp)]
                 tp = self.calc_tp(metric_data, self.min_recall, metric_name)
-                metrics["label_tp_errors "][class_name][metric_name] = tp
+                metrics["label_tp_errors"][class_name][metric_name] = tp
 
         # Compute evaluation time.
         metrics["eval_time"] = time.time() - start_time
@@ -901,8 +909,8 @@ class A9Dataset(Custom3DDataset):
         nd_score = nd_score / float(self.mean_ap_weight + len(tp_scores.keys()))
 
         # Dump the metric data, meta and metrics to disk.
-        if self.verbose:
-            print("Saving metrics to: %s" % self.output_dir)
+        if verbose:
+            print("Saving metrics to: %s" % output_dir)
 
         metrics_summary = {
             "label_aps": metrics["label_aps"],
@@ -916,11 +924,16 @@ class A9Dataset(Custom3DDataset):
             "cfg": self.eval_detection_configs,
         }
         metrics_summary["meta"] = self.meta.copy()
-        with open(os.path.join(self.output_dir, "metrics_summary.json"), "w") as f:
+        with open(os.path.join(output_dir, "metrics_summary.json"), "w") as f:
             json.dump(metrics_summary, f, indent=2)
 
-        with open(os.path.join(self.output_dir, "metrics_details.json"), "w") as f:
-            json.dump(metric_data_list, f, indent=2)
+        mdl_dump = {
+            key[0] + ":" + str(key[1]): self.serializeMetricDara(value)
+            for key, value in metric_data_list.items()
+        }
+
+        with open(os.path.join(output_dir, "metrics_details.json"), "w") as f:
+            json.dump(mdl_dump, f, indent=2)
 
         # Print high-level metrics.
         print("mAP: %.4f" % (metrics_summary["mean_ap"]))
@@ -929,7 +942,6 @@ class A9Dataset(Custom3DDataset):
             "scale_err": "mASE",
             "orient_err": "mAOE",
             "vel_err": "mAVE",
-            "attr_err": "mAAE",
         }
         for tp_name, tp_val in metrics_summary["tp_errors"].items():
             print("%s: %.4f" % (err_name_mapping[tp_name], tp_val))
@@ -940,14 +952,14 @@ class A9Dataset(Custom3DDataset):
         print()
         print("Per-class results:")
         print(
-            "%-20s\t%-6s\t%-6s\t%-6s\t%-6s\t%-6s\t%-6s"
-            % ("Object Class", "AP", "ATE", "ASE", "AOE", "AVE", "AAE")
+            "%-20s\t%-6s\t%-6s\t%-6s\t%-6s\t%-6s"
+            % ("Object Class", "AP", "ATE", "ASE", "AOE", "AVE")
         )
         class_aps = metrics_summary["mean_dist_aps"]
         class_tps = metrics_summary["label_tp_errors"]
         for class_name in class_aps.keys():
             print(
-                "%-20s\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f"
+                "%-20s\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f"
                 % (
                     class_name,
                     class_aps[class_name],
@@ -955,7 +967,6 @@ class A9Dataset(Custom3DDataset):
                     class_tps[class_name]["scale_err"],
                     class_tps[class_name]["orient_err"],
                     class_tps[class_name]["vel_err"],
-                    class_tps[class_name]["attr_err"],
                 )
             )
 
@@ -1070,7 +1081,6 @@ def output_to_box_dict(detection):
     box_yaw = box3d.yaw.numpy()
     # TODO: check whether this is necessary
     # with dir_offset & dir_limit in the head
-    box_yaw = -box_yaw - np.pi / 2
 
     box_list = []
     for i in range(len(box3d)):
@@ -1080,7 +1090,7 @@ def output_to_box_dict(detection):
             "wlh": np.array(box_dims[i]),
             "orientation": box_yaw[i],
             "label": int(labels[i]) if not np.isnan(labels[i]) else labels[i],
-            "score ": float(scores[i]) if not np.isnan(scores[i]) else scores[i],
+            "score": float(scores[i]) if not np.isnan(scores[i]) else scores[i],
             "velocity": np.array(velocity),
             "name": None,
         }

@@ -253,12 +253,13 @@ class A92KITTI:
 
             south1_anno_frame = {}
 
-            for frame_idx in south1_annotation["openlabel"]["frames"]:
-                south1_anno_frame = south1_annotation["openlabel"]["frames"][frame_idx]
+            for k in south1_annotation["openlabel"]["frames"]:
+                south1_anno_frame = south1_annotation["openlabel"]["frames"][k]
 
             img_south1_info = {
                 "data_path": img_south1_list[i],
                 "type": "s110_camera_basler_south1_8mm",
+                "lidar2image": lidar2s1image,
                 "sensor2ego": south12ego,
                 "sensor2lidar": south12lidar,
                 "camera_intrinsics": south1intrinsics,
@@ -279,6 +280,7 @@ class A92KITTI:
             img_south2_info = {
                 "data_path": img_south2_list[i],
                 "type": "s110_camera_basler_south2_8mm",
+                "lidar2image": lidar2s2image,
                 "sensor2ego": south22ego,
                 "sensor2lidar": south22lidar,
                 "camera_intrinsics": south2intrinsics,
@@ -311,7 +313,7 @@ class A92KITTI:
 
                     yaw = np.asarray(rot_temp[2], dtype=np.float32)
 
-                    gt_box = np.concatenate([loc, dim, -yaw - np.pi / 2], axis=None)
+                    gt_box = np.concatenate([loc, dim, -yaw], axis=None)
 
                     gt_boxes.append(gt_box)
                     gt_names.append(object_data["type"])
