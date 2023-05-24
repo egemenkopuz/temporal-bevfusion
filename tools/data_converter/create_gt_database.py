@@ -172,7 +172,7 @@ def create_groundtruth_database(
         )
 
     elif dataset_class_name == "A9Dataset":
-        assert with_mask == False, "A9Dataset is eligible for with_mask parameter"
+        assert with_mask == False, "A9Dataset is not eligible for with_mask parameter"
         if not load_augmented:
             dataset_cfg.update(
                 use_valid_flag=True,
