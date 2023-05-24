@@ -13,8 +13,7 @@ import numpy as np
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 
-from .utils import A9Meta
-from .utils.geometry import add_open3d_axis, get_corners
+from .utils.geometry import add_open3d_axis, visualize_bounding_box
 
 
 def get_args() -> Namespace:
@@ -57,6 +56,8 @@ def a9_plot_3d_boxes(
     pcd = o3d.io.read_point_cloud(file_path_point_cloud)
     points = np.array(pcd.points)
 
+    print("Raw: ", points.shape)
+
     # remove rows having all zeroes
     points_filtered = points[~np.all(points == 0, axis=1)]
 
@@ -87,17 +88,18 @@ def a9_plot_3d_boxes(
     corner_point_min = np.array([-150, -150, -10])
     corner_point_max = np.array([150, 150, 5])
 
+    print("Filtered: ", points_filtered.shape)
+
     points = np.vstack((points_filtered, corner_point_min, corner_point_max))
     pcd.points = o3d.utility.Vector3dVector(np.ascontiguousarray(points[:, :3]))
-    pcd.paint_uniform_color([0.4, 0.4, 0.4])
 
     vis = o3d.visualization.Visualizer()
-    vis.create_window(window_name="Point Cloud Visualizer", width=1920, height=1080)
+    vis.create_window(window_name="Point Cloud Visualizer", width=1024, height=720)
     vis.get_render_option().background_color = [0.1, 0.1, 0.1]
     vis.get_render_option().point_size = point_size
-    vis.get_render_option().show_coordinate_frame = show_coordinate_frame
 
-    add_open3d_axis(vis)
+    if show_coordinate_frame:
+        add_open3d_axis(vis)
 
     try:
         label_data = json.load(open(file_path_labels))
@@ -126,7 +128,7 @@ def a9_plot_3d_boxes(
         else:
             pcd.paint_uniform_color([0.4, 0.4, 0.4])
 
-        process(label_data, pcd, vis, color_detection)
+        process_detections(label_data, pcd, vis, color_detection)
 
         vis.add_geometry(pcd)
 
@@ -141,7 +143,7 @@ def a9_plot_3d_boxes(
         vis.destroy_window()
 
 
-def process(label_data, pcd, vis, color_based_on_label: bool = False):
+def process_detections(label_data, pcd, vis, color_detection: bool = False):
     for frame_id, frame_obj in label_data["openlabel"]["frames"].items():
         for object_id, label in frame_obj["objects"].items():
             l = float(label["object_data"]["cuboid"]["val"][7])
@@ -172,7 +174,7 @@ def process(label_data, pcd, vis, color_based_on_label: bool = False):
                 ),
                 np.array([l, w, h]),
             )
-            if color_based_on_label:
+            if color_detection:
                 colors = np.array(pcd.colors)
                 indices = obb.get_point_indices_within_bounding_box(pcd.points)
                 base_color = (250, 27, 27)
@@ -181,58 +183,9 @@ def process(label_data, pcd, vis, color_based_on_label: bool = False):
                 )
                 pcd.colors = o3d.utility.Vector3dVector(colors)
 
-            visualize_bounding_box(l, w, h, rotation_yaw, position_3d, category, vis, None, None)
-
-
-def visualize_bounding_box(
-    l, w, h, rotation_yaw, position_3d, category, vis, use_two_colors, input_type
-):
-    quaternion = R.from_euler("xyz", [0, 0, rotation_yaw], degrees=False).as_quat()
-    corner_box = get_corners(
-        [
-            position_3d[0],
-            position_3d[1],
-            position_3d[2],
-            quaternion[0],
-            quaternion[1],
-            quaternion[2],
-            quaternion[3],
-            l,
-            w,
-            h,
-        ]
-    )
-    lines = [
-        [0, 1],
-        [1, 2],
-        [2, 3],
-        [0, 3],
-        [4, 5],
-        [5, 6],
-        [6, 7],
-        [4, 7],
-        [0, 4],
-        [1, 5],
-        [2, 6],
-        [3, 7],
-    ]
-    if use_two_colors and input_type == "detections":
-        color_red = (245, 44, 71)
-        color_red_normalized = (color_red[0] / 255, color_red[1] / 255, color_red[2] / 255)
-        colors = [color_red_normalized for _ in range(len(lines))]
-    elif use_two_colors and input_type == "labels":
-        color_green = (27, 250, 27)
-        color_green_normalized = (color_green[0] / 255, color_green[1] / 255, color_green[2] / 255)
-        colors = [color_green_normalized for _ in range(len(lines))]
-    else:
-        colors = [A9Meta.class_colors[category] for _ in range(len(lines))]
-
-    line_set = o3d.geometry.LineSet()
-    line_set.points = o3d.utility.Vector3dVector(corner_box)
-    line_set.lines = o3d.utility.Vector2iVector(lines)
-    line_set.colors = o3d.utility.Vector3dVector(colors)
-    # Display the bounding boxes:
-    vis.add_geometry(line_set)
+            visualize_bounding_box(
+                l, w, h, rotation_yaw, position_3d, category, vis, None, None, "a9"
+            )
 
 
 if __name__ == "__main__":

@@ -1,6 +1,10 @@
+from typing import Literal, Union
+
 import numpy as np
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
+
+from . import A9Meta, OSDAR23Meta
 
 
 def add_open3d_axis(vis):
@@ -39,3 +43,68 @@ def get_corners(cuboid):
     # original center position to obtain the final box
     corner_box = np.dot(rotation_matrix, bounding_box) + eight_points.transpose()
     return corner_box.transpose()
+
+
+def visualize_bounding_box(
+    l,
+    w,
+    h,
+    rotation_yaw,
+    position_3d,
+    category,
+    vis,
+    use_two_colors,
+    input_type,
+    dataset_name: str = Union[Literal["osdar23"], Literal["a9"]],
+):
+    quaternion = R.from_euler("xyz", [0, 0, rotation_yaw], degrees=False).as_quat()
+    corner_box = get_corners(
+        [
+            position_3d[0],
+            position_3d[1],
+            position_3d[2],
+            quaternion[0],
+            quaternion[1],
+            quaternion[2],
+            quaternion[3],
+            l,
+            w,
+            h,
+        ]
+    )
+    lines = [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [0, 3],
+        [4, 5],
+        [5, 6],
+        [6, 7],
+        [4, 7],
+        [0, 4],
+        [1, 5],
+        [2, 6],
+        [3, 7],
+    ]
+    if use_two_colors and input_type == "detections":
+        color_red = (245, 44, 71)
+        color_red_normalized = (color_red[0] / 255, color_red[1] / 255, color_red[2] / 255)
+        colors = [color_red_normalized for _ in range(len(lines))]
+    elif use_two_colors and input_type == "labels":
+        color_green = (27, 250, 27)
+        color_green_normalized = (color_green[0] / 255, color_green[1] / 255, color_green[2] / 255)
+        colors = [color_green_normalized for _ in range(len(lines))]
+    else:
+        if dataset_name.lower() == "a9":
+            colors = [A9Meta.class_colors[category] for _ in range(len(lines))]
+        elif dataset_name.lower() == "osdar23":
+            colors = [OSDAR23Meta.class_colors[category] for _ in range(len(lines))]
+        else:
+            raise ValueError(f"Dataset name {dataset_name} not supported.")
+
+    line_set = o3d.geometry.LineSet()
+    line_set.points = o3d.utility.Vector3dVector(corner_box)
+    line_set.lines = o3d.utility.Vector2iVector(lines)
+    line_set.colors = o3d.utility.Vector3dVector(colors)
+    # Display the bounding boxes:
+    vis.add_geometry(line_set)
