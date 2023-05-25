@@ -1,13 +1,9 @@
-import ast
 import json
 import os
-import sys
 from argparse import ArgumentParser, Namespace
 from glob import glob
-from math import radians
 from typing import List
 
-import cv2
 import matplotlib as mpl
 import numpy as np
 import open3d as o3d
@@ -160,7 +156,6 @@ def process_detections(label_data, pcd, vis, index: int, color_detection: bool =
                 float(cuboid[2]),
             ]
             category = label["object_data"]["cuboid"][0]["name"]
-            print(category)
 
             obb = o3d.geometry.OrientedBoundingBox(
                 position_3d,

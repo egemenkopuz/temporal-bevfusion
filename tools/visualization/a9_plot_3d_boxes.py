@@ -1,13 +1,8 @@
-import ast
 import json
 import os
-import sys
 from argparse import ArgumentParser, Namespace
 from glob import glob
-from math import radians
-from typing import List
 
-import cv2
 import matplotlib as mpl
 import numpy as np
 import open3d as o3d
@@ -46,12 +41,12 @@ def a9_plot_3d_boxes(
     color_detection: bool = False,
 ):
     file_paths_point_clouds = glob(os.path.join(input_folder_path_point_clouds, "*"))
-    file_paths_labels = glob(os.path.join(input_folder_path_detections, "*"))
+    file_paths_detections = glob(os.path.join(input_folder_path_detections, "*"))
 
-    assert index < len(file_paths_point_clouds) and index < len(file_paths_labels)
+    assert index < len(file_paths_point_clouds) and index < len(file_paths_detections)
 
     file_path_point_cloud = file_paths_point_clouds[index]
-    file_path_labels = file_paths_labels[index]
+    file_path_detections = file_paths_detections[index]
 
     pcd = o3d.io.read_point_cloud(file_path_point_cloud)
     points = np.array(pcd.points)
@@ -102,7 +97,7 @@ def a9_plot_3d_boxes(
         add_open3d_axis(vis)
 
     try:
-        label_data = json.load(open(file_path_labels))
+        detection_data = json.load(open(file_path_detections))
 
         if color_distance:
             colors = np.zeros((points.shape[0], 1))
@@ -128,7 +123,7 @@ def a9_plot_3d_boxes(
         else:
             pcd.paint_uniform_color([0.4, 0.4, 0.4])
 
-        process_detections(label_data, pcd, vis, color_detection)
+        process_detections(detection_data, pcd, vis, color_detection)
 
         vis.add_geometry(pcd)
 
