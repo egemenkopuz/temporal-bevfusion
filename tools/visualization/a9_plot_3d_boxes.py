@@ -6,6 +6,7 @@ from glob import glob
 import matplotlib as mpl
 import numpy as np
 import open3d as o3d
+from matplotlib import pyplot as plt
 from scipy.spatial.transform import Rotation as R
 
 from .utils.geometry import add_open3d_axis, visualize_bounding_box
@@ -80,12 +81,13 @@ def a9_plot_3d_boxes(
     distances_bev = distances_bev[distances > 3.0]
     distances = distances[distances > 3.0]
 
-    corner_point_min = np.array([-150, -150, -10])
-    corner_point_max = np.array([150, 150, 5])
+    # corner_point_min = np.array([-150, -150, -10])
+    # corner_point_max = np.array([150, 150, 5])
 
     print("Filtered: ", points_filtered.shape)
 
-    points = np.vstack((points_filtered, corner_point_min, corner_point_max))
+    # points = np.vstack((points_filtered, corner_point_min, corner_point_max))
+    points = points_filtered
     pcd.points = o3d.utility.Vector3dVector(np.ascontiguousarray(points[:, :3]))
 
     vis = o3d.visualization.Visualizer()
@@ -100,25 +102,8 @@ def a9_plot_3d_boxes(
         detection_data = json.load(open(file_path_detections))
 
         if color_distance:
-            colors = np.zeros((points.shape[0], 1))
-
-            # distance coloring counter for indexing
-            global dic
-            dic = 0
-
-            def cd_func(x):
-                global dic
-                if dic >= len(distances_bev):
-                    return [0.4, 0.4, 0.4]
-
-                sdistance = np.interp(distances_bev[dic], (0.0, 100.0), (0, 1))
-                dic += 1
-
-                c1 = np.array(mpl.colors.to_rgb([0, 98 / 255, 72 / 255]))
-                c2 = np.array(mpl.colors.to_rgb([219 / 255, 219 / 255, 72 / 255]))
-                return (1 - sdistance) * c1 + sdistance * c2
-
-            colors = np.apply_along_axis(cd_func, 1, colors).astype(np.float64)[:, 0:3]
+            cmap_norm = mpl.colors.Normalize(vmin=distances_bev.min(), vmax=distances_bev.max())
+            colors = plt.get_cmap("jet")(cmap_norm(distances_bev))[:, 0:3]
             pcd.colors = o3d.utility.Vector3dVector(colors)
         else:
             pcd.paint_uniform_color([0.4, 0.4, 0.4])
