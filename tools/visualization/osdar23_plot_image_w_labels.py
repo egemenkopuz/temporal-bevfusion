@@ -13,7 +13,7 @@ from .utils import OSDAR23Meta
 
 def get_args() -> Namespace:
     """
-    Parse given arguments for osdar23_plot_image_w_lidar_points function.
+    Parse given arguments for osdar23_plot_image_w_labels function.
 
     Returns:
         Namespace: parsed arguments
@@ -29,7 +29,7 @@ def get_args() -> Namespace:
     return parser.parse_args()
 
 
-def osdar23_plot_image_w_lidar_points(
+def osdar23_plot_image_w_labels(
     input_folder_path_images: str,
     input_folder_path_point_clouds: str,
     input_folder_path_detections: str,
@@ -97,7 +97,7 @@ def process_labels(
 
 if __name__ == "__main__":
     args = get_args()
-    osdar23_plot_image_w_lidar_points(
+    osdar23_plot_image_w_labels(
         input_folder_path_images=args.images_folder_path,
         input_folder_path_point_clouds=args.input_folder_path_point_clouds,
         input_folder_path_detections=args.input_folder_path_detections,

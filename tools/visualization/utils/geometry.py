@@ -1,10 +1,15 @@
 from typing import Literal, Union
 
+import cv2
 import numpy as np
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 
 from . import A9Meta, OSDAR23Meta
+
+
+def draw_line(img, start_point, end_point, color, thickness=1):
+    cv2.line(img, start_point, end_point, color, thickness)
 
 
 def add_open3d_axis(vis):
