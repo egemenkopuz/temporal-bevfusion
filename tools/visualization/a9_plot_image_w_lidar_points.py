@@ -45,7 +45,7 @@ def a9_plot_image_w_lidar_points(
     input_folder_path_labels_south2: str,
     input_folder_path_point_clouds: str,
     index: int = 0,
-    lidar_location: Union[Literal["south1"], Literal["south2"]] = "south1",
+    camera_location: Union[Literal["south1"], Literal["south2"]] = "south1",
     point_size: int = 2,
     include_camera_label: bool = False,
 ):
@@ -71,7 +71,7 @@ def a9_plot_image_w_lidar_points(
 
     pcd = o3d.io.read_point_cloud(file_path_point_cloud)
 
-    if lidar_location == "south2":
+    if camera_location == "south2":
         img = cv2.imread(file_path_image_south2, cv2.IMREAD_UNCHANGED)
         img_labels = json.load(open(file_path_labels_south2))
     else:
@@ -81,7 +81,7 @@ def a9_plot_image_w_lidar_points(
     if include_camera_label:
         process_image_labels(img, img_labels)
 
-    process_lidar_points(img, pcd, lidar_location, point_size)
+    process_lidar_points(img, pcd, camera_location, point_size)
 
     cv2.imshow("image", img)
     cv2.waitKey()

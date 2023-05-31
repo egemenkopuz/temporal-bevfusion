@@ -39,17 +39,15 @@ def a9_plot_image_w_labels(
     input_folder_path_images_south2: str,
     input_folder_path_labels_south1: str,
     input_folder_path_labels_south2: str,
-    input_folder_path_point_clouds: str,
     input_folder_path_detections: str,
     index: int = 0,
-    lidar_location: Union[Literal["south1"], Literal["south2"]] = "south1",
+    camera_location: Union[Literal["south1"], Literal["south2"]] = "south1",
     only_camera_label: bool = False,
 ):
     file_paths_images_south1 = glob(os.path.join(input_folder_path_images_south1, "*"))
     file_paths_images_south2 = glob(os.path.join(input_folder_path_images_south2, "*"))
     file_paths_labels_south1 = glob(os.path.join(input_folder_path_labels_south1, "*"))
     file_paths_labels_south2 = glob(os.path.join(input_folder_path_labels_south2, "*"))
-    file_paths_point_clouds = glob(os.path.join(input_folder_path_point_clouds, "*"))
     file_paths_detections = glob(os.path.join(input_folder_path_detections, "*"))
 
     assert (
@@ -60,11 +58,8 @@ def a9_plot_image_w_labels(
     )
 
     if not only_camera_label:
-        assert index < len(file_paths_point_clouds) and index < len(file_paths_detections)
-        file_path_point_cloud = file_paths_point_clouds[index]
+        assert index < len(file_paths_detections)
         file_path_detections = file_paths_detections[index]
-
-        pcd = o3d.io.read_point_cloud(file_path_point_cloud)
         pcd_labels = json.load(open(file_path_detections))
 
     file_path_image_south1 = file_paths_images_south1[index]
@@ -72,7 +67,7 @@ def a9_plot_image_w_labels(
     file_path_labels_south1 = file_paths_labels_south1[index]
     file_path_labels_south2 = file_paths_labels_south2[index]
 
-    if lidar_location == "south2":
+    if camera_location == "south2":
         img = cv2.imread(file_path_image_south2, cv2.IMREAD_UNCHANGED)
         img_labels = json.load(open(file_path_labels_south2))
     else:
@@ -80,7 +75,7 @@ def a9_plot_image_w_labels(
         img_labels = json.load(open(file_path_labels_south1))
 
     if not only_camera_label:
-        process_lidar_labels(img, pcd_labels, lidar_location)
+        process_lidar_labels(img, pcd_labels, camera_location)
 
     process_image_labels(img, img_labels)
 
