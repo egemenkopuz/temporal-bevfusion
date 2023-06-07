@@ -62,11 +62,9 @@ def osdar23_plot_3d_boxes(
 
     # remove points with distance>300
     distances = np.array(
-        [np.sqrt(row[0] * row[0] + row[1] * row[1] + row[2] * row[2]) for row in points_filtered]
+        [np.sqrt(row[0] ** 2 + row[1] ** 2 + row[2] ** 2) for row in points_filtered]
     )
-    distances_bev = np.array(
-        [np.sqrt(row[0] * row[0] + row[2] * row[2]) for row in points_filtered]
-    )
+    distances_bev = np.array([np.sqrt(row[0] ** 2 + row[2] ** 2) for row in points_filtered])
 
     points_filtered = points_filtered[distances < 300.0]
     distances_bev = distances_bev[distances < 300.0]

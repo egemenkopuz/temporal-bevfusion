@@ -90,12 +90,12 @@ def a9_plot_image_w_lidar_points(
 def process_lidar_points(
     img,
     point_cloud,
-    lidar_location: Union[Literal["south1"], Literal["south2"]],
+    camera_location: Union[Literal["south1"], Literal["south2"]],
     point_size: int = 2,
 ) -> List:
     points_3d = np.asarray(point_cloud.points)
 
-    # remove rows having all zeros (131k points -> 59973 points)
+    # remove rows having all zeros
     points_3d = points_3d[~np.all(points_3d == 0, axis=1)]
 
     # crop point cloud to 120 m range
@@ -119,7 +119,7 @@ def process_lidar_points(
     print("Raw: ", points_3d.shape[1])
 
     # project points to 2D
-    if lidar_location == "south1":
+    if camera_location == "south1":
         points = np.matmul(A9Meta.lidar2s1image, points_3d[:4, :])
     else:
         points = np.matmul(A9Meta.lidar2s2image, points_3d[:4, :])
