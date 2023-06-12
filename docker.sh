@@ -30,4 +30,9 @@ then
 elif [ $1 = "remove"  ]
 then
         docker container rm egemen-bevfusion
+elif [ $1 = "build"  ]
+then
+        docker build -t "egemen/bevfusion:egemen" .
+else
+        echo "Invalid argument"
 fi
