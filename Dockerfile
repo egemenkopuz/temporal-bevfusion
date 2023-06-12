@@ -16,8 +16,8 @@ RUN apt-get update \
     libxext6 \
     openmpi-bin \
     openmpi-common \
-    ibopenmpi-dev \
-    ibgtk2.0-dev \
+    libopenmpi-dev \
+    libgtk2.0-dev \
     ninja-build \
     git \
     && apt-get clean \
