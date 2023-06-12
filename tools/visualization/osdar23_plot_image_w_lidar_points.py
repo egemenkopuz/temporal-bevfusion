@@ -113,6 +113,13 @@ def process_lidar_points(
         OSDAR23Meta.get_projection_matrix_to_image(camera_location), points_3d[:4, :]
     )
 
+    if camera_location[:11] == "rgb_highres":
+        max_width = OSDAR23Meta.rgb_highres_width
+        max_height = OSDAR23Meta.rgb_highres_height
+    else:
+        max_width = OSDAR23Meta.rgb_width
+        max_height = OSDAR23Meta.rgb_height
+
     distances_numpy = np.asarray(distances)
     max_distance = max(distances_numpy)
     norm = mpl.colors.Normalize(vmin=70, vmax=250)
@@ -124,7 +131,7 @@ def process_lidar_points(
         if points[2, i] > 0:
             pos_x = int(points[0, i] / points[2, i])
             pos_y = int(points[1, i] / points[2, i])
-            if pos_x >= 0 and pos_x < 1920 and pos_y >= 0 and pos_y < 1200:
+            if pos_x >= 0 and pos_x < max_width and pos_y >= 0 and pos_y < max_height:
                 num_points_within_image += 1
                 distance_idx = 255 - (int(distances_numpy[i] / max_distance * 255))
                 color_rgba = m.to_rgba(distance_idx)
