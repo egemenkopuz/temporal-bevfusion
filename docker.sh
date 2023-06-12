@@ -11,7 +11,7 @@ then
                 -d -it "egemen/bevfusion:egemen";
 elif [ $1 = "run-setlabs" ]
 then
-        nvidia-docker run --name "egemen-bevfusion" \
+        docker run --name "egemen-bevfusion" \
                 -v $(pwd):/root/mmdet3d\
                 -v $(pwd)/data:/dataset \
                 -v /mnt/Drive/datasets/:/mnt/Drive/datasets/ \
