@@ -1,11 +1,20 @@
 #!/bin/bash
 
-if [ $1 = "run" ]
+if [ $1 = "run-tum" ]
 then
         nvidia-docker run --name "egemen-bevfusion" \
                 -v $(pwd):/root/mmdet3d\
                 -v $(pwd)/data:/dataset \
                 -v /mnt/ssd_1tb_samsung/datasets/:/mnt/ssd_1tb_samsung/datasets/ \
+                --env="DISPLAY" \
+                --shm-size 16g \
+                -d -it "egemen/bevfusion:egemen";
+elif [ $1 = "run-setlabs" ]
+then
+        nvidia-docker run --name "egemen-bevfusion" \
+                -v $(pwd):/root/mmdet3d\
+                -v $(pwd)/data:/dataset \
+                -v /mnt/Drive/datasets/:/mnt/Drive/datasets/ \
                 --env="DISPLAY" \
                 --shm-size 16g \
                 -d -it "egemen/bevfusion:egemen";
