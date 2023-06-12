@@ -17,6 +17,7 @@ then
                 -v /mnt/Drive/datasets/:/mnt/Drive/datasets/ \
                 --env="DISPLAY" \
                 --shm-size 16g \
+                --gpus all \
                 -d -it "egemen/bevfusion:egemen";
 elif [ $1 = "exec"  ]
 then
