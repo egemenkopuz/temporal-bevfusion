@@ -8,7 +8,6 @@ from typing import Any, Dict
 
 import mmcv
 import numpy as np
-import torch
 from mmdet.datasets import DATASETS
 from scipy.spatial.transform import Rotation
 
@@ -235,11 +234,8 @@ class A9Dataset(Custom3DDataset):
             gt_velocity[nan_mask] = [0.0, 0.0]
             gt_bboxes_3d = np.concatenate([gt_bboxes_3d, gt_velocity], axis=-1)
 
-        # the nuscenes box center is [0.5, 0.5, 0.5], we change it to be
-        # the same as KITTI (0.5, 0.5, 0)
-        # haotian: this is an important change: from 0.5, 0.5, 0.5 -> 0.5, 0.5, 0
         gt_bboxes_3d = LiDARInstance3DBoxes(
-            gt_bboxes_3d, box_dim=gt_bboxes_3d.shape[-1], origin=(0.5, 0.5, 0)
+            gt_bboxes_3d, box_dim=gt_bboxes_3d.shape[-1], origin=(0.5, 0.5, 0.5)
         ).convert_to(self.box_mode_3d)
 
         anns_results = dict(

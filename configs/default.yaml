@@ -1,4 +1,4 @@
-seed: 0
+seed: 42
 deterministic: false
 
 checkpoint_config:
@@ -21,7 +21,7 @@ fp16:
   loss_scale:
     growth_interval: 2000
 
-max_epochs: 1
+max_epochs: 20
 runner:
   type: CustomEpochBasedRunner
   max_epochs: ${max_epochs}

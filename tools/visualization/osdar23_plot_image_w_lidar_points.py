@@ -66,6 +66,7 @@ def osdar23_plot_image_w_lidar_points(
 
     process_lidar_points(img, pcd, camera_location, point_size)
 
+    # img = cv2.resize(img, (1920, 1080), interpolation=cv2.INTER_AREA)
     cv2.imshow("image", img)
     cv2.waitKey()
 
@@ -152,7 +153,7 @@ def process_image_labels(img, label_data, camera_location: str, index: int = 0) 
         if "bbox" in label["object_data"]:
             for x in label["object_data"]["bbox"]:
                 if x["coordinate_system"] == camera_location:
-                    color = OSDAR23Meta.class_colors[x["name"]]
+                    color = OSDAR23Meta.class_id_colors[x["name"]]
                     # swap channels because opencv uses bgr
                     color_bgr = (color[2], color[1], color[0])
                     bbox = np.asarray(x["val"], dtype=np.int32)
