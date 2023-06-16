@@ -1,4 +1,5 @@
 Pillow==8.4.0
+numpy==1.19.5
 tqdm
 torchpack
 mmcv==1.4.0
