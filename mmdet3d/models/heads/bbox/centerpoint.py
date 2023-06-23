@@ -3,13 +3,13 @@ import copy
 import torch
 from mmcv.cnn import ConvModule, build_conv_layer
 from mmcv.runner import BaseModule, force_fp32
+from mmdet.core import build_bbox_coder, multi_apply
 from torch import nn
 
 from mmdet3d.core import circle_nms, draw_heatmap_gaussian, gaussian_radius, xywhr2xyxyr
 from mmdet3d.models import builder
 from mmdet3d.models.builder import HEADS, build_loss
 from mmdet3d.ops.iou3d.iou3d_utils import nms_gpu
-from mmdet.core import build_bbox_coder, multi_apply
 
 
 def clip_sigmoid(x: torch.Tensor, eps: float = 1e-4) -> torch.Tensor:
@@ -164,8 +164,7 @@ class DCNSeparateHead(BaseModule):
         **kwargs,
     ):
         assert init_cfg is None, (
-            "To prevent abnormal initialization "
-            "behavior, init_cfg is not allowed to be set"
+            "To prevent abnormal initialization " "behavior, init_cfg is not allowed to be set"
         )
         super(DCNSeparateHead, self).__init__(init_cfg=init_cfg)
         if "heatmap" in heads:
@@ -296,8 +295,7 @@ class CenterHead(BaseModule):
         init_cfg=None,
     ):
         assert init_cfg is None, (
-            "To prevent abnormal initialization "
-            "behavior, init_cfg is not allowed to be set"
+            "To prevent abnormal initialization " "behavior, init_cfg is not allowed to be set"
         )
         super(CenterHead, self).__init__(init_cfg=init_cfg)
 
@@ -331,9 +329,7 @@ class CenterHead(BaseModule):
         for num_cls in num_classes:
             heads = copy.deepcopy(common_heads)
             heads.update(dict(heatmap=(num_cls, num_heatmap_convs)))
-            separate_head.update(
-                in_channels=share_conv_channel, heads=heads, num_cls=num_cls
-            )
+            separate_head.update(in_channels=share_conv_channel, heads=heads, num_cls=num_cls)
             self.task_heads.append(builder.build_head(separate_head))
 
     def forward_single(self, x):
@@ -464,10 +460,7 @@ class CenterHead(BaseModule):
         flag = 0
         for class_name in self.class_names:
             task_masks.append(
-                [
-                    torch.where(gt_labels_3d == class_name.index(i) + flag)
-                    for i in class_name
-                ]
+                [torch.where(gt_labels_3d == class_name.index(i) + flag) for i in class_name]
             )
             flag += len(class_name)
 
@@ -489,7 +482,7 @@ class CenterHead(BaseModule):
 
         for idx, task_head in enumerate(self.task_heads):
             heatmap = gt_bboxes_3d.new_zeros(
-                (len(self.class_names[idx]), feature_map_size[1], feature_map_size[0])
+                (len(self.class_names[idx]), int(feature_map_size[1]), int(feature_map_size[0]))
             )
 
             anno_box = gt_bboxes_3d.new_zeros((max_objs, 10), dtype=torch.float32)
@@ -521,20 +514,10 @@ class CenterHead(BaseModule):
                         task_boxes[idx][k][2],
                     )
 
-                    coor_x = (
-                        (x - pc_range[0])
-                        / voxel_size[0]
-                        / self.train_cfg["out_size_factor"]
-                    )
-                    coor_y = (
-                        (y - pc_range[1])
-                        / voxel_size[1]
-                        / self.train_cfg["out_size_factor"]
-                    )
+                    coor_x = (x - pc_range[0]) / voxel_size[0] / self.train_cfg["out_size_factor"]
+                    coor_y = (y - pc_range[1]) / voxel_size[1] / self.train_cfg["out_size_factor"]
 
-                    center = torch.tensor(
-                        [coor_x, coor_y], dtype=torch.float32, device=device
-                    )
+                    center = torch.tensor([coor_x, coor_y], dtype=torch.float32, device=device)
                     center_int = center.to(torch.int32)
 
                     # throw out not in range objects to avoid out of array
@@ -549,10 +532,7 @@ class CenterHead(BaseModule):
                     new_idx = k
                     x, y = center_int[0], center_int[1]
 
-                    assert (
-                        x * feature_map_size[1] + y
-                        < feature_map_size[0] * feature_map_size[1]
-                    )
+                    assert x * feature_map_size[1] + y < feature_map_size[0] * feature_map_size[1]
 
                     ind[new_idx] = x * feature_map_size[1] + y
 
@@ -598,6 +578,7 @@ class CenterHead(BaseModule):
             # heatmap focal loss
             preds_dict[0]["heatmap"] = clip_sigmoid(preds_dict[0]["heatmap"])
             num_pos = heatmaps[task_id].eq(1).float().sum().item()
+
             loss_heatmap = self.loss_cls(
                 preds_dict[0]["heatmap"], heatmaps[task_id], avg_factor=max(num_pos, 1)
             )
@@ -626,9 +607,7 @@ class CenterHead(BaseModule):
 
             code_weights = self.train_cfg.get("code_weights", None)
             bbox_weights = mask * mask.new_tensor(code_weights)
-            loss_bbox = self.loss_bbox(
-                pred, target_box, bbox_weights, avg_factor=(num + 1e-4)
-            )
+            loss_bbox = self.loss_bbox(pred, target_box, bbox_weights, avg_factor=(num + 1e-4))
             loss_dict[f"heatmap/task{task_id}"] = loss_heatmap
             loss_dict[f"bbox/task{task_id}"] = loss_bbox
         return loss_dict
@@ -651,10 +630,7 @@ class CenterHead(BaseModule):
         if "nms_scale" in self.test_cfg:
             if not isinstance(self.test_cfg["nms_scale"], list):
                 nms_scales = [
-                    [
-                        self.test_cfg["nms_scale"]
-                        for _ in range(self.num_classes[task_id])
-                    ]
+                    [self.test_cfg["nms_scale"] for _ in range(self.num_classes[task_id])]
                     for task_id in range(len(preds_dicts))
                 ]
             else:
@@ -796,7 +772,6 @@ class CenterHead(BaseModule):
         for i, (box_preds, cls_preds, cls_labels) in enumerate(
             zip(batch_reg_preds, batch_cls_preds, batch_cls_labels)
         ):
-
             # Apply NMS in birdeye view
 
             # get highest score per prediction, than apply nms
@@ -823,9 +798,7 @@ class CenterHead(BaseModule):
                     box_preds = box_preds[top_scores_keep]
                     top_labels = top_labels[top_scores_keep]
 
-                bev_box = metas[i]["box_type_3d"](
-                    box_preds[:, :], self.bbox_coder.code_size
-                ).bev
+                bev_box = metas[i]["box_type_3d"](box_preds[:, :], self.bbox_coder.code_size).bev
                 for cls, scale in enumerate(nms_scale):
                     cur_bev_box = bev_box[top_labels == cls]
                     cur_bev_box[:, [2, 3]] *= scale
@@ -873,9 +846,7 @@ class CenterHead(BaseModule):
                 dtype = batch_reg_preds[0].dtype
                 device = batch_reg_preds[0].device
                 predictions_dict = dict(
-                    bboxes=torch.zeros(
-                        [0, self.bbox_coder.code_size], dtype=dtype, device=device
-                    ),
+                    bboxes=torch.zeros([0, self.bbox_coder.code_size], dtype=dtype, device=device),
                     scores=torch.zeros([0], dtype=dtype, device=device),
                     labels=torch.zeros([0], dtype=top_labels.dtype, device=device),
                 )
