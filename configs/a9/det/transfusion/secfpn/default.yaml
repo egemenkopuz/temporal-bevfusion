@@ -32,7 +32,7 @@ model:
 
 optimizer:
   type: AdamW
-  lr: 1.0e-4
+  lr: 2.0e-5
   weight_decay: 0.01
 
 optimizer_config:

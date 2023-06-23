@@ -22,8 +22,8 @@ model:
         out_channels: 80
         image_size: ${image_size}
         feature_size: ${[image_size[0] // 8, image_size[1] // 8]}
-        xbound: [-51.2, 51.2, 0.4]
-        ybound: [-51.2, 51.2, 0.4]
+        xbound: [-75, 75, 0.4]
+        ybound: [-75, 75, 0.4]
         zbound: [-10.0, 10.0, 20.0]
         dbound: [1.0, 60.0, 0.5]
         downsample: 2
@@ -36,7 +36,7 @@ model:
       backbone:
         type: SparseEncoder
         in_channels: 5
-        sparse_shape: [1024, 1024, 41]
+        sparse_shape: [1500, 1500, 41]
         output_channels: 128
         order:
           - conv

@@ -30,9 +30,7 @@ object_classes:
   - PEDESTRIAN
   - BUS
   - MOTORCYCLE
-  - OTHER
   - BICYCLE
-  - EMERGENCY_VEHICLE
 
 input_modality:
   use_lidar: true
@@ -83,9 +81,7 @@ train_pipeline:
           PEDESTRIAN: 5
           BUS: 5
           MOTORCYCLE: 5
-          OTHER: 5
           BICYCLE: 5
-          EMERGENCY_VEHICLE: 5
       classes: ${object_classes}
       sample_groups:
         CAR: 2
@@ -95,9 +91,7 @@ train_pipeline:
         PEDESTRIAN: 7
         BUS: 3
         MOTORCYCLE: 5
-        OTHER: 4
         BICYCLE: 5
-        EMERGENCY_VEHICLE: 5
       points_loader:
         type: LoadPointsFromFile
         coord_type: LIDAR

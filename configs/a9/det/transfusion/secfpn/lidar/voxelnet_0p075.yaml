@@ -1,5 +1,5 @@
-voxel_size: [0.075, 0.075, 0.2]
-point_cloud_range: [-54.0, -54.0, -5.0, 54.0, 54.0, 3.0]
+voxel_size: [0.1, 0.1, 0.2]
+point_cloud_range: [-75.0, -75.0, -8.0, 75.0, 75.0, 0.0]
 
 model:
   encoders:
@@ -12,7 +12,7 @@ model:
       backbone:
         type: SparseEncoder
         in_channels: 5
-        sparse_shape: [1440, 1440, 41]
+        sparse_shape: [1500, 1500, 41]
         output_channels: 128
         order:
           - conv
@@ -32,6 +32,6 @@ model:
   heads:
     object:
       train_cfg:
-        grid_size: [1440, 1440, 41]
+        grid_size: [1500, 1500, 41]
       test_cfg:
-        grid_size: [1440, 1440, 41]
+        grid_size: [1500, 1500, 41]

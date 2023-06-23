@@ -34,13 +34,13 @@ model:
           inplace: true
         upsample_cfg:
           mode: bilinear
-          align_corners: false      
+          align_corners: false
       vtransform:
         in_channels: 256
         out_channels: 80
         feature_size: ${[image_size[0] // 8, image_size[1] // 8]}
-        xbound: [-51.2, 51.2, 0.4]
-        ybound: [-51.2, 51.2, 0.4]
+        xbound: [-75, 75, 0.4]
+        ybound: [-75, 75, 0.4]
         zbound: [-10.0, 10.0, 20.0]
         dbound: [1.0, 60.0, 0.5]
         downsample: 2
