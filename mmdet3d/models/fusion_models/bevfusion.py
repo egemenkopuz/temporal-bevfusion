@@ -5,6 +5,7 @@ from mmcv.runner import auto_fp16, force_fp32
 from torch import nn
 from torch.nn import functional as F
 
+from mmdet3d.models import FUSIONMODELS
 from mmdet3d.models.builder import (
     build_backbone,
     build_fuser,
@@ -12,9 +13,7 @@ from mmdet3d.models.builder import (
     build_neck,
     build_vtransform,
 )
-from mmdet3d.ops import Voxelization, DynamicScatter
-from mmdet3d.models import FUSIONMODELS
-
+from mmdet3d.ops import DynamicScatter, Voxelization
 
 from .base import Base3DFusionModel
 
@@ -155,9 +154,7 @@ class BEVFusion(Base3DFusionModel):
         if len(sizes) > 0:
             sizes = torch.cat(sizes, dim=0)
             if self.voxelize_reduce:
-                feats = feats.sum(dim=1, keepdim=False) / sizes.type_as(feats).view(
-                    -1, 1
-                )
+                feats = feats.sum(dim=1, keepdim=False) / sizes.type_as(feats).view(-1, 1)
                 feats = feats.contiguous()
 
         return feats, coords, sizes
@@ -223,9 +220,7 @@ class BEVFusion(Base3DFusionModel):
         **kwargs,
     ):
         features = []
-        for sensor in (
-            self.encoders if self.training else list(self.encoders.keys())[::-1]
-        ):
+        for sensor in self.encoders if self.training else list(self.encoders.keys())[::-1]:
             if sensor == "camera":
                 feature = self.extract_camera_features(
                     img,

@@ -12,9 +12,7 @@ __all__ = ["BaseTransform", "BaseDepthTransform"]
 def gen_dx_bx(xbound, ybound, zbound):
     dx = torch.Tensor([row[2] for row in [xbound, ybound, zbound]])
     bx = torch.Tensor([row[0] + row[2] / 2.0 for row in [xbound, ybound, zbound]])
-    nx = torch.LongTensor(
-        [(row[1] - row[0]) / row[2] for row in [xbound, ybound, zbound]]
-    )
+    nx = torch.LongTensor([(row[1] - row[0]) / row[2] for row in [xbound, ybound, zbound]])
     return dx, bx, nx
 
 
@@ -54,23 +52,11 @@ class BaseTransform(nn.Module):
         iH, iW = self.image_size
         fH, fW = self.feature_size
 
-        ds = (
-            torch.arange(*self.dbound, dtype=torch.float)
-            .view(-1, 1, 1)
-            .expand(-1, fH, fW)
-        )
+        ds = torch.arange(*self.dbound, dtype=torch.float).view(-1, 1, 1).expand(-1, fH, fW)
         D, _, _ = ds.shape
 
-        xs = (
-            torch.linspace(0, iW - 1, fW, dtype=torch.float)
-            .view(1, 1, fW)
-            .expand(D, fH, fW)
-        )
-        ys = (
-            torch.linspace(0, iH - 1, fH, dtype=torch.float)
-            .view(1, fH, 1)
-            .expand(D, fH, fW)
-        )
+        xs = torch.linspace(0, iW - 1, fW, dtype=torch.float).view(1, 1, fW).expand(D, fH, fW)
+        ys = torch.linspace(0, iH - 1, fH, dtype=torch.float).view(1, fH, 1).expand(D, fH, fW)
 
         frustum = torch.stack((xs, ys, ds), -1)
         return nn.Parameter(frustum, requires_grad=False)
@@ -90,11 +76,7 @@ class BaseTransform(nn.Module):
         # undo post-transformation
         # B x N x D x H x W x 3
         points = self.frustum - post_trans.view(B, N, 1, 1, 1, 3)
-        points = (
-            torch.inverse(post_rots)
-            .view(B, N, 1, 1, 1, 3, 3)
-            .matmul(points.unsqueeze(-1))
-        )
+        points = torch.inverse(post_rots).view(B, N, 1, 1, 1, 3, 3).matmul(points.unsqueeze(-1))
         # cam_to_lidar
         points = torch.cat(
             (
@@ -136,10 +118,7 @@ class BaseTransform(nn.Module):
         geom_feats = ((geom_feats - (self.bx - self.dx / 2.0)) / self.dx).long()
         geom_feats = geom_feats.view(Nprime, 3)
         batch_ix = torch.cat(
-            [
-                torch.full([Nprime // B, 1], ix, device=x.device, dtype=torch.long)
-                for ix in range(B)
-            ]
+            [torch.full([Nprime // B, 1], ix, device=x.device, dtype=torch.long) for ix in range(B)]
         )
         geom_feats = torch.cat((geom_feats, batch_ix), 1)
 
@@ -175,7 +154,7 @@ class BaseTransform(nn.Module):
         camera2lidar,
         img_aug_matrix,
         lidar_aug_matrix,
-        **kwargs,
+        kwargs,
     ):
         rots = camera2ego[..., :3, :3]
         trans = camera2ego[..., :3, 3]
@@ -235,9 +214,7 @@ class BaseDepthTransform(BaseTransform):
         # print(img.shape, self.image_size, self.feature_size)
 
         batch_size = len(points)
-        depth = torch.zeros(batch_size, img.shape[1], 1, *self.image_size).to(
-            points[0].device
-        )
+        depth = torch.zeros(batch_size, img.shape[1], 1, *self.image_size).to(points[0].device)
 
         for b in range(batch_size):
             cur_coords = points[b][:, :3]
