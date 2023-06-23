@@ -14,7 +14,9 @@ from torchpack.utils.config import configs
 from mmdet3d.apis import train_model
 from mmdet3d.datasets import build_dataset
 from mmdet3d.models import build_model
-from mmdet3d.utils import get_root_logger, convert_sync_batchnorm, recursive_eval
+from mmdet3d.utils import convert_sync_batchnorm, get_root_logger, recursive_eval
+
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
 
 
 def main():
@@ -52,10 +54,7 @@ def main():
 
     # set random seeds
     if cfg.seed is not None:
-        logger.info(
-            f"Set random seed to {cfg.seed}, "
-            f"deterministic mode: {cfg.deterministic}"
-        )
+        logger.info(f"Set random seed to {cfg.seed}, " f"deterministic mode: {cfg.deterministic}")
         random.seed(cfg.seed)
         np.random.seed(cfg.seed)
         torch.manual_seed(cfg.seed)

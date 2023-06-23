@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple
 import cv2
 import mmcv
 import numpy as np
+import torch
 from matplotlib import pyplot as plt
 
 from ..bbox import LiDARInstance3DBoxes
@@ -23,6 +24,17 @@ OBJECT_PALETTE = {
     "bicycle": (220, 20, 60),
     "pedestrian": (0, 0, 230),
     "traffic_cone": (47, 79, 79),
+}
+
+A9_OBJECT_PALETTE = {
+    "CAR": (255, 158, 0),
+    "TRUCK": (255, 99, 71),
+    "BUS": (255, 69, 0),
+    "TRAILER": (255, 140, 0),
+    "VAN": (112, 128, 144),
+    "MOTORCYCLE": (255, 61, 99),
+    "BICYCLE": (220, 20, 60),
+    "PEDESTRIAN": (0, 0, 230),
 }
 
 MAP_PALETTE = {
@@ -50,18 +62,27 @@ def visualize_camera(
     classes: Optional[List[str]] = None,
     color: Optional[Tuple[int, int, int]] = None,
     thickness: float = 4,
+    dataset: str,
 ) -> None:
     canvas = image.copy()
     canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
+
+    if dataset == "A9Dataset":
+        object_palette = A9_OBJECT_PALETTE
+    else:
+        object_palette = OBJECT_PALETTE
 
     if bboxes is not None and len(bboxes) > 0:
         corners = bboxes.corners
         num_bboxes = corners.shape[0]
 
-        coords = np.concatenate(
-            [corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1
-        )
-        transform = copy.deepcopy(transform).reshape(4, 4)
+        coords = np.concatenate([corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1)
+
+        if dataset == "A9Dataset":
+            transform = np.vstack([transform, np.asarray([0, 0, 0, 1])])
+        else:
+            transform = copy.deepcopy(transform).reshape(4, 4)
+
         coords = coords @ transform.T
         coords = coords.reshape(-1, 8, 4)
 
@@ -99,7 +120,7 @@ def visualize_camera(
                     canvas,
                     coords[index, start].astype(np.int),
                     coords[index, end].astype(np.int),
-                    color or OBJECT_PALETTE[name],
+                    color or object_palette[name],
                     thickness,
                     cv2.LINE_AA,
                 )
@@ -122,8 +143,14 @@ def visualize_lidar(
     color: Optional[Tuple[int, int, int]] = None,
     radius: float = 15,
     thickness: float = 25,
+    dataset: str,
 ) -> None:
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
+
+    if dataset == "A9Dataset":
+        object_palette = A9_OBJECT_PALETTE
+    else:
+        object_palette = OBJECT_PALETTE
 
     ax = plt.gca()
     ax.set_xlim(*xlim)
@@ -147,7 +174,7 @@ def visualize_lidar(
                 coords[index, :, 0],
                 coords[index, :, 1],
                 linewidth=thickness,
-                color=np.array(color or OBJECT_PALETTE[name]) / 255,
+                color=np.array(color or object_palette[name]) / 255,
             )
 
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
@@ -180,4 +207,5 @@ def visualize_map(
     canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
 
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
+    mmcv.imwrite(canvas, fpath)
     mmcv.imwrite(canvas, fpath)

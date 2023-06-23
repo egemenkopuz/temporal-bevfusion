@@ -10,7 +10,7 @@ from mmcv.parallel import MMDistributedDataParallel
 from mmcv.runner import load_checkpoint
 from torchpack import distributed as dist
 from torchpack.utils.config import configs
-from torchpack.utils.tqdm import tqdm
+from tqdm import tqdm
 
 from mmdet3d.core import LiDARInstance3DBoxes
 from mmdet3d.core.utils import visualize_camera, visualize_lidar, visualize_map
@@ -81,7 +81,10 @@ def main() -> None:
 
     for data in tqdm(dataflow):
         metas = data["metas"].data[0][0]
-        name = "{}-{}".format(metas["timestamp"], metas["token"])
+        if "token" in metas:
+            name = "{}-{}".format(metas["timestamp"], metas["token"])
+        else:
+            name = metas["timestamp"]
 
         if args.mode == "pred":
             with torch.inference_mode():
@@ -140,6 +143,7 @@ def main() -> None:
                     labels=labels,
                     transform=metas["lidar2image"][k],
                     classes=cfg.object_classes,
+                    dataset=cfg.data.train.dataset.type,
                 )
 
         if "points" in data:
@@ -152,6 +156,7 @@ def main() -> None:
                 xlim=[cfg.point_cloud_range[d] for d in [0, 3]],
                 ylim=[cfg.point_cloud_range[d] for d in [1, 4]],
                 classes=cfg.object_classes,
+                dataset=cfg.data.train.dataset.type,
             )
 
         if masks is not None:
