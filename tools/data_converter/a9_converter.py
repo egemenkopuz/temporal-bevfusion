@@ -184,7 +184,7 @@ class A92KITTI:
                 test,
             )
 
-            metadata = dict(version="r1")
+            metadata = dict(version="r2")
 
             if test:
                 logging.info(f"No. test samples: {len(infos_list)}")

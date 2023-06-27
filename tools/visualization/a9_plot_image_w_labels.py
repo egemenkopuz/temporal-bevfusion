@@ -144,7 +144,7 @@ def process_lidar_labels(
             position_3d = [
                 float(cuboid[0]),
                 float(cuboid[1]),
-                float(cuboid[2] - h / 2),
+                float(cuboid[2]),
             ]
 
             category = label["object_data"]["type"].upper()
