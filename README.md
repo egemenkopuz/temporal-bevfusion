@@ -25,8 +25,9 @@ bash docker.sh exec
 Installing
 
 ```bash
-cd mmdet3d && python setup.py develop
+cd mmdet3d
 pip install -r requirements.txt
+python setup.py develop
 ```
 
 ## A9 Create Data Script

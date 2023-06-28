@@ -8,6 +8,7 @@ then
                 -v /mnt/c/data:/mnt/c/data/ \
                 --env="DISPLAY" \
                 --gpus all \
+                --shm-size 8g \
                 -d -it "egemen/bevfusion:egemen";
 elif [ $1 = "run-tum" ]
 then
