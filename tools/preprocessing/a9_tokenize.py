@@ -20,6 +20,7 @@ def get_args() -> Namespace:
     parser = ArgumentParser()
 
     parser.add_argument("--root-path", type=str, required=True)
+    parser.add_argument("--out-path", type=str, required=False)
     parser.add_argument("--threshold-train", type=float, default=1.0, required=False)
     parser.add_argument("--threshold-val", type=float, default=2.0, required=False)
     parser.add_argument("--threshold-test", type=float, default=3.0, required=False)
@@ -46,6 +47,7 @@ class FrameDetails:
 
 def tokenize_a9_dataset_labels(
     root_path: str,
+    out_path: str = None,
     splits: List[str] = ["train", "val", "test"],
     idx_diff_rem: int = 20,
     range_diff_threshold_train: float = 1.0,
@@ -71,6 +73,21 @@ def tokenize_a9_dataset_labels(
         img_label_s1_paths = sorted(glob(os.path.join(img_label_s1_folder, "*")))
         img_label_s2_paths = sorted(glob(os.path.join(img_label_s2_folder, "*")))
         pcd_label_paths = sorted(glob(os.path.join(pcd_label_folder, "*")))
+
+        if not out_path:
+            img_label_s1_folder_out = img_label_s1_folder
+            img_label_s2_folder_out = img_label_s2_folder
+            pcd_label_folder_out = pcd_label_folder
+        else:
+            # fmt: off
+            img_label_s1_folder_out = os.path.join(out_path, split, "labels_images", "s110_camera_basler_south1_8mm")
+            img_label_s2_folder_out = os.path.join(out_path, split, "labels_images", "s110_camera_basler_south2_8mm")
+            pcd_label_folder_out = os.path.join(out_path, split, "labels_point_clouds", "s110_lidar_ouster_south")
+            # fmt: on
+
+            os.makedirs(img_label_s1_folder_out, mode=0o777, exist_ok=True)
+            os.makedirs(img_label_s2_folder_out, mode=0o777, exist_ok=True)
+            os.makedirs(pcd_label_folder_out, mode=0o777, exist_ok=True)
 
         assert len(img_label_s1_paths) == len(pcd_label_paths) and len(img_label_s1_paths) == len(
             img_label_s2_paths
@@ -156,7 +173,10 @@ def tokenize_a9_dataset_labels(
                 frame_properties["prev"] = frame_detail.prev
                 frame_properties["next"] = frame_detail.next
             if json_data is not None:
-                with open(img_label_s1_json_path, "w") as f:
+                img_label_s1_json_path_out = os.path.join(
+                    img_label_s1_folder_out, frame_detail.img_label_s1_name
+                )
+                with open(img_label_s1_json_path_out, "w") as f:
                     json.dump(json_data, f, indent=4)
 
             # img_label_s2
@@ -172,7 +192,10 @@ def tokenize_a9_dataset_labels(
                 frame_properties["prev"] = frame_detail.prev
                 frame_properties["next"] = frame_detail.next
             if json_data is not None:
-                with open(img_label_s2_json_path, "w") as f:
+                img_label_s2_json_path_out = os.path.join(
+                    img_label_s2_folder_out, frame_detail.img_label_s2_name
+                )
+                with open(img_label_s2_json_path_out, "w") as f:
                     json.dump(json_data, f, indent=4)
 
             # pcd_label
@@ -186,7 +209,10 @@ def tokenize_a9_dataset_labels(
                 frame_properties["prev"] = frame_detail.prev
                 frame_properties["next"] = frame_detail.next
             if json_data is not None:
-                with open(pcd_label_json_path, "w") as f:
+                pcd_label_json_path_out = os.path.join(
+                    pcd_label_folder_out, frame_detail.pcd_label_name
+                )
+                with open(pcd_label_json_path_out, "w") as f:
                     json.dump(json_data, f, indent=4)
 
 
@@ -195,6 +221,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=args.loglevel.upper())
     tokenize_a9_dataset_labels(
         root_path=args.root_path,
+        out_path=args.out_path,
         range_diff_threshold_train=args.threshold_train,
         range_diff_threshold_val=args.threshold_val,
         range_diff_threshold_test=args.threshold_test,
