@@ -1,6 +1,6 @@
 data/*
 pretrained
-runs
+runs*
 viz*
 
 

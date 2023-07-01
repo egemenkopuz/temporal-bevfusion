@@ -2,6 +2,8 @@ import argparse
 import copy
 import os
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
+
 import mmcv
 import numpy as np
 import torch
@@ -98,8 +100,8 @@ def main() -> None:
                 indices = np.isin(labels, args.bbox_classes)
                 bboxes = bboxes[indices]
                 labels = labels[indices]
-
-            bboxes[..., 2] -= bboxes[..., 5] / 2
+            if not cfg.data.train.dataset.type == "A9Dataset":
+                bboxes[..., 2] -= bboxes[..., 5] / 2
             bboxes = LiDARInstance3DBoxes(bboxes, box_dim=9)
         elif args.mode == "pred" and "boxes_3d" in outputs[0]:
             bboxes = outputs[0]["boxes_3d"].tensor.numpy()
@@ -117,8 +119,8 @@ def main() -> None:
                 bboxes = bboxes[indices]
                 scores = scores[indices]
                 labels = labels[indices]
-
-            bboxes[..., 2] -= bboxes[..., 5] / 2
+            if not cfg.data.train.dataset.type == "A9Dataset":
+                bboxes[..., 2] -= bboxes[..., 5] / 2
             bboxes = LiDARInstance3DBoxes(bboxes, box_dim=9)
         else:
             bboxes = None

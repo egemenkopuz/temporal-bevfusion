@@ -191,10 +191,10 @@ class A9Dataset(Custom3DDataset):
                 # camera to lidar transform
                 data["camera2lidar"].append(camera_info["sensor2lidar"])
 
-        if self.test_mode:
-            annos = None
-        else:
-            annos = self.get_ann_info(index)
+        # if self.test_mode:
+        #     annos = None
+        # else:
+        annos = self.get_ann_info(index)
         data["ann_info"] = annos
         return data
 
