@@ -26,8 +26,8 @@ model:
       neck:
         in_channels: [192, 384, 768]
       vtransform:
-        xbound: [-75, 75, 0.4]
-        ybound: [-75, 75, 0.4]
+        xbound: [-75.0, 75.0, 0.4]
+        ybound: [-75.0, 75.0, 0.4]
     lidar:
       voxelize:
         point_cloud_range: ${point_cloud_range}

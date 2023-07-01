@@ -24,7 +24,7 @@ model:
         feature_size: ${[image_size[0] // 8, image_size[1] // 8]}
         xbound: [-75, 75, 0.4]
         ybound: [-75, 75, 0.4]
-        zbound: [-10.0, 10.0, 20.0]
+        zbound: [-8.0, 0.0, 8]
         dbound: [1.0, 60.0, 0.5]
         downsample: 2
     lidar:
@@ -59,4 +59,4 @@ lr_config: null
 optimizer:
   lr: 2.0e-4
 
-max_epochs: 6
+max_epochs: 10

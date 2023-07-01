@@ -1,6 +1,13 @@
 voxel_size: [0.1, 0.1, 0.2]
 point_cloud_range: [-75.0, -75.0, -8.0, 75.0, 75.0, 0.0]
 
+optimizer:
+  lr: 2.0e-5
+
+data:
+  samples_per_gpu: 8
+  workers_per_gpu: 6
+
 model:
   encoders:
     lidar:

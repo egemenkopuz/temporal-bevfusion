@@ -19,12 +19,12 @@ model:
 
 optimizer:
   type: AdamW
-  lr: 2.0e-5
+  lr: 2.0e-4
   weight_decay: 0.01
 
 optimizer_config:
   grad_clip:
-    max_norm: 35
+    max_norm: 25
     norm_type: 2
 
 lr_config:

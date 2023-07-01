@@ -10,10 +10,10 @@ model:
       vtransform:
         type: LSSTransform
         image_size: ${image_size}
-        xbound: [-75, 75, 0.4]
-        ybound: [-75, 75, 0.4]
+        xbound: [-75, 75.0, 0.4]
+        ybound: [-75, 75.0, 0.4]
         zbound: [-10.0, 10.0, 20.0]
-        dbound: [1.0, 60.0, 1.0]
+        dbound: [1.0, 60.0, 0.5]
   heads:
     object:
       test_cfg:

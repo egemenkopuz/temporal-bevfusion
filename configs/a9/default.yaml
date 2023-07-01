@@ -1,20 +1,22 @@
 dataset_type: A9Dataset
 dataset_root: data/a9_bevfusion/
-gt_paste_stop_epoch: -1
+gt_paste_stop_epoch: 15
 reduce_beams: 32
 load_dim: 5
 use_dim: 5
 load_augmented: null
+
+max_epochs: 20
 
 point_cloud_range: [-75.0, -75.0, -8.0, 75.0, 75.0, 0.0]
 voxel_size: [0.1, 0.1, 0.2]
 image_size: [256, 704]
 
 augment2d:
-  resize: [[0.38, 0.55], [0.48, 0.48]]
+  resize: [[0.4, 0.4], [0.4, 0.4]]
   rotate: [-5.4, 5.4]
   gridmask:
-    prob: 0.0
+    prob: 0.1
     fixed_prob: true
 
 augment3d:
@@ -50,15 +52,15 @@ train_pipeline:
     use_dim: ${use_dim}
     reduce_beams: ${reduce_beams}
     load_augmented: ${load_augmented}
-  -
-    type: LoadPointsFromMultiSweeps
-    sweeps_num: 9
-    load_dim: ${load_dim}
-    use_dim: ${use_dim}
-    reduce_beams: ${reduce_beams}
-    pad_empty_sweeps: true
-    remove_close: true
-    load_augmented: ${load_augmented}
+  # -
+  #   type: LoadPointsFromMultiSweeps
+  #   sweeps_num: 9
+  #   load_dim: ${load_dim}
+  #   use_dim: ${use_dim}
+  #   reduce_beams: ${reduce_beams}
+  #   pad_empty_sweeps: true
+  #   remove_close: true
+  #   load_augmented: ${load_augmented}
   -
     type: LoadAnnotations3D
     with_bbox_3d: true
@@ -87,9 +89,9 @@ train_pipeline:
         CAR: 2
         TRAILER: 3
         TRUCK: 3
-        VAN: 3
+        VAN: 5
         PEDESTRIAN: 7
-        BUS: 3
+        BUS: 5
         MOTORCYCLE: 5
         BICYCLE: 5
       points_loader:
@@ -171,15 +173,15 @@ test_pipeline:
     use_dim: ${use_dim}
     reduce_beams: ${reduce_beams}
     load_augmented: ${load_augmented}
-  -
-    type: LoadPointsFromMultiSweeps
-    sweeps_num: 9
-    load_dim: ${load_dim}
-    use_dim: ${use_dim}
-    reduce_beams: ${reduce_beams}
-    pad_empty_sweeps: true
-    remove_close: true
-    load_augmented: ${load_augmented}
+  # -
+  #   type: LoadPointsFromMultiSweeps
+  #   sweeps_num: 9
+  #   load_dim: ${load_dim}
+  #   use_dim: ${use_dim}
+  #   reduce_beams: ${reduce_beams}
+  #   pad_empty_sweeps: true
+  #   remove_close: true
+  #   load_augmented: ${load_augmented}
   -
     type: LoadAnnotations3D
     with_bbox_3d: true
