@@ -42,8 +42,8 @@ cd pypcd && pip install .
 ```
 
 ```bash
-python tools/preprocessing/a9_tokenize.py --root-path ./data/a9 --out-dir ./data/a9_preprocessed --loglevel INFO # if not tokenized already
-python tools/create_data.py a9 --root-path ./data/a9 --out-dir ./data/a9_bevfusion --loglevel INFO
+python tools/preprocessing/a9_tokenize.py --root-path ./data/a9 --out-path ./data/a9_preprocessed --loglevel INFO # if not tokenized already
+python tools/create_data.py a9 --root-path ./data/a9 --out-dir ./data/a9_bevfusion --labels-path ./data/a9_preprocessed --loglevel INFO
 ```
 
 ## Training

@@ -5,7 +5,7 @@ import uuid
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from glob import glob
-from typing import List
+from typing import Any, Dict, List, Tuple
 
 from tqdm import tqdm
 
@@ -41,6 +41,8 @@ class FrameDetails:
     pcd_label_name: str
     ts: float
     token: str
+    scene_token: str
+    frame_idx: int
     prev: str
     next: str
 
@@ -113,6 +115,8 @@ def tokenize_a9_dataset_labels(
                     pcd_label_name=pcd_label_name,
                     prev=None,
                     next=None,
+                    scene_token=None,
+                    frame_idx=None,
                 )
             )
 
@@ -132,7 +136,7 @@ def tokenize_a9_dataset_labels(
                 if ts_diff_curr > range_diff_threshold:
                     break
 
-                if ts_diff_curr < ts_diff and ts_diff_curr < 1.0 and ts_diff_curr > 0.0:
+                if ts_diff_curr < ts_diff and ts_diff_curr > 0.0:
                     ts_diff = ts_diff_curr
                     prev = data[idx - i].token
                     data[idx].prev = prev
@@ -150,14 +154,51 @@ def tokenize_a9_dataset_labels(
                 if ts_diff_curr > range_diff_threshold:
                     break
 
-                if ts_diff_curr < ts_diff and ts_diff_curr < 1.0 and ts_diff_curr > 0.0:
+                if ts_diff_curr < ts_diff and ts_diff_curr > 0.0:
                     ts_diff = ts_diff_curr
                     next = data[idx + i].token
                     data[idx].next = next
 
         assert len(set([x.token for x in data])) == len(data)  # assert unique tokens
 
-        logging.info(f"Tokenizing {split} split")
+        logging.info(f"Tokenizing scenes for {split} split")
+
+        frame_scene_dict = {x.token: i for i, x in enumerate(data)}
+
+        def establish_scene_tokens(
+            token: str, scene_dict: Dict[str, Any], data: List[FrameDetails]
+        ) -> Tuple[str, int]:
+            data_idx = scene_dict[token]
+
+            # first frame in the sequence
+            if data[data_idx].prev is None and data[data_idx].scene_token is None:
+                scene_token = uuid.uuid4().hex
+                frame_idx = 0
+
+                data[data_idx].scene_token = scene_token
+                data[data_idx].frame_idx = 0
+
+            # first frame in the sequence but not first frame in the scene
+            elif data[data_idx].prev is not None and data[data_idx].scene_token is None:
+                scene_token, prev_frame_idx = establish_scene_tokens(
+                    data[data_idx].prev, scene_dict, data
+                )
+
+                frame_idx = prev_frame_idx + 1
+
+                data[data_idx].scene_token = scene_token
+                data[data_idx].frame_idx = frame_idx
+            else:
+                return data[data_idx].scene_token, data[data_idx].frame_idx
+
+            return scene_token, frame_idx
+
+        for token in tqdm(frame_scene_dict.keys(), total=len(data)):
+            data_idx = frame_scene_dict[token]
+            if data[data_idx].scene_token is None:
+                establish_scene_tokens(token, frame_scene_dict, data)
+
+        logging.info(f"Saving {split} split tokens")
 
         for idx, frame_detail in tqdm(enumerate(data), total=len(data)):
             # img_label_s1
@@ -172,6 +213,8 @@ def tokenize_a9_dataset_labels(
                 frame_properties["token"] = frame_detail.token
                 frame_properties["prev"] = frame_detail.prev
                 frame_properties["next"] = frame_detail.next
+                frame_properties["scene_token"] = frame_detail.scene_token
+                frame_properties["frame_idx"] = frame_detail.frame_idx
             if json_data is not None:
                 img_label_s1_json_path_out = os.path.join(
                     img_label_s1_folder_out, frame_detail.img_label_s1_name
@@ -191,6 +234,8 @@ def tokenize_a9_dataset_labels(
                 frame_properties["token"] = frame_detail.token
                 frame_properties["prev"] = frame_detail.prev
                 frame_properties["next"] = frame_detail.next
+                frame_properties["scene_token"] = frame_detail.scene_token
+                frame_properties["frame_idx"] = frame_detail.frame_idx
             if json_data is not None:
                 img_label_s2_json_path_out = os.path.join(
                     img_label_s2_folder_out, frame_detail.img_label_s2_name
@@ -208,6 +253,8 @@ def tokenize_a9_dataset_labels(
                 frame_properties["token"] = frame_detail.token
                 frame_properties["prev"] = frame_detail.prev
                 frame_properties["next"] = frame_detail.next
+                frame_properties["scene_token"] = frame_detail.scene_token
+                frame_properties["frame_idx"] = frame_detail.frame_idx
             if json_data is not None:
                 pcd_label_json_path_out = os.path.join(
                     pcd_label_folder_out, frame_detail.pcd_label_name

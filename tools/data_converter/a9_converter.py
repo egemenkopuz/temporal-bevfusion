@@ -1,14 +1,16 @@
 import json
 import logging
+import multiprocessing.pool as mpp
 import os
 import shutil
 from glob import glob
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import mmcv
 import numpy as np
 from pypcd import pypcd
 from scipy.spatial.transform import Rotation
+from tqdm import tqdm
 
 lidar2ego = np.asarray(
     [
@@ -107,22 +109,33 @@ class A92KITTI:
     This class serves as the converter to change the A9 data to KITTI format.
     """
 
-    def __init__(self, splits: List[str], load_dir: str, save_dir: str, name_format: str = "name"):
+    def __init__(
+        self,
+        splits: List[str],
+        load_dir: str,
+        save_dir: str,
+        name_format: str = "name",
+        labels_path: Optional[str] = None,
+        num_workers: int = 2,
+    ):
         """
         Args:
             splits list[(str)]: Contains the different splits
             version (str): Specify the modality
             load_dir (str): Directory to load waymo raw data.
             save_dir (str): Directory to save data in KITTI format.
-            name_format (str): Specify the output name of the converted file mmdetection3d expects names to but numbers
+            name_format (str): Specify the output name of the converted file mmdetection3d expects names to but numbers.
+            labels_path (str): Path of labels.
         """
 
         self.splits = splits
         self.load_dir = load_dir
         self.save_dir = save_dir
+        self.labels_path = labels_path
         self.name_format = name_format
         self.label_save_dir = "label_2"
         self.point_cloud_save_dir = "point_clouds"
+        self.num_workers = num_workers
 
         self.imagesets: Dict[str, list] = {"training": [], "validation": [], "testing": []}
 
@@ -145,7 +158,8 @@ class A92KITTI:
             split_source_path = os.path.join(self.load_dir, self.map_version_to_dir[split])
             self._create_folder(split)
 
-            test = True if split == "testing" else False
+            # test = True if split == "testing" else False
+            test = False
 
             pcd_list = sorted(
                 glob(
@@ -158,20 +172,32 @@ class A92KITTI:
                 )
             )
 
-            for idx, pcd_path in enumerate(pcd_list):
-                out_filename = pcd_path.split("/")[-1][:-4]
-
-                self.convert_pcd_to_bin(
-                    pcd_path, os.path.join(self.point_cloud_save_dir, out_filename)
+            with mpp.Pool(processes=4) as pool:
+                pool.starmap(
+                    self.convert_pcd_to_bin,
+                    [
+                        (x, os.path.join(self.point_cloud_save_dir, x.split("/")[-1][:-4]))
+                        for x in pcd_list
+                    ],
                 )
-                pcd_list[idx] = os.path.join(self.point_cloud_save_dir, out_filename) + ".bin"
+
+            pcd_list = [
+                os.path.join(self.point_cloud_save_dir, x.split("/")[-1][:-4]) + ".bin"
+                for x in pcd_list
+            ]
 
             # fmt: off
             img_south1_list = sorted(glob(os.path.join(split_source_path, 'images', 's110_camera_basler_south1_8mm', '*')))
             img_south2_list = sorted(glob(os.path.join(split_source_path, 'images', 's110_camera_basler_south2_8mm', '*')))
-            pcd_labels_list = sorted(glob(os.path.join(split_source_path, 'labels_point_clouds', 's110_lidar_ouster_south', '*')))
-            img_south1_labels_list = sorted(glob(os.path.join(split_source_path, 'labels_images', 's110_camera_basler_south1_8mm', '*')))
-            img_south2_labels_list = sorted(glob(os.path.join(split_source_path, 'labels_images', 's110_camera_basler_south2_8mm', '*')))
+            if not self.labels_path:
+                pcd_labels_list = sorted(glob(os.path.join(split_source_path, 'labels_point_clouds', 's110_lidar_ouster_south', '*')))
+                img_south1_labels_list = sorted(glob(os.path.join(split_source_path, 'labels_images', 's110_camera_basler_south1_8mm', '*')))
+                img_south2_labels_list = sorted(glob(os.path.join(split_source_path, 'labels_images', 's110_camera_basler_south2_8mm', '*')))
+            else:
+                labels_split_source_path = os.path.join(self.labels_path, self.map_version_to_dir[split])
+                pcd_labels_list = sorted(glob(os.path.join(labels_split_source_path, 'labels_point_clouds', 's110_lidar_ouster_south', '*')))
+                img_south1_labels_list = sorted(glob(os.path.join(labels_split_source_path, 'labels_images', 's110_camera_basler_south1_8mm', '*')))
+                img_south2_labels_list = sorted(glob(os.path.join(labels_split_source_path, 'labels_images', 's110_camera_basler_south2_8mm', '*')))
             # fmt: on
 
             infos_list = self._fill_infos(
@@ -220,7 +246,7 @@ class A92KITTI:
         """
         infos_list = []
 
-        for i, pcd_path in enumerate(pcd_list):
+        for i, pcd_path in tqdm(enumerate(pcd_list), total=len(pcd_list), desc="fill infos"):
             json1_file = open(pcd_labels_list[i])
             json1_str = json1_file.read()
             lidar_annotation = json.loads(json1_str)
@@ -240,6 +266,12 @@ class A92KITTI:
                 "location": lidar_anno_frame["frame_properties"]["point_cloud_file_names"][0].split(
                     "_"
                 )[2],
+                # temporal related stuff
+                "token": lidar_anno_frame["frame_properties"]["token"],
+                "scene_token": lidar_anno_frame["frame_properties"]["scene_token"],
+                "frame_idx": lidar_anno_frame["frame_properties"]["frame_idx"],
+                "prev": lidar_anno_frame["frame_properties"]["prev"],
+                "next": lidar_anno_frame["frame_properties"]["next"],
             }
 
             json2_file = open(img_south1_labels_list[i])

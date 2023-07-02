@@ -1,12 +1,18 @@
 import argparse
 import logging
 import os
+from typing import Optional
 
 from data_converter import nuscenes_converter as nuscenes_converter
 from data_converter.create_gt_database import create_groundtruth_database
 
 
-def a9_data_prep(root_path: str, info_prefix: str, out_dir: str, skip_a9_to_kitti: bool) -> None:
+def a9_data_prep(
+    root_path: str,
+    info_prefix: str,
+    out_dir: str,
+    labels_path: Optional[str] = None,
+) -> None:
     """Prepare data related to A9 dataset.
 
     Related data consists of '.pkl' files recording basic infos,
@@ -14,6 +20,7 @@ def a9_data_prep(root_path: str, info_prefix: str, out_dir: str, skip_a9_to_kitt
 
     Args:
         root_path (str): Path of dataset root.
+        labels_path (str): Path of labels.
         info_prefix (str): The prefix of info filenames.
         out_dir (str): Output directory of the groundtruth database info.
     """
@@ -26,8 +33,7 @@ def a9_data_prep(root_path: str, info_prefix: str, out_dir: str, skip_a9_to_kitt
 
     os.makedirs(save_dir, exist_ok=True, mode=0o777)
 
-    if not skip_a9_to_kitti:
-        a9.A92KITTI(splits, load_dir, save_dir).convert(info_prefix)
+    a9.A92KITTI(splits, load_dir, save_dir, labels_path=labels_path).convert(info_prefix)
 
     create_groundtruth_database(
         "A9Dataset", save_dir, info_prefix, f"{save_dir}/{info_prefix}_infos_train.pkl"
@@ -86,8 +92,15 @@ parser.add_argument("dataset", metavar="kitti", help="name of the dataset")
 parser.add_argument(
     "--root-path",
     type=str,
-    default="./data/kitti",
+    required=True,
     help="specify the root path of dataset",
+)
+parser.add_argument(
+    "--labels-path",
+    type=str,
+    default=None,
+    required=False,
+    help="specify the root path of labels",
 )
 parser.add_argument(
     "--version",
@@ -113,7 +126,6 @@ parser.add_argument(
 parser.add_argument("--extra-tag", type=str, default="kitti")
 parser.add_argument("--painted", default=False, action="store_true")
 parser.add_argument("--virtual", default=False, action="store_true")
-parser.add_argument("--skip-a9-to-kitti", default=False, action="store_true")
 parser.add_argument("--workers", type=int, default=4, help="number of threads to be used")
 parser.add_argument(
     "-log",
@@ -165,9 +177,10 @@ if __name__ == "__main__":
             load_augmented=load_augmented,
         )
     elif args.dataset in ["A9", "a9"]:
+        assert args.labels_path is not None
         a9_data_prep(
             root_path=args.root_path,
             info_prefix="a9",
             out_dir=args.out_dir,
-            skip_a9_to_kitti=args.skip_a9_to_kitti,
+            labels_path=args.labels_path,
         )
