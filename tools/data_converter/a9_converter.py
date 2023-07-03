@@ -158,8 +158,7 @@ class A92KITTI:
             split_source_path = os.path.join(self.load_dir, self.map_version_to_dir[split])
             self._create_folder(split)
 
-            # test = True if split == "testing" else False
-            test = False
+            test = True if split == "testing" else False
 
             pcd_list = sorted(
                 glob(
@@ -207,7 +206,7 @@ class A92KITTI:
                 pcd_labels_list,
                 img_south1_labels_list,
                 img_south2_labels_list,
-                test,
+                False,  # was test
             )
 
             metadata = dict(version="r2")
