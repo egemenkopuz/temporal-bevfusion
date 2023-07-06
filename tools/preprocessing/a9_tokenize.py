@@ -21,9 +21,9 @@ def get_args() -> Namespace:
 
     parser.add_argument("--root-path", type=str, required=True)
     parser.add_argument("--out-path", type=str, required=False)
-    parser.add_argument("--threshold-train", type=float, default=1.0, required=False)
-    parser.add_argument("--threshold-val", type=float, default=2.0, required=False)
-    parser.add_argument("--threshold-test", type=float, default=3.0, required=False)
+    parser.add_argument("--threshold-train", type=float, default=0.5, required=False)
+    parser.add_argument("--threshold-val", type=float, default=0.5, required=False)
+    parser.add_argument("--threshold-test", type=float, default=0.5, required=False)
     parser.add_argument(
         "-log",
         "--loglevel",
@@ -50,21 +50,29 @@ class FrameDetails:
 def tokenize_a9_dataset_labels(
     root_path: str,
     out_path: str = None,
-    splits: List[str] = ["train", "val", "test"],
     idx_diff_rem: int = 20,
     range_diff_threshold_train: float = 1.0,
     range_diff_threshold_val: float = 2.0,
     range_diff_threshold_test: float = 3.0,
 ):
+    splits = [os.path.basename(x) for x in glob(os.path.join(root_path, "*"))]
     for split in splits:
-        if split == "train":
+        if split.lower() in ["images", "labels_images", "labels_point_clouds", "point_clouds"]:
+            splits = [""]
+            break
+
+    for split in splits:
+        if split.endswith(".json"):
+            continue
+        if split.lower() in ["train", "training"]:
             range_diff_threshold = range_diff_threshold_train
-        elif split == "val":
+        elif split.lower() in ["val", "validation"]:
             range_diff_threshold = range_diff_threshold_val
-        elif split == "test":
+        elif split.lower() in ["test", "testing"]:
             range_diff_threshold = range_diff_threshold_test
         else:
-            raise ValueError(f"Invalid split: {split}")
+            logging.info("Could find any conventional split name; assigning default values")
+            range_diff_threshold = range_diff_threshold_train
 
         # fmt: off
         img_label_s1_folder = os.path.join(root_path, split, "labels_images", "s110_camera_basler_south1_8mm")

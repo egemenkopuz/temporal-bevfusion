@@ -34,16 +34,39 @@ python setup.py develop
 
 ---
 
-## Preparing the dataset
+## Preparing the temporal dataset
+
+To run the converter scripts, pypcd package must be installed first. To install pypcd, run the following commands:
 
 ```bash
 git clone https://github.com/DanielPollithy/pypcd
 cd pypcd && pip install .
 ```
 
+If you have dataset fully ready, you can skip to the 4th step.
+
+1 - Merge all the files into one folder, then tokenize them by running the following command (if not tokenized already):
+
 ```bash
-python tools/preprocessing/a9_tokenize.py --root-path ./data/a9 --out-path ./data/a9_preprocessed --loglevel INFO # if not tokenized already
-python tools/create_data.py a9 --root-path ./data/a9 --out-dir ./data/a9_bevfusion --labels-path ./data/a9_preprocessed --loglevel INFO
+python tools/preprocessing/a9_tokenize.py --root-path ./data/a9_temporal_no_split --out-path ./data/a9_temporal_no_split --loglevel INFO
+```
+
+2 - You can then run the following command to find the optimal balanced split and split the dataset into training, validation and test sets:
+
+```bash
+python tools/preprocessing/create_a9_temporal_split.py --root-path ./data/a9_temporal_no_split --out-path ./data/a9_temporal --segment-size 30 --perm-limit 10000 --include-all-classes --include-all-sequences --loglevel INFO
+```
+
+3 - In order to make new seperate sequence segments into to their own pseudo sequences, run the following command to tokenize the dataset again:
+
+```bash
+python tools/preprocessing/a9_tokenize.py --root-path ./data/a9_temporal --out-path ./data/a9_temporal --loglevel INFO
+```
+
+4 - Finally, you can then run the following command to create the ready-to-go version of the dataset:
+
+```bash
+python tools/create_data.py a9 --root-path ./data/a9_temporal --out-dir ./data/a9_temporal_bevfusion --loglevel INFO
 ```
 
 ## Training
