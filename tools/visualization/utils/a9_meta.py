@@ -5,7 +5,7 @@ class A9Meta:
     image_width = 1920
     image_height = 1200
 
-    class_colors = {
+    class_id_colors = {
         "CAR": [0, 0.8, 0.964705882],
         "TRUCK": [0.337254902, 1, 0.71372549],
         "TRAILER": [0.352941176, 1, 0.494117647],

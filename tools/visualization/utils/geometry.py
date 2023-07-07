@@ -101,7 +101,7 @@ def visualize_bounding_box(
         colors = [color_green_normalized for _ in range(len(lines))]
     else:
         if dataset_name.lower() == "a9":
-            colors = [A9Meta.class_colors[category] for _ in range(len(lines))]
+            colors = [A9Meta.class_id_colors[category] for _ in range(len(lines))]
         elif dataset_name.lower() == "osdar23":
             colors = [OSDAR23Meta.class_id_colors[category] for _ in range(len(lines))]
         else:

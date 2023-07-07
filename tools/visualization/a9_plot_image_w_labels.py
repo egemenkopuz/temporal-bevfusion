@@ -88,7 +88,7 @@ def process_image_labels(img, label_data) -> List:
     for frame_id, frame_obj in label_data["openlabel"]["frames"].items():
         for id, label in frame_obj["objects"].items():
             category = label["object_data"]["type"].upper()
-            color = A9Meta.class_colors[category]
+            color = A9Meta.class_id_colors[category]
             # swap channels because opencv uses bgr
             color_bgr = (color[2], color[1], color[0])
             color_bgr = [int(c * 255) for c in color_bgr]
@@ -148,7 +148,7 @@ def process_lidar_labels(
             ]
 
             category = label["object_data"]["type"].upper()
-            color = A9Meta.class_colors[category]
+            color = A9Meta.class_id_colors[category]
             color = (color[2], color[1], color[0])
 
             points_3d = get_corners(
