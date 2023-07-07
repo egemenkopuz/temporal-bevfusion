@@ -42,7 +42,7 @@ def osdar23_plot_3d_boxes(
     color_distance: bool = False,
     color_detection: bool = False,
 ):
-    file_paths_point_clouds = glob(os.path.join(input_folder_path_point_clouds, "*"))
+    file_paths_point_clouds = sorted(glob(os.path.join(input_folder_path_point_clouds, "*")))
 
     file_path_point_cloud = file_paths_point_clouds[index]
 

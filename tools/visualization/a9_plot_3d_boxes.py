@@ -41,8 +41,8 @@ def a9_plot_3d_boxes(
     color_distance: bool = False,
     color_detection: bool = False,
 ):
-    file_paths_point_clouds = glob(os.path.join(input_folder_path_point_clouds, "*"))
-    file_paths_detections = glob(os.path.join(input_folder_path_detections, "*"))
+    file_paths_point_clouds = sorted(glob(os.path.join(input_folder_path_point_clouds, "*")))
+    file_paths_detections = sorted(glob(os.path.join(input_folder_path_detections, "*")))
 
     assert index < len(file_paths_point_clouds) and index < len(file_paths_detections)
 

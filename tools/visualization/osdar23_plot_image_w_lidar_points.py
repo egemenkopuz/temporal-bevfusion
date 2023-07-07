@@ -51,8 +51,8 @@ def osdar23_plot_image_w_lidar_points(
     point_size: int = 2,
     include_camera_label: bool = False,
 ):
-    file_paths_images = glob(os.path.join(input_folder_path_images, "*"))
-    file_paths_point_clouds = glob(os.path.join(input_folder_path_point_clouds, "*"))
+    file_paths_images = sorted(glob(os.path.join(input_folder_path_images, "*")))
+    file_paths_point_clouds = sorted(glob(os.path.join(input_folder_path_point_clouds, "*")))
 
     file_path_image = file_paths_images[index]
     file_path_point_cloud = file_paths_point_clouds[index]

@@ -44,11 +44,11 @@ def a9_plot_image_w_labels(
     camera_location: Union[Literal["south1"], Literal["south2"]] = "south1",
     only_camera_label: bool = False,
 ):
-    file_paths_images_south1 = glob(os.path.join(input_folder_path_images_south1, "*"))
-    file_paths_images_south2 = glob(os.path.join(input_folder_path_images_south2, "*"))
-    file_paths_labels_south1 = glob(os.path.join(input_folder_path_labels_south1, "*"))
-    file_paths_labels_south2 = glob(os.path.join(input_folder_path_labels_south2, "*"))
-    file_paths_detections = glob(os.path.join(input_folder_path_detections, "*"))
+    file_paths_images_south1 = sorted(glob(os.path.join(input_folder_path_images_south1, "*")))
+    file_paths_images_south2 = sorted(glob(os.path.join(input_folder_path_images_south2, "*")))
+    file_paths_labels_south1 = sorted(glob(os.path.join(input_folder_path_labels_south1, "*")))
+    file_paths_labels_south2 = sorted(glob(os.path.join(input_folder_path_labels_south2, "*")))
+    file_paths_detections = sorted(glob(os.path.join(input_folder_path_detections, "*")))
 
     assert (
         index < len(file_paths_images_south1)

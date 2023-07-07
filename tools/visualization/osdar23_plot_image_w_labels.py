@@ -44,7 +44,7 @@ def osdar23_plot_image_w_labels(
     ] = "rgb_center",
     only_camera_label: bool = False,
 ):
-    file_paths_images = glob(os.path.join(input_folder_path_images, "*"))
+    file_paths_images = sorted(glob(os.path.join(input_folder_path_images, "*")))
     file_path_image = file_paths_images[index]
 
     img = cv2.imread(file_path_image, cv2.IMREAD_UNCHANGED)

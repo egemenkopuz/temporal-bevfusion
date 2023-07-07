@@ -49,11 +49,11 @@ def a9_plot_image_w_lidar_points(
     point_size: int = 2,
     include_camera_label: bool = False,
 ):
-    file_paths_images_south1 = glob(os.path.join(input_folder_path_images_south1, "*"))
-    file_paths_images_south2 = glob(os.path.join(input_folder_path_images_south2, "*"))
-    file_paths_labels_south1 = glob(os.path.join(input_folder_path_labels_south1, "*"))
-    file_paths_labels_south2 = glob(os.path.join(input_folder_path_labels_south2, "*"))
-    file_paths_point_clouds = glob(os.path.join(input_folder_path_point_clouds, "*"))
+    file_paths_images_south1 = sorted(glob(os.path.join(input_folder_path_images_south1, "*")))
+    file_paths_images_south2 = sorted(glob(os.path.join(input_folder_path_images_south2, "*")))
+    file_paths_labels_south1 = sorted(glob(os.path.join(input_folder_path_labels_south1, "*")))
+    file_paths_labels_south2 = sorted(glob(os.path.join(input_folder_path_labels_south2, "*")))
+    file_paths_point_clouds = sorted(glob(os.path.join(input_folder_path_point_clouds, "*")))
 
     assert (
         index < len(file_paths_point_clouds)
