@@ -12,7 +12,7 @@ bash docker.sh build
 Running
 
 ```bash
-bash docker.sh run-local # on local machine (modify the docker.sh accoridngly)
+bash docker.sh run-local # on local machine (modify the docker.sh accordingly)
 bash docker.sh run-tum # on TUM server
 bash docker.sh run-setlabs # on Setlabs server
 ```
