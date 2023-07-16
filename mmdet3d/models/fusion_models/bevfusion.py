@@ -255,7 +255,7 @@ class BEVFusion(Base3DFusionModel):
                             f"bev-{sensor}",
                             f"{metas[0]['timestamp']}.png",
                         ),
-                        feature.detach().cpu().numpy().squeeze(),
+                        feature.clone().detach().cpu().numpy().squeeze(),
                         self.save_bev_features["xlim"],
                         self.save_bev_features["ylim"],
                     )
