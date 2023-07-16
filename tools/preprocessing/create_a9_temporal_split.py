@@ -29,6 +29,24 @@ CLASSES = [
 
 CLASS_WEIGHTS = [1, 15, 15, 5, 5, 15, 15, 20, 5, 5]
 
+DIFFICULTY_MAP = {
+    "easy": {"distance": "d<40", "num_points": "n>50", "occlusion": "no_occluded"},
+    "moderate": {
+        "distance": "d40-50",
+        "num_points": "n20-50",
+        "occlusion": "partially_occluded",
+    },
+    "hard": {"distance": "d>50", "num_points": "n<20", "occlusion": "mostly_occluded"},
+}
+DISTANCE_MAP = {"d<40": [0, 40], "d40-50": [40, 50], "d>50": [50, 9999]}
+NUM_POINTS_MAP = {"n<20": [0, 20], "n20-50": [20, 50], "n>50": [50, 9999]}
+OCCLUSION_MAP = {
+    "no_occluded": "NOT_OCCLUDED",
+    "partially_occluded": "PARTIALLY_OCCLUDED",
+    "mostly_occluded": "MOSTLY_OCCLUDED",
+    "unknown": "UNKNOWN",
+}
+
 SPLIT_RATIO = [0.8, 0.1, 0.1]
 
 parent_img_folder_name = "images"
@@ -44,8 +62,13 @@ pcd_n_folder_name = "s110_lidar_ouster_north"
 
 @dataclass()
 class TemporalSequenceDetails:
+    # fmt: off
     scene_token: str
     no_total_frames: int
+    total_difficulty_stats: Dict[str, Dict[str, int]] = field(repr=False, compare=False)
+    total_distance_stats: Dict[str, Dict[str, int]] = field(repr=False, compare=False)
+    total_num_points_stats: Dict[str, Dict[str, int]] = field(repr=False, compare=False)
+    total_occlusion_stats: Dict[str, Dict[str, int]] = field(repr=False, compare=False)
     total_class_stats: Dict[str, int] = field(repr=True, compare=False)
     frame_class_stats: List[Dict[str, int]] = field(default_factory=list, repr=False, compare=False)
     frame_img_s1_paths: List[str] = field(default_factory=list, repr=False, compare=False)
@@ -54,6 +77,7 @@ class TemporalSequenceDetails:
     frame_img_s2_label_paths: List[str] = field(default_factory=list, repr=False, compare=False)
     frame_pcd_paths: List[str] = field(default_factory=list, repr=False, compare=False)
     frame_pcd_labels_paths: List[str] = field(default_factory=list, repr=False, compare=False)
+    # fmt: on
 
     def get_class_stats_in_range(self, start: int, end: int) -> Dict[str, int]:
         return {cls: sum([x[cls] for x in self.frame_class_stats[start:end]]) for cls in CLASSES}
@@ -123,23 +147,79 @@ def create_sequence_details(root_path: str) -> Dict[str, TemporalSequenceDetails
             frame_properties = json_data["openlabel"]["frames"][frame_idx]["frame_properties"]
             frame_objects = json_data["openlabel"]["frames"][frame_idx]["objects"]
 
-            class_stats = {cls: 0 for cls in CLASSES}
-            for obj in frame_objects.values():
-                obj_type = obj["object_data"]["type"]
-                class_stats[obj_type] += 1
-
             scene_token = frame_properties["scene_token"]
             if scene_token not in data:
                 data[scene_token] = TemporalSequenceDetails(
                     scene_token=scene_token,
                     no_total_frames=1,
                     total_class_stats={cls: 0 for cls in CLASSES},
+                    total_difficulty_stats={
+                        cls: {x: 0 for x in DIFFICULTY_MAP.keys()} for cls in CLASSES
+                    },
+                    total_distance_stats={
+                        cls: {x: 0 for x in DISTANCE_MAP.keys()} for cls in CLASSES
+                    },
+                    total_num_points_stats={
+                        cls: {x: 0 for x in NUM_POINTS_MAP.keys()} for cls in CLASSES
+                    },
+                    total_occlusion_stats={
+                        cls: {x: 0 for x in OCCLUSION_MAP.values()} for cls in CLASSES
+                    },
                 )
-            else:
-                data[scene_token].no_total_frames += 1
-                data[scene_token].frame_class_stats.append(class_stats)
-                for x in class_stats:
-                    data[scene_token].total_class_stats[x] += class_stats[x]
+
+            class_stats = {cls: 0 for cls in CLASSES}
+            for obj in frame_objects.values():
+                obj_type = obj["object_data"]["type"]
+
+                class_stats[obj_type] += 1
+                if "cuboid" in obj["object_data"]:
+                    # distance from sensor
+                    loc = np.asarray(obj["object_data"]["cuboid"]["val"][:3], dtype=np.float32)
+                    distance = np.sqrt(np.sum(np.array(loc[:2]) ** 2))
+                    for k, v in DISTANCE_MAP.items():
+                        if v[0] < distance <= v[1]:
+                            data[scene_token].total_distance_stats[obj_type][k] += 1
+
+                    attributes = obj["object_data"]["cuboid"]["attributes"]
+
+                    # occlusion
+                    occlusion_level = None
+                    for x in attributes["text"]:
+                        if x["name"] == "occlusion_level":
+                            occlusion_level = x["val"]
+                            if occlusion_level != "":
+                                data[scene_token].total_occlusion_stats[obj_type][
+                                    occlusion_level
+                                ] += 1
+                            else:
+                                data[scene_token].total_occlusion_stats[obj_type]["UNKNOWN"] += 1
+
+                    # number of points
+                    num_points = 0
+                    for x in attributes["num"]:
+                        if x["name"] == "num_points":
+                            num_points = x["val"]
+                            for k, v in NUM_POINTS_MAP.items():
+                                if v[0] < num_points <= v[1]:
+                                    data[scene_token].total_num_points_stats[obj_type][k] += 1
+
+                    # difficulty
+                    if (distance <= 40 and num_points > 50) or occlusion_level == "NOT_OCCLUDED":
+                        data[scene_token].total_difficulty_stats[obj_type]["easy"] += 1
+                    elif (
+                        (distance > 40 and distance <= 50)
+                        and (num_points > 20 and num_points <= 50)
+                    ) or occlusion_level == "PARTIALLY_OCCLUDED":
+                        data[scene_token].total_difficulty_stats[obj_type]["moderate"] += 1
+                    elif (
+                        distance > 50 and num_points <= 20
+                    ) or occlusion_level == "MOSTLY_OCCLUDED":
+                        data[scene_token].total_difficulty_stats[obj_type]["hard"] += 1
+
+            data[scene_token].no_total_frames += 1
+            data[scene_token].frame_class_stats.append(class_stats)
+            for x in class_stats:
+                data[scene_token].total_class_stats[x] += class_stats[x]
 
             data[scene_token].frame_img_s1_paths.append(imgs_s1[i])
             data[scene_token].frame_img_s2_paths.append(imgs_s2[i])
