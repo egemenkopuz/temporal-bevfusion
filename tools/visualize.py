@@ -51,12 +51,20 @@ def main() -> None:
     parser.add_argument("--map-score", type=float, default=0.5)
     parser.add_argument("--out-dir", type=str, default="viz")
     parser.add_argument("--max-samples", type=int, default=None)
+    parser.add_argument("--save-bboxes", action="store_true")
+    parser.add_argument("--save-labels", action="store_true")
     args, opts = parser.parse_known_args()
 
     configs.load(args.config, recursive=True)
     configs.update(opts)
 
     cfg = Config(recursive_eval(configs), filename=args.config)
+
+    cfg.model.save_bev_features = {
+        "out_dir": args.out_dir,
+        "xlim": [cfg.point_cloud_range[d] for d in [0, 3]],
+        "ylim": [cfg.point_cloud_range[d] for d in [1, 4]],
+    }
 
     torch.backends.cudnn.benchmark = cfg.cudnn_benchmark
     torch.cuda.set_device(dist.local_rank())
@@ -84,7 +92,7 @@ def main() -> None:
         model.eval()
 
     max_samples = args.max_samples if args.max_samples is not None else len(dataflow)
-    for idx, data in enumerate(tqdm(dataflow)):
+    for idx, data in enumerate(tqdm(dataflow, total=max_samples)):
         if idx >= max_samples:
             break
 
@@ -168,14 +176,14 @@ def main() -> None:
             )
 
         # save bbox
-        if bboxes is not None:
+        if args.save_bboxes and bboxes is not None:
             bboxes.tensor = bboxes.tensor.cpu()
             bboxes = bboxes.tensor.numpy()
             os.makedirs(os.path.join(args.out_dir, "bbox"), exist_ok=True)
             np.save(os.path.join(args.out_dir, "bbox", f"{name}.npy"), bboxes)
 
         # save labels
-        if labels is not None:
+        if args.save_labels and labels is not None:
             os.makedirs(os.path.join(args.out_dir, "label"), exist_ok=True)
             np.save(os.path.join(args.out_dir, "label", f"{name}.npy"), labels)
 

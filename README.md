@@ -1,6 +1,5 @@
 # multi-modal-3d-object-detection
 
-
 # Docker Container Installation
 
 Building
@@ -71,7 +70,6 @@ python tools/create_data.py a9 --root-path ./data/a9_temporal --out-dir ./data/a
 
 ## Training
 
-
 ```bash
 # BEV Fusion
 torchpack dist-run -np 2 python tools/train.py configs/a9/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from runs/lidar-only-20/latest.pth
@@ -113,15 +111,14 @@ For built-in visualization, run the following commands:
 ```bash
 
 # BEV Fusion
-torchpack dist-run -np 1 python tools/visualize.py runs/bevfusion/configs.yaml --mode pred --bbox-score 0.20 --checkpoint runs/bevfusion/latest.pth --out-dir vis-bevfusion-pred
+torchpack dist-run -np 1 python tools/visualize.py runs/bevfusion/configs.yaml --mode pred --bbox-score 0.1 --split test --checkpoint runs/bevfusion/latest.pth --out-dir vis-lc --save-bboxes --save-labels
 
 # Lidar-only
-torchpack dist-run -np 1 python tools/visualize.py runs/lidar-only/configs.yaml --mode pred --bbox-score 0.20 --checkpoint runs/lidar-only/latest.pth --out-dir vis-lidar-only-pred
+torchpack dist-run -np 1 python tools/visualize.py runs/lidar-only/configs.yaml --mode pred --bbox-score 0.1 --split test --checkpoint runs/lidar-only/latest.pth --out-dir vis-l --save-bboxes --save-labels
 
 # Camera-only
-torchpack dist-run -np 1 python tools/visualize.py runs/camera-only/configs.yaml --mode pred --bbox-score 0.20 --checkpoint runs/camera-only/latest.pth --out-dir vis-camera-only-pred
+torchpack dist-run -np 1 python tools/visualize.py runs/camera-only/configs.yaml --mode pred --bbox-score 0.1 --split test --checkpoint runs/camera-only/latest.pth --out-dir vis-c --save-bboxes --save-labels
 ```
-
 
 ## Benchmarking
 

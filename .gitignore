@@ -2,6 +2,7 @@ data/*
 pretrained
 runs*
 viz*
+vis*
 
 
 # Byte-compiled / optimized / DLL files

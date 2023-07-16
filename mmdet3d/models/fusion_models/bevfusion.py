@@ -1,10 +1,13 @@
-from typing import Any, Dict
+import os
+from typing import Any, Dict, Optional
 
+import numpy as np
 import torch
 from mmcv.runner import auto_fp16, force_fp32
 from torch import nn
 from torch.nn import functional as F
 
+from mmdet3d.core.utils.visualize import visualize_bev_feature
 from mmdet3d.models import FUSIONMODELS
 from mmdet3d.models.builder import (
     build_backbone,
@@ -28,6 +31,7 @@ class BEVFusion(Base3DFusionModel):
         fuser: Dict[str, Any],
         decoder: Dict[str, Any],
         heads: Dict[str, Any],
+        save_bev_features: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -77,6 +81,8 @@ class BEVFusion(Base3DFusionModel):
             for name in heads:
                 if heads[name] is not None:
                     self.loss_scale[name] = 1.0
+
+        self.save_bev_features = save_bev_features
 
         self.init_weights()
 
@@ -239,6 +245,21 @@ class BEVFusion(Base3DFusionModel):
                 feature = self.extract_lidar_features(points)
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
+
+            if self.save_bev_features is not None:
+                # assuming batch size = 1
+                if "out_dir" in self.save_bev_features:
+                    visualize_bev_feature(
+                        os.path.join(
+                            self.save_bev_features["out_dir"],
+                            f"bev-{sensor}",
+                            f"{metas[0]['timestamp']}.png",
+                        ),
+                        feature.detach().cpu().numpy().squeeze(),
+                        self.save_bev_features["xlim"],
+                        self.save_bev_features["ylim"],
+                    )
+
             features.append(feature)
 
         if not self.training:
