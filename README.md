@@ -72,7 +72,7 @@ python tools/create_data.py a9 --root-path ./data/a9_temporal --out-dir ./data/a
 
 ```bash
 # BEV Fusion
-torchpack dist-run -np 2 python tools/train.py configs/a9/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from runs/lidar-only-20/latest.pth
+torchpack dist-run -np 2 python tools/train.py configs/a9/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from runs/lidar-only/latest.pth
 
 # Camera-only
 torchpack dist-run -np 2 python tools/train.py configs/a9/det/centerhead/lssfpn/camera/256x704/swint/default.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth
@@ -90,7 +90,7 @@ BEV Fusion
 torchpack dist-run -np 2 python tools/test.py runs/bevfusion/configs.yaml runs/bevfusion/latest.pth --eval bbox
 
 # Lidar-only
-torchpack dist-run -np 2 python tools/test.py runs/lidar-only/configs.yaml runs/lidar-only-20/latest.pth --eval bbox
+torchpack dist-run -np 2 python tools/test.py runs/lidar-only/configs.yaml runs/lidar-only/latest.pth --eval bbox
 
 # Camera-only
 torchpack dist-run -np 2 python tools/test.py runs/camera-only/configs.yaml runs/camera-only/latest.pth --eval bbox
@@ -99,7 +99,7 @@ torchpack dist-run -np 2 python tools/test.py runs/camera-only/configs.yaml runs
 
 ## Visualization
 
-Inside the docker container, run the following commands for headless rendering (for open3d related scripts, do not install these inside the docker, use another env):
+Run the following commands for headless rendering (for open3d related scripts, do not install these inside the docker, use another form of env):
 
 ```bash
 apt-get update && apt-get install libosmesa6-dev
@@ -123,5 +123,5 @@ torchpack dist-run -np 1 python tools/visualize.py runs/camera-only/configs.yaml
 ## Benchmarking
 
 ```bash
-python tools/benchmark.py runs/bevfusion/configs.yaml runs/bevfusion/latest.pth
+python tools/benchmark.py runs/bevfusion/configs.yaml runs/bevfusion/latest.pth --samples 200
 ```
