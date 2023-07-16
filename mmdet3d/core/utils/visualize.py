@@ -131,6 +131,36 @@ def visualize_camera(
     mmcv.imwrite(canvas, fpath)
 
 
+def visualize_bev_feature(
+    fpath: str,
+    bev_feature: np.ndarray,
+    xlim: Tuple[float, float] = (-50, 50),
+    ylim: Tuple[float, float] = (-50, 50),
+) -> None:
+    bev_feature = np.mean(bev_feature, axis=0)
+    bev_feature = bev_feature * 255 / bev_feature.max()
+    bev_feature = np.rot90(bev_feature)
+
+    fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
+
+    ax = plt.gca()
+    ax.set_aspect(1)
+    ax.set_axis_off()
+
+    plt.imshow(bev_feature, cmap="magma")
+
+    mmcv.mkdir_or_exist(os.path.dirname(fpath))
+    fig.savefig(
+        fpath,
+        dpi=10,
+        facecolor="black",
+        format="png",
+        bbox_inches="tight",
+        pad_inches=0,
+    )
+    plt.close()
+
+
 def visualize_lidar(
     fpath: str,
     lidar: Optional[np.ndarray] = None,
