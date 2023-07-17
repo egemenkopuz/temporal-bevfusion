@@ -7,7 +7,7 @@ from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass, field
 from glob import glob
 from itertools import permutations
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
@@ -38,8 +38,8 @@ DIFFICULTY_MAP = {
     },
     "hard": {"distance": "d>50", "num_points": "n<20", "occlusion": "mostly_occluded"},
 }
-DISTANCE_MAP = {"d<40": [0, 40], "d40-50": [40, 50], "d>50": [50, 9999]}
-NUM_POINTS_MAP = {"n<20": [0, 20], "n20-50": [20, 50], "n>50": [50, 9999]}
+DISTANCE_MAP = {"d<40": [0, 40], "d40-50": [40, 50], "d>50": [50, 64]}
+NUM_POINTS_MAP = {"n<20": [5, 20], "n20-50": [20, 50], "n>50": [50, 9999]}
 OCCLUSION_MAP = {
     "no_occluded": "NOT_OCCLUDED",
     "partially_occluded": "PARTIALLY_OCCLUDED",
@@ -65,12 +65,16 @@ class TemporalSequenceDetails:
     # fmt: off
     scene_token: str
     no_total_frames: int
+    total_class_stats: Dict[str, int] = field(repr=True, compare=False)
     total_difficulty_stats: Dict[str, Dict[str, int]] = field(repr=False, compare=False)
     total_distance_stats: Dict[str, Dict[str, int]] = field(repr=False, compare=False)
     total_num_points_stats: Dict[str, Dict[str, int]] = field(repr=False, compare=False)
     total_occlusion_stats: Dict[str, Dict[str, int]] = field(repr=False, compare=False)
-    total_class_stats: Dict[str, int] = field(repr=True, compare=False)
     frame_class_stats: List[Dict[str, int]] = field(default_factory=list, repr=False, compare=False)
+    frame_difficulty_stats: List[Dict[str, Dict[str, int]]] = field(default_factory=list, repr=False, compare=False)
+    frame_distance_stats: List[Dict[str, Dict[str, int]]] = field(default_factory=list, repr=False, compare=False)
+    frame_num_points_stats: List[Dict[str, Dict[str, int]]] = field(default_factory=list, repr=False, compare=False)
+    frame_occlusion_stats: List[Dict[str, Dict[str, int]]] = field(default_factory=list, repr=False, compare=False)
     frame_img_s1_paths: List[str] = field(default_factory=list, repr=False, compare=False)
     frame_img_s2_paths: List[str] = field(default_factory=list, repr=False, compare=False)
     frame_img_s1_label_paths: List[str] = field(default_factory=list, repr=False, compare=False)
@@ -81,6 +85,46 @@ class TemporalSequenceDetails:
 
     def get_class_stats_in_range(self, start: int, end: int) -> Dict[str, int]:
         return {cls: sum([x[cls] for x in self.frame_class_stats[start:end]]) for cls in CLASSES}
+
+    def get_difficulty_stats_in_range(self, start: int, end: int) -> Dict[str, int]:
+        return {
+            cls: {
+                difficulty: sum(
+                    [x[cls][difficulty] for x in self.frame_difficulty_stats[start:end]]
+                )
+                for difficulty in DIFFICULTY_MAP.keys()
+            }
+            for cls in CLASSES
+        }
+
+    def get_distance_stats_in_range(self, start: int, end: int) -> Dict[str, int]:
+        return {
+            cls: {
+                distance: sum([x[cls][distance] for x in self.frame_distance_stats[start:end]])
+                for distance in DISTANCE_MAP.keys()
+            }
+            for cls in CLASSES
+        }
+
+    def get_num_points_stats_in_range(self, start: int, end: int) -> Dict[str, int]:
+        return {
+            cls: {
+                num_points: sum(
+                    [x[cls][num_points] for x in self.frame_num_points_stats[start:end]]
+                )
+                for num_points in NUM_POINTS_MAP.keys()
+            }
+            for cls in CLASSES
+        }
+
+    def get_occlusion_stats_in_range(self, start: int, end: int) -> Dict[str, int]:
+        return {
+            cls: {
+                occlusion: sum([x[cls][occlusion] for x in self.frame_occlusion_stats[start:end]])
+                for occlusion in OCCLUSION_MAP.values()
+            }
+            for cls in CLASSES
+        }
 
     def get_path_list_in_range(self, start: int, end: int) -> Dict[str, List[str]]:
         return {
@@ -168,6 +212,10 @@ def create_sequence_details(root_path: str) -> Dict[str, TemporalSequenceDetails
                 )
 
             class_stats = {cls: 0 for cls in CLASSES}
+            difficulty_stats = {cls: {x: 0 for x in DIFFICULTY_MAP.keys()} for cls in CLASSES}
+            distance_stats = {cls: {x: 0 for x in DISTANCE_MAP.keys()} for cls in CLASSES}
+            num_points_stats = {cls: {x: 0 for x in NUM_POINTS_MAP.keys()} for cls in CLASSES}
+            occlusion_stats = {cls: {x: 0 for x in OCCLUSION_MAP.values()} for cls in CLASSES}
             for obj in frame_objects.values():
                 obj_type = obj["object_data"]["type"]
 
@@ -179,6 +227,7 @@ def create_sequence_details(root_path: str) -> Dict[str, TemporalSequenceDetails
                     for k, v in DISTANCE_MAP.items():
                         if v[0] < distance <= v[1]:
                             data[scene_token].total_distance_stats[obj_type][k] += 1
+                            distance_stats[obj_type][k] += 1
 
                     attributes = obj["object_data"]["cuboid"]["attributes"]
 
@@ -191,8 +240,10 @@ def create_sequence_details(root_path: str) -> Dict[str, TemporalSequenceDetails
                                 data[scene_token].total_occlusion_stats[obj_type][
                                     occlusion_level
                                 ] += 1
+                                occlusion_stats[obj_type][occlusion_level] += 1
                             else:
                                 data[scene_token].total_occlusion_stats[obj_type]["UNKNOWN"] += 1
+                                occlusion_stats[obj_type]["UNKNOWN"] += 1
 
                     # number of points
                     num_points = 0
@@ -202,19 +253,31 @@ def create_sequence_details(root_path: str) -> Dict[str, TemporalSequenceDetails
                             for k, v in NUM_POINTS_MAP.items():
                                 if v[0] < num_points <= v[1]:
                                     data[scene_token].total_num_points_stats[obj_type][k] += 1
+                                    num_points_stats[obj_type][k] += 1
 
                     # difficulty
-                    if (distance <= 40 and num_points > 50) or occlusion_level == "NOT_OCCLUDED":
-                        data[scene_token].total_difficulty_stats[obj_type]["easy"] += 1
-                    elif (
-                        (distance > 40 and distance <= 50)
-                        and (num_points > 20 and num_points <= 50)
-                    ) or occlusion_level == "PARTIALLY_OCCLUDED":
-                        data[scene_token].total_difficulty_stats[obj_type]["moderate"] += 1
-                    elif (
-                        distance > 50 and num_points <= 20
-                    ) or occlusion_level == "MOSTLY_OCCLUDED":
+                    if occlusion_level == "MOSTLY_OCCLUDED":
                         data[scene_token].total_difficulty_stats[obj_type]["hard"] += 1
+                        difficulty_stats[obj_type]["hard"] += 1
+                    elif occlusion_level == "PARTIALLY_OCCLUDED":
+                        data[scene_token].total_difficulty_stats[obj_type]["moderate"] += 1
+                        difficulty_stats[obj_type]["moderate"] += 1
+                    elif distance <= 40 or num_points > 50:
+                        data[scene_token].total_difficulty_stats[obj_type]["easy"] += 1
+                        difficulty_stats[obj_type]["easy"] += 1
+                    elif (distance > 40 and distance <= 50) or (
+                        num_points > 20 and num_points <= 50
+                    ):
+                        data[scene_token].total_difficulty_stats[obj_type]["moderate"] += 1
+                        difficulty_stats[obj_type]["moderate"] += 1
+                    elif distance > 50 or num_points <= 20:
+                        data[scene_token].total_difficulty_stats[obj_type]["hard"] += 1
+                        difficulty_stats[obj_type]["hard"] += 1
+
+            data[scene_token].frame_difficulty_stats.append(difficulty_stats)
+            data[scene_token].frame_distance_stats.append(distance_stats)
+            data[scene_token].frame_num_points_stats.append(num_points_stats)
+            data[scene_token].frame_occlusion_stats.append(occlusion_stats)
 
             data[scene_token].no_total_frames += 1
             data[scene_token].frame_class_stats.append(class_stats)
@@ -329,6 +392,14 @@ def calc_segment_score(
                 score += abs(split_cls_ratios[i][j] - split_cls_ratios[i + 1][j])
             else:
                 score += abs(split_cls_ratios[i][j] - split_cls_ratios[i + 1][j]) * class_weights[j]
+
+    # compare the difficulty distributions
+
+    # compare the occlusion distributions
+
+    # compare the distance distributions
+
+    # compare the number of points distributions
 
     return -score, split_cls_counts, split_cls_ratios, split_idx_range_ratios
 

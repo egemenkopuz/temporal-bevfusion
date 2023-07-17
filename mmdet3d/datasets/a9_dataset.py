@@ -41,16 +41,16 @@ class A9Dataset(Custom3DDataset):
 
     # Modified from the originally used configs of BEVFusion https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/detection/configs/detection_cvpr_2019.json
     cls_range = {
-        "CAR": 50,
-        "TRUCK": 50,
-        "BUS": 50,
-        "TRAILER": 50,
-        "VAN": 50,
-        "EMERGENCY_VEHICLE": 50,
-        "PEDESTRIAN": 40,
-        "MOTORCYCLE": 40,
-        "BICYCLE": 40,
-        "OTHER": 30,
+        "CAR": 64,
+        "TRUCK": 64,
+        "BUS": 64,
+        "TRAILER": 64,
+        "VAN": 64,
+        "EMERGENCY_VEHICLE": 64,
+        "PEDESTRIAN": 64,
+        "MOTORCYCLE": 64,
+        "BICYCLE": 64,
+        "OTHER": 64,
     }
     dist_fcn = "center_distance"
     dist_ths = [0.5, 1.0, 2.0, 4.0]
@@ -838,7 +838,7 @@ class A9Dataset(Custom3DDataset):
         filtered_evals = defaultdict(list)
 
         difficulty_map = {
-            "easy": {"distance": "d<40", "num_points": "n>50", "occlusion": "no_occluded"},
+            "easy": {"distance": "d<40", "num_points": "n>50", "occlusion": None},
             "moderate": {
                 "distance": "d40-50",
                 "num_points": "n20-50",
@@ -846,8 +846,8 @@ class A9Dataset(Custom3DDataset):
             },
             "hard": {"distance": "d>50", "num_points": "n<20", "occlusion": "mostly_occluded"},
         }
-        distance_map = {"d<40": [0, 40], "d40-50": [40, 50], "d>50": [50, 9999]}
-        num_points_map = {"n<20": [0, 20], "n20-50": [20, 50], "n>50": [50, 9999]}
+        distance_map = {"d<40": [0, 40], "d40-50": [40, 50], "d>50": [50, 64]}
+        num_points_map = {"n<20": [5, 20], "n20-50": [20, 50], "n>50": [50, 999999]}
         occlusion_map = {
             "no_occluded": "NOT_OCCLUDED",
             "partially_occluded": "PARTIALLY_OCCLUDED",
@@ -867,10 +867,9 @@ class A9Dataset(Custom3DDataset):
                     min_d, max_d = distance_map[difficulty_map[eval_name]["distance"]]
                     min_n, max_n = num_points_map[difficulty_map[eval_name]["num_points"]]
                     occlusion_level = occlusion_map[difficulty_map[eval_name]["occlusion"]]
-                    if (
-                        (e_box["ego_dist"] > min_d and e_box["ego_dist"] <= max_d)
-                        and (e_box["num_pts"] > min_n and e_box["num_pts"] <= max_n)
-                    ) or e_box["occlusion"] == occlusion_level:
+                    if occlusion_level is not None and e_box["occlusion"] == occlusion_level:
+                        filtered_evals[timestamp].append(e_box)
+                    elif (e_box["ego_dist"] > min_d and e_box["ego_dist"] <= max_d) or (e_box["num_pts"] > min_n and e_box["num_pts"] <= max_n):
                         filtered_evals[timestamp].append(e_box)
 
         elif eval_name in ["d<40", "d40-50", "d>50"]:  # based on distance from sensor
@@ -915,7 +914,7 @@ class A9Dataset(Custom3DDataset):
         return list(cls_list), cls_total
 
     def _evaluate_a9(
-        self, config: dict, result_path: str, output_dir: str = None, verbose: bool = True
+        self, config: dict, result_path: str, output_dir: str = None, verbose: bool = True, extensive_report: bool = False
     ):
         assert osp.exists(result_path), "Error: The result file does not exist!"
 
@@ -943,7 +942,9 @@ class A9Dataset(Custom3DDataset):
         all_metrics_summary = {}
         all_metric_data_list = {}
 
-        for eval_name in self.eval_list:
+        iter_list = self.eval_list if extensive_report else ["overall"]
+
+        for eval_name in iter_list:
             if verbose:
                 print(f"Starting metric evaluation for {eval_name}")
 
@@ -1101,6 +1102,7 @@ class A9Dataset(Custom3DDataset):
         logger=None,
         metric="bbox",
         result_name="pts_bbox",
+        extensive_report: bool = False
     ):
         """Evaluation for a single model in nuScenes protocol.
 
@@ -1122,6 +1124,7 @@ class A9Dataset(Custom3DDataset):
             result_path=result_path,
             output_dir=output_dir,
             verbose=False,
+            extensive_report=extensive_report
         )
 
         # record metrics
@@ -1164,6 +1167,7 @@ class A9Dataset(Custom3DDataset):
         """
 
         metrics = {}
+        extensive_report = kwargs["extensive_report"] if "extensive_report" in kwargs else False
 
         if "boxes_3d" in results[0]:
             result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
@@ -1171,10 +1175,10 @@ class A9Dataset(Custom3DDataset):
             if isinstance(result_files, dict):
                 for name in result_names:
                     print("Evaluating bboxes of {}".format(name))
-                    ret_dict = self._evaluate_single(result_files[name])
+                    ret_dict = self._evaluate_single(result_files[name], extensive_report=extensive_report)
                 metrics.update(ret_dict)
             elif isinstance(result_files, str):
-                metrics.update(self._evaluate_single(result_files))
+                metrics.update(self._evaluate_single(result_files, extensive_report=extensive_report))
 
             if tmp_dir is not None:
                 tmp_dir.cleanup()
