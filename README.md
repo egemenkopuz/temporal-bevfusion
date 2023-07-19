@@ -42,7 +42,7 @@ git clone https://github.com/DanielPollithy/pypcd
 cd pypcd && pip install .
 ```
 
-If you have dataset fully ready, you can skip to the 5th step.
+*If you have dataset fully ready, you can skip to the 5th step.*
 
 1 - Merge all the files into one folder, then tokenize them by running the following command (if not tokenized already):
 
@@ -56,10 +56,10 @@ python tools/preprocessing/a9_tokenize.py --root-path ./data/a9_temporal_no_spli
 python tools/preprocessing/a9_add_difficulty_labels.py --root-path ./data/a9_temporal_no_split --out-path ./data/a9_temporal_no_split --loglevel INFO
 ```
 
-3 - You can then run the following command to find the optimal balanced split and split the dataset into training, validation and test sets:
+3 - You can then run the following command to find the optimal balanced split and split the dataset into training, validation and test sets (reduce the perm-limit if it is taking too long to run):
 
 ```bash
-python tools/preprocessing/create_a9_temporal_split.py --root-path ./data/a9_temporal_no_split --out-path ./data/a9_temporal --segment-size 30 --perm-limit 10000 --include-all-classes --include-all-sequences --loglevel INFO
+python tools/preprocessing/create_a9_temporal_split.py --root-path ./data/a9_temporal_no_split --out-path ./data/a9_temporal --seed 316 --segment-size 30 --perm-limit 100000 --loglevel INFO -p 6 --include-all-classes --include-all-sequences  --include-same_classes-in-difficulty --difficulty-th 0.8 --include-same_classes-in-distance --distance-th 0.8 --include-same_classes-in-num-points --num-points-th 0.5 --include-same_classes-in-occlusion --occlusion-th 0.3
 ```
 
 4 - In order to make new seperate sequence segments into to their own pseudo sequences, run the following command to tokenize the dataset again:
