@@ -1,0 +1,3 @@
+matplotlib
+pytransform3d
+opencv-python
