@@ -177,7 +177,6 @@ if __name__ == "__main__":
             load_augmented=load_augmented,
         )
     elif args.dataset in ["A9", "a9"]:
-        assert args.labels_path is not None
         a9_data_prep(
             root_path=args.root_path,
             info_prefix="a9",

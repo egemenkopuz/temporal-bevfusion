@@ -31,7 +31,6 @@ class A9Dataset(Custom3DDataset):
         "EMERGENCY_VEHICLE",
     )
 
-    # https://github.com/nutonomy/nuscenes-devkit/blob/57889ff20678577025326cfc24e57424a829be0a/python-sdk/nuscenes/eval/detection/evaluate.py#L222 # noqa
     ErrNameMapping = {
         "trans_err": "mATE",
         "scale_err": "mASE",
@@ -39,7 +38,6 @@ class A9Dataset(Custom3DDataset):
         "vel_err": "mAVE",
     }
 
-    # Modified from the originally used configs of BEVFusion https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/detection/configs/detection_cvpr_2019.json
     cls_range = {
         "CAR": 64,
         "TRUCK": 64,
@@ -442,6 +440,7 @@ class A9Dataset(Custom3DDataset):
 
                 num_lidar_pts = 0
                 occlusion_level = "UNKNOWN"
+                difficulty_level = None
 
                 for n in object_data["cuboid"]["attributes"]["num"]:
                     if n["name"] == "num_points":
@@ -449,6 +448,8 @@ class A9Dataset(Custom3DDataset):
                 for n in object_data["cuboid"]["attributes"]["text"]:
                     if n["name"] == "occlusion_level":
                         occlusion_level = n["val"]
+                    if n["name"] == "difficulty":
+                        difficulty_level = n["val"]
 
                 sample_boxes.append(
                     {
@@ -460,6 +461,7 @@ class A9Dataset(Custom3DDataset):
                         "velocity": [0, 0],
                         "num_pts": num_lidar_pts,
                         "occlusion": occlusion_level,
+                        "difficulty" : difficulty_level,
                         "detection_name": object_data["type"],
                         "detection_score": -1.0,  # GT samples do not have a score.
                     }
@@ -861,15 +863,10 @@ class A9Dataset(Custom3DDataset):
             "easy",
             "moderate",
             "hard",
-        ]:  # based on difficulty (distance, occlusion and number of points)
+        ]:  # based on difficulty level
             for timestamp, e_boxes in evals.items():
                 for e_box in e_boxes:
-                    min_d, max_d = distance_map[difficulty_map[eval_name]["distance"]]
-                    min_n, max_n = num_points_map[difficulty_map[eval_name]["num_points"]]
-                    occlusion_level = occlusion_map[difficulty_map[eval_name]["occlusion"]]
-                    if occlusion_level is not None and e_box["occlusion"] == occlusion_level:
-                        filtered_evals[timestamp].append(e_box)
-                    elif (e_box["ego_dist"] > min_d and e_box["ego_dist"] <= max_d) or (e_box["num_pts"] > min_n and e_box["num_pts"] <= max_n):
+                    if e_box["difficulty"] == eval_name:
                         filtered_evals[timestamp].append(e_box)
 
         elif eval_name in ["d<40", "d40-50", "d>50"]:  # based on distance from sensor
