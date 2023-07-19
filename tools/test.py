@@ -5,17 +5,18 @@ import warnings
 
 import mmcv
 import torch
-from torchpack.utils.config import configs
-from torchpack import distributed as dist
 from mmcv import Config, DictAction
 from mmcv.cnn import fuse_conv_bn
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import get_dist_info, init_dist, load_checkpoint, wrap_fp16_model
+from mmdet.apis import multi_gpu_test, set_random_seed
+from mmdet.datasets import replace_ImageToTensor
+from torchpack import distributed as dist
+from torchpack.utils.config import configs
+
 from mmdet3d.apis import single_gpu_test
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_model
-from mmdet.apis import multi_gpu_test, set_random_seed
-from mmdet.datasets import replace_ImageToTensor
 from mmdet3d.utils import recursive_eval
 
 

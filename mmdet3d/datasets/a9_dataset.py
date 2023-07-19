@@ -1085,6 +1085,8 @@ class A9Dataset(Custom3DDataset):
 
         with open(os.path.join(output_dir, "metrics_summary.json"), "w") as f:
             json.dump(all_metrics_summary["overall"], f, indent=2)
+        with open(os.path.join(output_dir, "all_metrics_summary.json"), "w") as f:
+            json.dump(all_metrics_summary, f, indent=2)
 
         mdl_dump = {
             key[0] + ":" + str(key[1]): self.serializeMetricDara(value)
