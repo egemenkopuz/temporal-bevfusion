@@ -62,7 +62,7 @@ def tokenize_a9_dataset_labels(
             break
 
     for split in splits:
-        if split.endswith(".json"):
+        if split.endswith(".json") or split.endswith(".log"):
             continue
         if split.lower() in ["train", "training"]:
             range_diff_threshold = range_diff_threshold_train

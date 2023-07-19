@@ -1,10 +1,11 @@
+import copy
 import json
 import os
 import tempfile
 import time
 from collections import defaultdict
 from os import path as osp
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 import mmcv
 import numpy as np
@@ -30,7 +31,6 @@ class A9Dataset(Custom3DDataset):
         "EMERGENCY_VEHICLE",
     )
 
-    # https://github.com/nutonomy/nuscenes-devkit/blob/57889ff20678577025326cfc24e57424a829be0a/python-sdk/nuscenes/eval/detection/evaluate.py#L222 # noqa
     ErrNameMapping = {
         "trans_err": "mATE",
         "scale_err": "mASE",
@@ -38,18 +38,17 @@ class A9Dataset(Custom3DDataset):
         "vel_err": "mAVE",
     }
 
-    # Modified from the originally used configs of BEVFusion https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/detection/configs/detection_cvpr_2019.json
     cls_range = {
-        "CAR": 50,
-        "TRUCK": 50,
-        "BUS": 50,
-        "TRAILER": 50,
-        "VAN": 50,
-        "EMERGENCY_VEHICLE": 50,
-        "PEDESTRIAN": 40,
-        "MOTORCYCLE": 40,
-        "BICYCLE": 40,
-        "OTHER": 30,
+        "CAR": 64,
+        "TRUCK": 64,
+        "BUS": 64,
+        "TRAILER": 64,
+        "VAN": 64,
+        "EMERGENCY_VEHICLE": 64,
+        "PEDESTRIAN": 64,
+        "MOTORCYCLE": 64,
+        "BICYCLE": 64,
+        "OTHER": 64,
     }
     dist_fcn = "center_distance"
     dist_ths = [0.5, 1.0, 2.0, 4.0]
@@ -58,6 +57,22 @@ class A9Dataset(Custom3DDataset):
     min_precision = 0.1
     max_boxes_per_sample = 500
     mean_ap_weight = 5
+
+    eval_list = [
+        "overall",
+        "easy",
+        "moderate",
+        "hard",
+        "d<40",
+        "d40-50",
+        "d>50",
+        "n<20",
+        "n20-50",
+        "n>50",
+        "no_occluded",
+        "partially_occluded",
+        "mostly_occluded",
+    ]
 
     def __init__(
         self,
@@ -424,10 +439,17 @@ class A9Dataset(Custom3DDataset):
                 yaw = np.asarray(rot_temp[2], dtype=np.float32)
 
                 num_lidar_pts = 0
+                occlusion_level = "UNKNOWN"
+                difficulty_level = None
 
                 for n in object_data["cuboid"]["attributes"]["num"]:
                     if n["name"] == "num_points":
                         num_lidar_pts = n["val"]
+                for n in object_data["cuboid"]["attributes"]["text"]:
+                    if n["name"] == "occlusion_level":
+                        occlusion_level = n["val"]
+                    if n["name"] == "difficulty":
+                        difficulty_level = n["val"]
 
                 sample_boxes.append(
                     {
@@ -438,6 +460,8 @@ class A9Dataset(Custom3DDataset):
                         "rotation": yaw,
                         "velocity": [0, 0],
                         "num_pts": num_lidar_pts,
+                        "occlusion": occlusion_level,
+                        "difficulty" : difficulty_level,
                         "detection_name": object_data["type"],
                         "detection_score": -1.0,  # GT samples do not have a score.
                     }
@@ -810,8 +834,84 @@ class A9Dataset(Custom3DDataset):
             "orient_err": value["orient_err"].tolist(),
         }
 
-    def _evaluate_a9_nusc(
-        self, config: dict, result_path: str, output_dir: str = None, verbose: bool = True
+    def filter_boxes_per_eval_type(self, eval_boxes, eval_name: str, verbose: bool = False) -> Dict:
+        evals = copy.deepcopy(eval_boxes)
+
+        filtered_evals = defaultdict(list)
+
+        difficulty_map = {
+            "easy": {"distance": "d<40", "num_points": "n>50", "occlusion": None},
+            "moderate": {
+                "distance": "d40-50",
+                "num_points": "n20-50",
+                "occlusion": "partially_occluded",
+            },
+            "hard": {"distance": "d>50", "num_points": "n<20", "occlusion": "mostly_occluded"},
+        }
+        distance_map = {"d<40": [0, 40], "d40-50": [40, 50], "d>50": [50, 64]}
+        num_points_map = {"n<20": [5, 20], "n20-50": [20, 50], "n>50": [50, 999999]}
+        occlusion_map = {
+            "no_occluded": "NOT_OCCLUDED",
+            "partially_occluded": "PARTIALLY_OCCLUDED",
+            "mostly_occluded": "MOSTLY_OCCLUDED",
+        }
+
+        if eval_name == "overall":  # no filtering
+            return evals
+
+        elif eval_name in [
+            "easy",
+            "moderate",
+            "hard",
+        ]:  # based on difficulty level
+            for timestamp, e_boxes in evals.items():
+                for e_box in e_boxes:
+                    if e_box["difficulty"] == eval_name:
+                        filtered_evals[timestamp].append(e_box)
+
+        elif eval_name in ["d<40", "d40-50", "d>50"]:  # based on distance from sensor
+            for timestamp, e_boxes in evals.items():
+                for e_box in e_boxes:
+                    min_d, max_d = distance_map[eval_name]
+                    if e_box["ego_dist"] > min_d and e_box["ego_dist"] <= max_d:
+                        filtered_evals[timestamp].append(e_box)
+        elif eval_name in [
+            "no_occluded",
+            "partially_occluded",
+            "mostly_occluded",
+        ]:  # based on occlusion level
+            for timestamp, e_boxes in evals.items():
+                for e_box in e_boxes:
+                    occlusion_level = occlusion_map[eval_name]
+                    if e_box["occlusion"] == occlusion_level:
+                        filtered_evals[timestamp].append(e_box)
+        elif eval_name in ["n<20", "n20-50", "n>50"]:  # based on number of points
+            for timestamp, e_boxes in evals.items():
+                for e_box in e_boxes:
+                    min_n, max_n = num_points_map[eval_name]
+                    if e_box["num_pts"] > min_n and e_box["num_pts"] <= max_n:
+                        filtered_evals[timestamp].append(e_box)
+        else:
+            raise Exception(f"invalid eval_name while filtering: {eval_name}")
+
+        return filtered_evals
+
+    def get_gt_boxes_classes(self, gt_boxes, verbose: bool = False) -> Tuple[List[str], dict]:
+        cls_list: set = set()
+        cls_total = {}
+
+        for _, e_boxes in gt_boxes.items():
+            for e_box in e_boxes:
+                cls_list.add(e_box["detection_name"])
+                if e_box["detection_name"] not in cls_total:
+                    cls_total[e_box["detection_name"]] = 1
+                else:
+                    cls_total[e_box["detection_name"]] += 1
+
+        return list(cls_list), cls_total
+
+    def _evaluate_a9(
+        self, config: dict, result_path: str, output_dir: str = None, verbose: bool = True, extensive_report: bool = False
     ):
         assert osp.exists(result_path), "Error: The result file does not exist!"
 
@@ -836,137 +936,164 @@ class A9Dataset(Custom3DDataset):
 
         self.keys = self.gt_boxes.keys()
 
-        start_time = time.time()
+        all_metrics_summary = {}
+        all_metric_data_list = {}
 
-        # -----------------------------------
-        # Step 1: Accumulate metric data for all classes and distance thresholds.
-        # -----------------------------------
-        if verbose:
-            print("Accumulating metric data...")
-        metric_data_list = {}
-        for class_name in self.CLASSES:
-            for dist_th in self.dist_ths:
-                md = self.accumulate(self.gt_boxes, self.pred_boxes, class_name, dist_th)
-                metric_data_list[(class_name, dist_th)] = md
+        iter_list = self.eval_list if extensive_report else ["overall"]
 
-        # -----------------------------------
-        # Step 2: Calculate metrics from the data.
-        # -----------------------------------
-        if verbose:
-            print("Calculating metrics...")
-        metrics = {
-            "label_aps": defaultdict(lambda: defaultdict(float)),
-            "label_tp_errors": defaultdict(lambda: defaultdict(float)),
-        }
-        for class_name in self.CLASSES:
-            # Compute APs.
-            for dist_th in self.dist_ths:
-                metric_data = metric_data_list[(class_name, dist_th)]
-                ap = self.calc_ap(metric_data, self.min_recall, self.min_precision)
-                metrics["label_aps"][class_name][dist_th] = ap
+        for eval_name in iter_list:
+            if verbose:
+                print(f"Starting metric evaluation for {eval_name}")
 
-            # Compute TP metrics.
-            TP_METRICS = ["trans_err", "scale_err", "orient_err", "vel_err"]
+            curr_gt_boxes = self.filter_boxes_per_eval_type(
+                self.gt_boxes, eval_name, verbose=verbose
+            )
+            curr_gt_classes, curr_gt_class_counts = self.get_gt_boxes_classes(
+                curr_gt_boxes, verbose=verbose
+            )
+            curr_gt_classes = [i for i in self.CLASSES if i in curr_gt_classes]
+
+            start_time = time.time()
+
+            # -----------------------------------
+            # Step 1: Accumulate metric data for all classes and distance thresholds.
+            # -----------------------------------
+            if verbose:
+                print("Accumulating metric data...")
+
+            metric_data_list = {}
+            for class_name in curr_gt_classes:
+                for dist_th in self.dist_ths:
+                    md = self.accumulate(curr_gt_boxes, self.pred_boxes, class_name, dist_th)
+                    metric_data_list[(class_name, dist_th)] = md
+
+            # -----------------------------------
+            # Step 2: Calculate metrics from the data.
+            # -----------------------------------
+            if verbose:
+                print("Calculating metrics...")
+            metrics = {
+                "label_aps": defaultdict(lambda: defaultdict(float)),
+                "label_tp_errors": defaultdict(lambda: defaultdict(float)),
+            }
+            for class_name in curr_gt_classes:
+                # Compute APs.
+                for dist_th in self.dist_ths:
+                    metric_data = metric_data_list[(class_name, dist_th)]
+                    ap = self.calc_ap(metric_data, self.min_recall, self.min_precision)
+                    metrics["label_aps"][class_name][dist_th] = ap
+
+                # Compute TP metrics.
+                TP_METRICS = ["trans_err", "scale_err", "orient_err", "vel_err"]
+                for metric_name in TP_METRICS:
+                    metric_data = metric_data_list[(class_name, self.dist_th_tp)]
+                    tp = self.calc_tp(metric_data, self.min_recall, metric_name)
+                    metrics["label_tp_errors"][class_name][metric_name] = tp
+
+            # Compute evaluation time.
+            metrics["eval_time"] = time.time() - start_time
+
+            # Compute other values for metrics summary
+            mean_dist_aps = {
+                class_name: np.mean(list(d.values()))
+                for class_name, d in metrics["label_aps"].items()
+            }
+            mean_ap = float(np.mean(list(mean_dist_aps.values())))
+
+            tp_errors = {}
             for metric_name in TP_METRICS:
-                metric_data = metric_data_list[(class_name, self.dist_th_tp)]
-                tp = self.calc_tp(metric_data, self.min_recall, metric_name)
-                metrics["label_tp_errors"][class_name][metric_name] = tp
+                class_errors = []
+                for detection_name in curr_gt_classes:
+                    class_errors.append(metrics["label_tp_errors"][detection_name][metric_name])
 
-        # Compute evaluation time.
-        metrics["eval_time"] = time.time() - start_time
+                tp_errors[metric_name] = float(np.nanmean(class_errors))
 
-        # Compute other values for metrics summary
-        mean_dist_aps = {
-            class_name: np.mean(list(d.values())) for class_name, d in metrics["label_aps"].items()
-        }
-        mean_ap = float(np.mean(list(mean_dist_aps.values())))
+            tp_scores = {}
+            for metric_name in TP_METRICS:
+                # We convert the true positive errors to "scores" by 1-error.
+                score = 1.0 - tp_errors[metric_name]
 
-        tp_errors = {}
-        for metric_name in TP_METRICS:
-            class_errors = []
-            for detection_name in self.CLASSES:
-                class_errors.append(metrics["label_tp_errors"][detection_name][metric_name])
+                # Some of the true positive errors are unbounded, so we bound the scores to min 0.
+                score = max(0.0, score)
 
-            tp_errors[metric_name] = float(np.nanmean(class_errors))
+                tp_scores[metric_name] = score
 
-        tp_scores = {}
-        for metric_name in TP_METRICS:
-            # We convert the true positive errors to "scores" by 1-error.
-            score = 1.0 - tp_errors[metric_name]
+            # Summarize.
+            nd_score = float(self.mean_ap_weight * mean_ap + np.sum(list(tp_scores.values())))
+            # Normalize.
+            nd_score = nd_score / float(self.mean_ap_weight + len(tp_scores.keys()))
 
-            # Some of the true positive errors are unbounded, so we bound the scores to min 0.
-            score = max(0.0, score)
+            metrics_summary = {
+                "label_aps": metrics["label_aps"],
+                "mean_dist_aps": mean_dist_aps,
+                "mean_ap": mean_ap,
+                "label_tp_errors": metrics["label_tp_errors"],
+                "tp_errors": tp_errors,
+                "tp_scores": tp_scores,
+                "nd_score": nd_score,
+                "eval_time": metrics["eval_time"],
+                "cfg": self.eval_detection_configs,
+            }
+            metrics_summary["meta"] = self.meta.copy()
 
-            tp_scores[metric_name] = score
+            # Print high-level metrics.
+            print(f"\n{eval_name} - mAP: %.4f" % (metrics_summary["mean_ap"]))
+            err_name_mapping = {
+                "trans_err": "mATE",
+                "scale_err": "mASE",
+                "orient_err": "mAOE",
+                "vel_err": "mAVE",
+            }
+            for tp_name, tp_val in metrics_summary["tp_errors"].items():
+                print(f"{eval_name} - %s: %.4f" % (err_name_mapping[tp_name], tp_val))
+            print(f"{eval_name} - NDS: %.4f" % (metrics_summary["nd_score"]))
+            print("Eval time: %.1fs" % metrics_summary["eval_time"])
+            total_gt_boxes = sum([len(x) for x in curr_gt_boxes.values()])
+            print(f"Total number of gt bboxes: {total_gt_boxes}")
+            print(f"GT class counts: {curr_gt_class_counts}")
 
-        # Summarize.
-        nd_score = float(self.mean_ap_weight * mean_ap + np.sum(list(tp_scores.values())))
-        # Normalize.
-        nd_score = nd_score / float(self.mean_ap_weight + len(tp_scores.keys()))
+            # Print per-class metrics.
+            print(f"\n{eval_name} - Per-class results:")
+            print(
+                "%-20s\t%-6s\t%-6s\t%-6s\t%-6s\t%-6s"
+                % ("Object Class", "AP", "ATE", "ASE", "AOE", "AVE")
+            )
+            class_aps = metrics_summary["mean_dist_aps"]
+            class_tps = metrics_summary["label_tp_errors"]
+            for class_name in class_aps.keys():
+                print(
+                    "%-20s\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f"
+                    % (
+                        class_name,
+                        class_aps[class_name],
+                        class_tps[class_name]["trans_err"],
+                        class_tps[class_name]["scale_err"],
+                        class_tps[class_name]["orient_err"],
+                        class_tps[class_name]["vel_err"],
+                    )
+                )
+
+            all_metrics_summary[eval_name] = metrics_summary
+            all_metric_data_list[eval_name] = metric_data_list
 
         # Dump the metric data, meta and metrics to disk.
         if verbose:
             print("Saving metrics to: %s" % output_dir)
 
-        metrics_summary = {
-            "label_aps": metrics["label_aps"],
-            "mean_dist_aps": mean_dist_aps,
-            "mean_ap": mean_ap,
-            "label_tp_errors": metrics["label_tp_errors"],
-            "tp_errors": tp_errors,
-            "tp_scores": tp_scores,
-            "nd_score": nd_score,
-            "eval_time": metrics["eval_time"],
-            "cfg": self.eval_detection_configs,
-        }
-        metrics_summary["meta"] = self.meta.copy()
         with open(os.path.join(output_dir, "metrics_summary.json"), "w") as f:
-            json.dump(metrics_summary, f, indent=2)
+            json.dump(all_metrics_summary["overall"], f, indent=2)
+        with open(os.path.join(output_dir, "all_metrics_summary.json"), "w") as f:
+            json.dump(all_metrics_summary, f, indent=2)
 
         mdl_dump = {
             key[0] + ":" + str(key[1]): self.serializeMetricDara(value)
-            for key, value in metric_data_list.items()
+            for key, value in all_metric_data_list["overall"].items()
         }
 
         with open(os.path.join(output_dir, "metrics_details.json"), "w") as f:
             json.dump(mdl_dump, f, indent=2)
 
-        # Print high-level metrics.
-        print("mAP: %.4f" % (metrics_summary["mean_ap"]))
-        err_name_mapping = {
-            "trans_err": "mATE",
-            "scale_err": "mASE",
-            "orient_err": "mAOE",
-            "vel_err": "mAVE",
-        }
-        for tp_name, tp_val in metrics_summary["tp_errors"].items():
-            print("%s: %.4f" % (err_name_mapping[tp_name], tp_val))
-        print("NDS: %.4f" % (metrics_summary["nd_score"]))
-        print("Eval time: %.1fs" % metrics_summary["eval_time"])
-
-        # Print per-class metrics.
-        print()
-        print("Per-class results:")
-        print(
-            "%-20s\t%-6s\t%-6s\t%-6s\t%-6s\t%-6s"
-            % ("Object Class", "AP", "ATE", "ASE", "AOE", "AVE")
-        )
-        class_aps = metrics_summary["mean_dist_aps"]
-        class_tps = metrics_summary["label_tp_errors"]
-        for class_name in class_aps.keys():
-            print(
-                "%-20s\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f"
-                % (
-                    class_name,
-                    class_aps[class_name],
-                    class_tps[class_name]["trans_err"],
-                    class_tps[class_name]["scale_err"],
-                    class_tps[class_name]["orient_err"],
-                    class_tps[class_name]["vel_err"],
-                )
-            )
-
-        return metrics_summary
+        return all_metrics_summary
 
     def _evaluate_single(
         self,
@@ -974,6 +1101,7 @@ class A9Dataset(Custom3DDataset):
         logger=None,
         metric="bbox",
         result_name="pts_bbox",
+        extensive_report: bool = False
     ):
         """Evaluation for a single model in nuScenes protocol.
 
@@ -990,11 +1118,12 @@ class A9Dataset(Custom3DDataset):
         """
         output_dir = osp.join(*osp.split(result_path)[:-1])
 
-        self._evaluate_a9_nusc(
+        self._evaluate_a9(
             config=self.eval_detection_configs,
             result_path=result_path,
             output_dir=output_dir,
             verbose=False,
+            extensive_report=extensive_report
         )
 
         # record metrics
@@ -1037,6 +1166,7 @@ class A9Dataset(Custom3DDataset):
         """
 
         metrics = {}
+        extensive_report = kwargs["extensive_report"] if "extensive_report" in kwargs else False
 
         if "boxes_3d" in results[0]:
             result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
@@ -1044,10 +1174,10 @@ class A9Dataset(Custom3DDataset):
             if isinstance(result_files, dict):
                 for name in result_names:
                     print("Evaluating bboxes of {}".format(name))
-                    ret_dict = self._evaluate_single(result_files[name])
+                    ret_dict = self._evaluate_single(result_files[name], extensive_report=extensive_report)
                 metrics.update(ret_dict)
             elif isinstance(result_files, str):
-                metrics.update(self._evaluate_single(result_files))
+                metrics.update(self._evaluate_single(result_files, extensive_report=extensive_report))
 
             if tmp_dir is not None:
                 tmp_dir.cleanup()

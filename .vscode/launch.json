@@ -5,13 +5,23 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Create Data A9",
+            "name": "Python: create_temporal",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/tools/create_data.py",
+            "program": "${workspaceFolder}/tools/preprocessing/create_a9_temporal_split.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["a9", "--root-path", "./data/a9", "--out-dir", "./data/a9_out", "--log", "info"]
+            "args": [
+                "--root-path", "./data/a9_temporal_no_split",
+                "--out-path", "./data/a9_temporal",
+                "--segment-size", "30",
+                "--perm-limit", "20",
+                "-p", "1",
+                "--include-same_classes-in-difficulty",
+                "--include-same_classes-in-distance",
+                "--include-same_classes-in-num-points",
+                "--include-same_classes-in-occlusion"
+            ]
         }
     ]
 }
