@@ -27,14 +27,16 @@ OBJECT_PALETTE = {
 }
 
 A9_OBJECT_PALETTE = {
-    "CAR": (255, 158, 0),
-    "TRUCK": (255, 99, 71),
-    "BUS": (255, 69, 0),
-    "TRAILER": (255, 140, 0),
-    "VAN": (112, 128, 144),
-    "MOTORCYCLE": (255, 61, 99),
-    "BICYCLE": (220, 20, 60),
-    "PEDESTRIAN": (0, 0, 230),
+    "CAR": (0, 204, 246),
+    "TRUCK": (63, 233, 185),
+    "BUS": (217, 138, 134),
+    "TRAILER": (90, 255, 126),
+    "VAN": (235, 207, 54),
+    "MOTORCYCLE": (185, 164, 84),
+    "BICYCLE": (177, 140, 255),
+    "PEDESTRIAN": (233, 118, 249),
+    "EMERGENCY_VEHICLE": (102, 107, 250),
+    "OTHER": (199, 199, 199),
 }
 
 MAP_PALETTE = {
@@ -136,10 +138,12 @@ def visualize_bev_feature(
     bev_feature: np.ndarray,
     xlim: Tuple[float, float] = (-50, 50),
     ylim: Tuple[float, float] = (-50, 50),
+    rotate: bool = False,
 ) -> None:
-    bev_feature = np.mean(bev_feature, axis=0)
-    bev_feature = bev_feature * 255 / bev_feature.max()
-    bev_feature = np.rot90(bev_feature)
+    bev_feature = bev_feature / np.linalg.norm(bev_feature)
+    bev_feature = np.max(bev_feature, axis=0)
+    if rotate:
+        bev_feature = np.rot90(bev_feature)
 
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 

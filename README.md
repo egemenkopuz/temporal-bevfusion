@@ -78,10 +78,10 @@ python tools/create_data.py a9 --root-path ./data/a9_temporal --out-dir ./data/a
 
 ```bash
 # BEV Fusion
-torchpack dist-run -np 2 python tools/train.py configs/a9/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from runs/lidar-only/latest.pth
+torchpack dist-run -np 2 python tools/train.py configs/a9/det/transfusion/secfpn/camera+lidar/swint/convfuser.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from runs/lidar-only/latest.pth
 
 # Lidar-only
-torchpack dist-run -np 2 python tools/train.py configs/a9/det/transfusion/secfpn/lidar/voxelnet_0p075.yaml
+torchpack dist-run -np 2 python tools/train.py configs/a9/det/transfusion/secfpn/lidar/voxelnet.yaml
 
 # Camera-only
 torchpack dist-run -np 2 python tools/train.py configs/a9/det/centerhead/lssfpn/camera/256x704/swint/default.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth

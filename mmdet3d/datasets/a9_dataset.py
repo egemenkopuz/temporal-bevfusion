@@ -5,7 +5,7 @@ import tempfile
 import time
 from collections import defaultdict
 from os import path as osp
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import mmcv
 import numpy as np
@@ -50,6 +50,7 @@ class A9Dataset(Custom3DDataset):
         "BICYCLE": 64,
         "OTHER": 64,
     }
+
     dist_fcn = "center_distance"
     dist_ths = [0.5, 1.0, 2.0, 4.0]
     dist_th_tp = 2.0
@@ -87,6 +88,7 @@ class A9Dataset(Custom3DDataset):
         filter_empty_gt=True,
         test_mode=False,
         use_valid_flag=False,
+        eval_point_cloud_range=None,
     ) -> None:
         self.load_interval = load_interval
         self.use_valid_flag = use_valid_flag
@@ -105,6 +107,7 @@ class A9Dataset(Custom3DDataset):
 
         self.eval_detection_configs = {
             "class_range": self.cls_range,
+            "point_cloud_range": eval_point_cloud_range,
             "dist_fcn": self.dist_fcn,
             "dist_ths": self.dist_ths,
             "dist_th_tp": self.dist_th_tp,
@@ -368,6 +371,7 @@ class A9Dataset(Custom3DDataset):
                         "timestamp": box["timestamp"],
                         "translation": box["translation"],
                         "ego_dist": np.sqrt(np.sum(np.array(box["translation"][:2]) ** 2)),
+                        "location": box["translation"][:3],
                         "size": box["size"],
                         "rotation": box["rotation"],
                         "velocity": box["velocity"],
@@ -456,12 +460,13 @@ class A9Dataset(Custom3DDataset):
                         "timestamp": timestamp,
                         "translation": loc,
                         "ego_dist": np.sqrt(np.sum(np.array(loc[:2]) ** 2)),
+                        "location": loc,
                         "size": dim,
                         "rotation": yaw,
                         "velocity": [0, 0],
                         "num_pts": num_lidar_pts,
                         "occlusion": occlusion_level,
-                        "difficulty" : difficulty_level,
+                        "difficulty": difficulty_level,
                         "detection_name": object_data["type"],
                         "detection_score": -1.0,  # GT samples do not have a score.
                     }
@@ -753,7 +758,13 @@ class A9Dataset(Custom3DDataset):
             "orient_err": match_data["orient_err"],
         }
 
-    def filter_eval_boxes(self, eval_boxes, max_dist: Dict[str, float], verbose: bool = False):
+    def filter_eval_boxes(
+        self,
+        eval_boxes,
+        max_dist: Dict[str, float],
+        point_range: Optional[List[float]] = None,
+        verbose: bool = False,
+    ):
         """
         Applies filtering to boxes. Distance, bike-racks and points per box.
         :param nusc: An instance of the NuScenes class.
@@ -772,6 +783,21 @@ class A9Dataset(Custom3DDataset):
                 if box["ego_dist"] < max_dist[box["detection_name"]]
             ]
             dist_filter += len(eval_boxes[timestamp])
+
+            # filter based on point_range
+            if point_range is not None:
+                eval_boxes[timestamp] = [
+                    box
+                    for box in eval_boxes[timestamp]
+                    if (
+                        box["location"][0] > point_range[0]
+                        and box["location"][0] < point_range[3]
+                        and box["location"][1] > point_range[1]
+                        and box["location"][1] < point_range[4]
+                        and box["location"][2] > point_range[2]
+                        and box["location"][2] < point_range[5]
+                    )
+                ]
 
             # Then remove boxes with zero points in them. Eval boxes have -1 points by default.
             eval_boxes[timestamp] = [
@@ -911,7 +937,12 @@ class A9Dataset(Custom3DDataset):
         return list(cls_list), cls_total
 
     def _evaluate_a9(
-        self, config: dict, result_path: str, output_dir: str = None, verbose: bool = True, extensive_report: bool = False
+        self,
+        config: dict,
+        result_path: str,
+        output_dir: str = None,
+        verbose: bool = True,
+        extensive_report: bool = False,
     ):
         assert osp.exists(result_path), "Error: The result file does not exist!"
 
@@ -929,10 +960,14 @@ class A9Dataset(Custom3DDataset):
         # Filter boxes (distance, points per box, etc.).
         if verbose:
             print("Filtering predictions")
-        self.pred_boxes = self.filter_eval_boxes(self.pred_boxes, self.cls_range, verbose=verbose)
+        self.pred_boxes = self.filter_eval_boxes(
+            self.pred_boxes, config["class_range"], config["point_cloud_range"], verbose=verbose
+        )
         if verbose:
             print("Filtering ground truth annotations")
-        self.gt_boxes = self.filter_eval_boxes(self.gt_boxes, self.cls_range, verbose=verbose)
+        self.gt_boxes = self.filter_eval_boxes(
+            self.gt_boxes, config["class_range"], config["point_cloud_range"], verbose=verbose
+        )
 
         self.keys = self.gt_boxes.keys()
 
@@ -1101,7 +1136,7 @@ class A9Dataset(Custom3DDataset):
         logger=None,
         metric="bbox",
         result_name="pts_bbox",
-        extensive_report: bool = False
+        extensive_report: bool = False,
     ):
         """Evaluation for a single model in nuScenes protocol.
 
@@ -1123,7 +1158,7 @@ class A9Dataset(Custom3DDataset):
             result_path=result_path,
             output_dir=output_dir,
             verbose=False,
-            extensive_report=extensive_report
+            extensive_report=extensive_report,
         )
 
         # record metrics
@@ -1174,10 +1209,14 @@ class A9Dataset(Custom3DDataset):
             if isinstance(result_files, dict):
                 for name in result_names:
                     print("Evaluating bboxes of {}".format(name))
-                    ret_dict = self._evaluate_single(result_files[name], extensive_report=extensive_report)
+                    ret_dict = self._evaluate_single(
+                        result_files[name], extensive_report=extensive_report
+                    )
                 metrics.update(ret_dict)
             elif isinstance(result_files, str):
-                metrics.update(self._evaluate_single(result_files, extensive_report=extensive_report))
+                metrics.update(
+                    self._evaluate_single(result_files, extensive_report=extensive_report)
+                )
 
             if tmp_dir is not None:
                 tmp_dir.cleanup()

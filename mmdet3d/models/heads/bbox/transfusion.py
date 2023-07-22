@@ -257,6 +257,13 @@ class TransFusionHead(nn.Module):
                 :,
                 2,
             ] = F.max_pool2d(heatmap[:, 2], kernel_size=1, stride=1, padding=0)
+        elif self.test_cfg["dataset"] == "a9":
+            local_max[
+                :,
+                4,
+            ] = F.max_pool2d(
+                heatmap[:, 4], kernel_size=1, stride=1, padding=0
+            )  # Pedestrian
         heatmap = heatmap * (heatmap == local_max)
         heatmap = heatmap.view(batch_size, heatmap.shape[1], -1)
 
@@ -734,6 +741,27 @@ class TransFusionHead(nn.Module):
                     dict(num_class=1, class_names=["Car"], indices=[0], radius=0.7),
                     dict(num_class=1, class_names=["Pedestrian"], indices=[1], radius=0.7),
                     dict(num_class=1, class_names=["Cyclist"], indices=[2], radius=0.7),
+                ]
+            elif self.test_cfg["dataset"] == "a9":
+                self.tasks = [
+                    dict(
+                        num_class=1,
+                        class_names=["PEDESTRIAN"],
+                        indices=[4],
+                        radius=0.4,
+                    ),
+                    dict(
+                        num_class=1,
+                        class_names=["MOTORCYCLE"],
+                        indices=[6],
+                        radius=0.7,
+                    ),
+                    dict(
+                        num_class=1,
+                        class_names=["BICYCLE"],
+                        indices=[7],
+                        radius=0.7,
+                    ),
                 ]
 
             ret_layer = []

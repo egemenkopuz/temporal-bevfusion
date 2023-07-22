@@ -258,6 +258,7 @@ class BEVFusion(Base3DFusionModel):
                         feature.clone().detach().cpu().numpy().squeeze(),
                         self.save_bev_features["xlim"],
                         self.save_bev_features["ylim"],
+                        True if sensor == "lidar" else False,
                     )
 
             features.append(feature)
