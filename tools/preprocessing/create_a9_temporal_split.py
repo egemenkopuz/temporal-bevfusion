@@ -31,11 +31,11 @@ CLASSES = [
     "OTHER",
 ]
 
-CLASS_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 0, 0]) * 4
-DIFFICULTY_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 0, 0]) * 4
-NUM_POINTS_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 0, 0]) * 2
-OCCLUSION_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 0, 0]) * 1
-DISTANCE_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 0, 0]) * 4
+CLASS_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 5, 5]) * 10
+DIFFICULTY_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 5, 5]) * 4
+NUM_POINTS_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 5, 5]) * 2
+OCCLUSION_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 5, 5]) * 1
+DISTANCE_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 5, 5]) * 4
 
 DIFFICULTY_MAP = {
     "easy": {"distance": "d<40", "num_points": "n>50", "occlusion": "no_occluded"},
@@ -66,6 +66,45 @@ img_s1_folder_name = "s110_camera_basler_south1_8mm"
 img_s2_folder_name = "s110_camera_basler_south2_8mm"
 pcd_s_folder_name = "s110_lidar_ouster_south"
 pcd_n_folder_name = "s110_lidar_ouster_north"
+
+
+def get_args() -> Namespace:
+    """
+    Parse given arguments for find_and_create_a9_temporal_split function.
+
+    Returns:
+        Namespace: parsed arguments
+    """
+    parser = ArgumentParser()
+
+    parser.add_argument("--root-path", type=str, required=True)
+    parser.add_argument("--out-path", type=str, required=True)
+    parser.add_argument("--segment-size", type=int, default=30, required=False)
+    parser.add_argument("--perm-limit", type=int, default=2e4, required=False)
+    parser.add_argument("-p", type=int, default=4, required=False)
+    parser.add_argument("--include-all-classes", default=False, action="store_true")
+    parser.add_argument("--include-all-sequences", default=False, action="store_true")
+    parser.add_argument("--include-same_classes-in-difficulty", default=False, action="store_true")
+    parser.add_argument("--difficulty-th", type=float, default=0.5, required=False)
+    parser.add_argument("--include-same_classes-in-distance", default=False, action="store_true")
+    parser.add_argument("--distance-th", type=float, default=0.5, required=False)
+    parser.add_argument("--include-same_classes-in-num-points", default=False, action="store_true")
+    parser.add_argument("--num-points-th", type=float, default=0.5, required=False)
+    parser.add_argument("--include-same_classes-in-occlusion", default=False, action="store_true")
+    parser.add_argument("--occlusion-th", type=float, default=0.5, required=False)
+    parser.add_argument("--seed", type=int, default=42, required=False)
+    parser.add_argument("--splits", nargs="+", default=["train", "val", "test"])
+    parser.add_argument("--split-ratios", nargs="+", default=["0.8", "0.1", "0.1"])
+    parser.add_argument("--point-cloud-range", nargs="+", default=[])
+    parser.add_argument("--exclude-classes", nargs="+", default=[])
+    parser.add_argument(
+        "-log",
+        "--loglevel",
+        default="info",
+        help="Provide logging level. Example --loglevel debug, default=info",
+    )
+
+    return parser.parse_args()
 
 
 @dataclass()
@@ -148,42 +187,6 @@ class TemporalSequenceDetails:
             "frame_pcd_paths": self.frame_pcd_paths[start:end],
             "frame_pcd_labels_paths": self.frame_pcd_labels_paths[start:end],
         }
-
-
-def get_args() -> Namespace:
-    """
-    Parse given arguments for find_and_create_a9_temporal_split function.
-
-    Returns:
-        Namespace: parsed arguments
-    """
-    parser = ArgumentParser()
-
-    parser.add_argument("--root-path", type=str, required=True)
-    parser.add_argument("--out-path", type=str, required=True)
-    parser.add_argument("--segment-size", type=int, default=30, required=False)
-    parser.add_argument("--perm-limit", type=int, default=2e4, required=False)
-    parser.add_argument("-p", type=int, default=4, required=False)
-    parser.add_argument("--include-all-classes", default=False, action="store_true")
-    parser.add_argument("--include-all-sequences", default=False, action="store_true")
-    parser.add_argument("--include-same_classes-in-difficulty", default=False, action="store_true")
-    parser.add_argument("--difficulty-th", type=float, default=0.5, required=False)
-    parser.add_argument("--include-same_classes-in-distance", default=False, action="store_true")
-    parser.add_argument("--distance-th", type=float, default=0.5, required=False)
-    parser.add_argument("--include-same_classes-in-num-points", default=False, action="store_true")
-    parser.add_argument("--num-points-th", type=float, default=0.5, required=False)
-    parser.add_argument("--include-same_classes-in-occlusion", default=False, action="store_true")
-    parser.add_argument("--occlusion-th", type=float, default=0.5, required=False)
-    parser.add_argument("--seed", type=int, default=42, required=False)
-    parser.add_argument("--point-cloud-range", nargs="+", default=[])
-    parser.add_argument(
-        "-log",
-        "--loglevel",
-        default="warning",
-        help="Provide logging level. Example --loglevel debug, default=warning",
-    )
-
-    return parser.parse_args()
 
 
 def create_sequence_details(
@@ -330,7 +333,7 @@ def create_sequence_details(
     return data
 
 
-def calc_segment_loss(
+def calculate_segment_loss(
     perm: List[Tuple[str, Tuple[int, int]]],
     data: Dict[str, TemporalSequenceDetails],
     split_ratio: List[float] = [0.8, 0.1, 0.1],
@@ -343,13 +346,13 @@ def calc_segment_loss(
     include_all_classes: bool = False,
     include_all_sequences: bool = False,
     include_same_classes_in_difficulty: bool = False,
-    difficulty_threshold_ratio: float = 0.5,
+    difficulty_threshold_ratio: float = 1.0,
     include_same_classes_in_distance: bool = False,
-    distance_threshold_ratio: float = 0.5,
+    distance_threshold_ratio: float = 1.0,
     include_same_classes_in_num_points: bool = False,
-    num_points_threshold_ratio: float = 0.5,
+    num_points_threshold_ratio: float = 1.0,
     include_same_classes_in_occlusion: bool = False,
-    occlusion_threshold_ratio: float = 0.5,
+    occlusion_threshold_ratio: float = 1.0,
 ) -> Dict[str, Any]:
     """
     Calculate the loss of a given permutation of segments.
@@ -363,17 +366,42 @@ def calc_segment_loss(
         split_ratio: ratio of splits
         classes: list of classes
         class_weights: weights of classes
+        difficulty_weights: weights of difficulty level
+        distance_weights: weights of distance
+        num_points_weights: weights of number of points
+        occlusion_weights: weights of occlusion levels
         include_all_classes: whether to force to have each class presence in all splits
         include_all_sequencess: whether to force to have each sequence presence in all splits
+        include_same_classes_in_difficulty: whether to force to have same classes in all splits with given difficulty threshold
+        difficulty_threshold_ratio: difficulty threshold ratio
+        include_same_classes_in_distance: whether to force to have same classes in all splits with given distance threshold
+        distance_threshold_ratio: distance threshold ratio
+        include_same_classes_in_num_points: whether to force to have same classes in all splits with given number of points threshold
+        num_points_threshold_ratio: number of points threshold ratio
+        include_same_classes_in_occlusion: whether to force to have same classes in all splits with given occlusion threshold
+        occlusion_threshold_ratio: occlusion threshold ratio
+
+    Returns:
+        Dict: dictionary of details
     """
     loss = 0
+    split_count = len(split_ratio)
 
-    split_idx_ranges = [
-        0,
-        (split_ratio[0] * len(perm)),
-        ((split_ratio[0] + split_ratio[1]) * len(perm)),
-        len(perm),
-    ]
+    if split_count == 3:  # train, val, test
+        split_idx_ranges = [
+            0,
+            (split_ratio[0] * len(perm)),
+            ((split_ratio[0] + split_ratio[1]) * len(perm)),
+            len(perm),
+        ]
+    elif split_count == 2:
+        split_idx_ranges = [
+            0,
+            (split_ratio[0] * len(perm)),
+            len(perm),
+        ]
+    else:
+        raise Exception("Number of splits must be either 2 or 3")
 
     assert all(
         [float(x).is_integer() for x in split_idx_ranges]
@@ -381,7 +409,8 @@ def calc_segment_loss(
 
     seq_cls_assigned_split = [0] * int(len(perm) * split_ratio[0])
     seq_cls_assigned_split.extend([1] * int(len(perm) * split_ratio[1]))
-    seq_cls_assigned_split.extend([2] * int(len(perm) * split_ratio[2]))
+    if split_count == 3:  # train, val, test
+        seq_cls_assigned_split.extend([2] * int(len(perm) * split_ratio[2]))
 
     split_cls_counts = [{cls: 0 for cls in classes} for _ in range(len(split_ratio))]
     split_occlusion_counts = [
@@ -487,7 +516,7 @@ def calc_segment_loss(
 
     for i in range(len(split_ratio)):
         total_split_difficulty_counts = [
-            sum([split_difficulty_counts[i][cls][diff] for cls in CLASSES])
+            sum([split_difficulty_counts[i][cls][diff] for cls in classes])
             for diff in DIFFICULTY_MAP.keys()
         ]
         split_difficulty_ratios.append(
@@ -498,7 +527,7 @@ def calc_segment_loss(
                     else 0
                     for j, diff in enumerate(DIFFICULTY_MAP.keys())
                 }
-                for cls in CLASSES
+                for cls in classes
             }
         )
 
@@ -506,7 +535,7 @@ def calc_segment_loss(
     if include_same_classes_in_difficulty:
         class_presences = [
             {diff: {cls: False for cls in classes} for diff in DIFFICULTY_MAP.keys()}
-            for _ in range(3)
+            for _ in range(split_count)
         ]
         for split_idx, x in enumerate(split_difficulty_counts):
             for cls, diffs in x.items():
@@ -519,13 +548,13 @@ def calc_segment_loss(
                 for cls, cls_b in clss.items():
                     if cls_b == class_presences[0][id][cls]:
                         tot += 1
-        th = len(classes) * 2 * len(DIFFICULTY_MAP.keys())
+        th = len(classes) * (split_count - 1) * len(DIFFICULTY_MAP.keys())
         if th * difficulty_threshold_ratio > tot:
             return {"loss": None, "reason": "difficulty-threshold"}
 
     for i in range(len(split_ratio)):
         total_split_occlusion_counts = [
-            sum([split_occlusion_counts[i][cls][occl] for cls in CLASSES])
+            sum([split_occlusion_counts[i][cls][occl] for cls in classes])
             for occl in OCCLUSION_MAP.values()
         ]
         split_occlusion_ratios.append(
@@ -536,13 +565,14 @@ def calc_segment_loss(
                     else 0
                     for j, occl in enumerate(OCCLUSION_MAP.values())
                 }
-                for cls in CLASSES
+                for cls in classes
             }
         )
 
     if include_same_classes_in_occlusion:
         class_presences = [
-            {o: {cls: False for cls in classes} for o in OCCLUSION_MAP.values()} for _ in range(3)
+            {o: {cls: False for cls in classes} for o in OCCLUSION_MAP.values()}
+            for _ in range(split_count)
         ]
         for split_idx, x in enumerate(split_occlusion_counts):
             for cls, occs in x.items():
@@ -555,13 +585,13 @@ def calc_segment_loss(
                 for cls, cls_b in clss.items():
                     if cls_b == class_presences[0][id][cls]:
                         tot += 1
-        th = len(classes) * 2 * len(OCCLUSION_MAP.values())
+        th = len(classes) * (split_count - 1) * len(OCCLUSION_MAP.values())
         if th * occlusion_threshold_ratio > tot:
             return {"loss": None, "reason": "occlusion-threshold"}
 
     for i in range(len(split_ratio)):
         total_split_num_points_counts = [
-            sum([split_num_points_counts[i][cls][nump] for cls in CLASSES])
+            sum([split_num_points_counts[i][cls][nump] for cls in classes])
             for nump in NUM_POINTS_MAP.keys()
         ]
         split_num_points_ratios.append(
@@ -572,13 +602,14 @@ def calc_segment_loss(
                     else 0
                     for j, nump in enumerate(NUM_POINTS_MAP.keys())
                 }
-                for cls in CLASSES
+                for cls in classes
             }
         )
 
     if include_same_classes_in_num_points:
         class_presences = [
-            {p: {cls: False for cls in classes} for p in NUM_POINTS_MAP.keys()} for _ in range(3)
+            {p: {cls: False for cls in classes} for p in NUM_POINTS_MAP.keys()}
+            for _ in range(split_count)
         ]
         for split_idx, x in enumerate(split_num_points_counts):
             for cls, ps in x.items():
@@ -591,13 +622,13 @@ def calc_segment_loss(
                 for cls, cls_b in clss.items():
                     if cls_b == class_presences[0][id][cls]:
                         tot += 1
-        th = len(classes) * 2 * len(NUM_POINTS_MAP.keys())
+        th = len(classes) * (split_count - 1) * len(NUM_POINTS_MAP.keys())
         if th * num_points_threshold_ratio > tot:
             return {"loss": None, "reason": "num_points-threshold"}
 
     for i in range(len(split_ratio)):
         total_split_distance_counts = [
-            sum([split_distance_counts[i][cls][d] for cls in CLASSES]) for d in DISTANCE_MAP.keys()
+            sum([split_distance_counts[i][cls][d] for cls in classes]) for d in DISTANCE_MAP.keys()
         ]
         split_distance_ratios.append(
             {
@@ -607,13 +638,14 @@ def calc_segment_loss(
                     else 0
                     for j, d in enumerate(DISTANCE_MAP.keys())
                 }
-                for cls in CLASSES
+                for cls in classes
             }
         )
 
     if include_same_classes_in_distance:
         class_presences = [
-            {d: {cls: False for cls in classes} for d in DISTANCE_MAP.keys()} for _ in range(3)
+            {d: {cls: False for cls in classes} for d in DISTANCE_MAP.keys()}
+            for _ in range(split_count)
         ]
         for split_idx, x in enumerate(split_distance_counts):
             for cls, dists in x.items():
@@ -626,7 +658,7 @@ def calc_segment_loss(
                 for cls, cls_b in clss.items():
                     if cls_b == class_presences[0][id][cls]:
                         tot += 1
-        th = len(classes) * 2 * len(DISTANCE_MAP.keys())
+        th = len(classes) * (split_count - 1) * len(DISTANCE_MAP.keys())
         if th * distance_threshold_ratio > tot:
             return {"loss": None, "reason": "distance-threshold"}
 
@@ -756,6 +788,7 @@ def create_and_copy_split(
     data: Dict[str, TemporalSequenceDetails],
     perm: List[Tuple[str, Tuple[int]]],
     split_idx_ranges: List[float],
+    splits: List[str] = ["train", "val", "test"],
 ) -> None:
     """
     Create and copy the split to the target path.
@@ -765,6 +798,7 @@ def create_and_copy_split(
         data: dictionary of sequence details
         perm: selected permutation of segments
         split_idx_ranges: split index ranges
+        splits: list of splits
     """
     split_source_paths = []
 
@@ -776,7 +810,7 @@ def create_and_copy_split(
         split_source_paths.append(data[token].get_path_list_in_range(start_idx, end_idx))
 
     target_paths = {}
-    for split in ["train", "val", "test"]:
+    for split in splits:
         # fmt: off
         os.makedirs(os.path.join(target_path, split, parent_img_folder_name, img_s1_folder_name), exist_ok=True)
         os.makedirs(os.path.join(target_path, split, parent_img_folder_name, img_s2_folder_name), exist_ok=True)
@@ -795,12 +829,13 @@ def create_and_copy_split(
         # fmt: on
 
     for idx, source_paths in enumerate(split_source_paths):
-        if split_idx_ranges[0] <= idx < split_idx_ranges[1]:  # in train split
-            split = "train"
-        elif split_idx_ranges[1] <= idx < split_idx_ranges[2]:  # in val split
-            split = "val"
-        else:  # in test split
-            split = "test"
+        if split_idx_ranges[0] <= idx < split_idx_ranges[1]:
+            split = splits[0]
+        elif split_idx_ranges[1] <= idx < split_idx_ranges[2]:
+            split = splits[1]
+        else:
+            split = splits[2]
+
         for source_name, paths in source_paths.items():
             target_root_path = None
             if source_name == "frame_img_s1_paths":
@@ -825,8 +860,8 @@ def save_original_split_details(
     segment_size: int,
     perm: List[Tuple[str, Tuple[int]]],
     best_segment_loss_details,
+    splits: List[str] = ["train", "val", "test"],
     split_ratio: List[int] = [0.8, 0.1, 0.1],
-    classes: List[str] = CLASSES,
 ) -> None:
     """
     Save the original split details.
@@ -835,15 +870,14 @@ def save_original_split_details(
         target_path: target path to copy the split
         segment_size: number of frames in a segment
         perm: selected permutation of segments
-        best_class_counts: class counts of the best permutation
-        best_class_ratios: class ratios of the best permutation
+        best_segment_loss_details: best segment loss details
+        splits: list of splits
         split_ratio: ratio of splits
-        classes: list of classes
     """
     orig_split_details = {}
     split_idx_ranges = best_segment_loss_details["split_idx_ranges"]
 
-    for i, split in enumerate(["train", "val", "test"]):
+    for i, split in enumerate(splits):
         orig_split_details[split] = {}
         orig_split_details[split]["segment_size"] = segment_size
         orig_split_details[split]["no_frames"] = segment_size * len(
@@ -860,9 +894,10 @@ def save_original_split_details(
                 "split_counts": best_segment_loss_details[x]["split_counts"][i],
                 "split_ratios": best_segment_loss_details[x]["split_ratios"][i],
             }
-    seq_assigned_split = ["train"] * int(len(perm) * split_ratio[0])
-    seq_assigned_split.extend(["val"] * int(len(perm) * split_ratio[1]))
-    seq_assigned_split.extend(["test"] * int(len(perm) * split_ratio[2]))
+    seq_assigned_split = [splits[0]] * int(len(perm) * split_ratio[0])
+    seq_assigned_split.extend([splits[1]] * int(len(perm) * split_ratio[1]))
+    if len(splits) == 3:
+        seq_assigned_split.extend([splits[2]] * int(len(perm) * split_ratio[2]))
     orig_split_details["perm_details"] = [
         {x[0]: {"start": x[1][0], "end": x[1][1], "split": seq_assigned_split[i]}}
         for i, x in enumerate(perm)
@@ -888,7 +923,20 @@ def save_original_split_details(
         json.dump(orig_split_details, f, indent=4, cls=NpEncoder)
 
 
-def print_summary(best_segment_loss_details):
+def log_summary(
+    best_segment_loss_details: Dict[str, Any],
+    splits: List[str] = ["train", "val", "test"],
+    classes: List[str] = CLASSES,
+):
+    """
+    Log and print the summary of the best segment loss details.
+
+    Args:
+        best_segment_loss_details: best segment loss details
+        splits: list of splits
+        classes: list of classes
+    """
+
     split_idx_ranges = best_segment_loss_details["split_idx_ranges"]
 
     # logging.info split statistics
@@ -904,41 +952,32 @@ def print_summary(best_segment_loss_details):
     logging.info("")
     logging.info("=" * 172)
     logging.info("Number of segments and frames in corresponding sequences: ")
-    logging.info("{:<40} {:<15} {:<15} {:<15}".format("Sequence", "Train", "Val", "Test"))
-    logging.info("-" * 85)
-    total_train_seq_counts = 0
-    total_val_seq_counts = 0
-    total_test_seq_counts = 0
+    title = f"{'Sequence':<40}" + "".join([f" {splits[i]:<15}" for i in range(len(splits))])
+    logging.info(title)
+    logging.info("-" * (40 + 15 * len(splits)))
+    total_seq_counts = np.asarray([0] * len(splits), dtype=np.int32)
     for j, seq in enumerate(data.keys()):
-        train_seq_counts = (
-            (np.asarray(best_perm)[int(split_idx_ranges[0]) : int(split_idx_ranges[1])] == seq)
-        ).sum()
-        val_seq_counts = (
-            (np.asarray(best_perm)[int(split_idx_ranges[1]) : int(split_idx_ranges[2])] == seq)
-        ).sum()
-        test_seq_counts = (
-            (np.asarray(best_perm)[int(split_idx_ranges[2]) : int(split_idx_ranges[3])] == seq)
-        ).sum()
-        logging.info(
-            "{:<40} {:<15} {:<15} {:<15}".format(
-                seq,
-                f"{train_seq_counts:<5} ({train_seq_counts * segment_size})",
-                f"{val_seq_counts:<5} ({val_seq_counts * segment_size})",
-                f"{test_seq_counts:<5} ({test_seq_counts * segment_size})",
-            )
+        seq_counts = np.asarray(
+            [
+                (
+                    np.asarray(best_perm)[int(split_idx_ranges[x]) : int(split_idx_ranges[x + 1])]
+                    == seq
+                ).sum()
+                for x in range(len(splits))
+            ],
+            dtype=np.int32,
         )
-        total_train_seq_counts += train_seq_counts
-        total_val_seq_counts += val_seq_counts
-        total_test_seq_counts += test_seq_counts
+        info = f"{seq:<40}" + "".join([f" {seq_counts[i]:<15}" for i in range(len(splits))])
+        logging.info(info)
+        total_seq_counts += seq_counts
 
-    logging.info(
-        "{:<40} {:<15} {:<15} {:<15}".format(
-            "Total",
-            f"{total_train_seq_counts:<5} ({total_train_seq_counts * segment_size})",
-            f"{total_val_seq_counts:<5} ({total_val_seq_counts * segment_size})",
-            f"{total_test_seq_counts:<5} ({total_test_seq_counts * segment_size})",
-        )
+    info = f"{'Total':<40}" + "".join(
+        [
+            f" {total_seq_counts[i]:<5} ({total_seq_counts[i] * segment_size:<5})"
+            for i in range(len(splits))
+        ]
     )
+    logging.info(info)
 
     split_cls_counts = best_segment_loss_details["class"]["split_counts"]
     split_cls_ratios = best_segment_loss_details["class"]["split_ratios"]
@@ -948,27 +987,27 @@ def print_summary(best_segment_loss_details):
     logging.info("Number and ratios of classes in splits: ")
     logging.info("=" * 172)
 
-    logging.info("{:<20} | {:<15} {:<15} {:<15} |".format("Class", "Train", "Val", "Test"))
-    logging.info("-" * 72)
-    for j, cls in enumerate(CLASSES):
-        logging.info(
-            "{:<20} | {:<15} {:<15} {:<15} |".format(
-                cls,
-                f"{split_cls_counts[0][cls]:<5} ({split_cls_ratios[0][cls]:.3f})",
-                f"{split_cls_counts[1][cls]:<5} ({split_cls_ratios[1][cls]:.3f})",
-                f"{split_cls_counts[2][cls]:<5} ({split_cls_ratios[2][cls]:.3f})",
-            )
+    title = f"{'Sequence':<20}" + "".join([f" {splits[i]:<15}" for i in range(len(splits))])
+    logging.info(title)
+    logging.info("-" * (20 + 15 * len(splits)))
+    for j, cls in enumerate(classes):
+        info = f"{cls:<20}" + "".join(
+            [
+                f" {split_cls_counts[i][cls]:<5} ({split_cls_ratios[i][cls]:.3f})"
+                for i in range(len(splits))
+            ]
         )
-    tot = [sum([sum([split_cls_counts[i][c]]) for c in CLASSES]) for i in range(3)]
-    logging.info("-" * 72)
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} |".format(
-            "Total",
-            f"{sum([x for x in split_cls_counts[0].values()]):<5} ({tot[0]/sum(tot):.3f})",
-            f"{sum([x for x in split_cls_counts[1].values()]):<5} ({tot[1]/sum(tot):.3f})",
-            f"{sum([x for x in split_cls_counts[2].values()]):<5} ({tot[2]/sum(tot):.3f})",
-        )
+        logging.info(info)
+
+    tot = [sum([sum([split_cls_counts[i][c]]) for c in classes]) for i in range(len(splits))]
+    logging.info("-" * (20 + 15 * len(splits)))
+    info = f"{'Total':<20}" + "".join(  # type: ignore
+        [
+            f" {sum([x for x in split_cls_counts[i].values()]):<5} ({tot[i]/sum(tot):.3f})"
+            for i in range(len(splits))
+        ]
     )
+    logging.info(info)
 
     split_diff_counts = best_segment_loss_details["difficulty"]["split_counts"]
     split_diff_ratios = best_segment_loss_details["difficulty"]["split_ratios"]
@@ -978,51 +1017,90 @@ def print_summary(best_segment_loss_details):
     logging.info("Number and ratios of objects with corresponding difficulty levels in splits: ")
     logging.info("=" * 172)
 
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "", "", "Easy", "", "", "Moderate", "", "", "Hard", ""
-        )
-    )
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "Class", "Train", "Val", "Test", "Train", "Val", "Test", "Train", "Val", "Test"
-        )
-    )
-    logging.info("-" * 172)
-    for j, cls in enumerate(CLASSES):
+    if len(splits) == 3:
         logging.info(
             "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-                cls,
-                f"{split_diff_counts[0][cls]['easy']:<5} ({split_diff_ratios[0][cls]['easy']:.3f})",
-                f"{split_diff_counts[1][cls]['easy']:<5} ({split_diff_ratios[1][cls]['easy']:.3f})",
-                f"{split_diff_counts[2][cls]['easy']:<5} ({split_diff_ratios[2][cls]['easy']:.3f})",
-                f"{split_diff_counts[0][cls]['moderate']:<5} ({split_diff_ratios[0][cls]['moderate']:.3f})",
-                f"{split_diff_counts[1][cls]['moderate']:<5} ({split_diff_ratios[1][cls]['moderate']:.3f})",
-                f"{split_diff_counts[2][cls]['moderate']:<5} ({split_diff_ratios[2][cls]['moderate']:.3f})",
-                f"{split_diff_counts[0][cls]['hard']:<5} ({split_diff_ratios[0][cls]['hard']:.3f})",
-                f"{split_diff_counts[1][cls]['hard']:<5} ({split_diff_ratios[1][cls]['hard']:.3f})",
-                f"{split_diff_counts[2][cls]['hard']:<5} ({split_diff_ratios[2][cls]['hard']:.3f})",
+                "", "", "Easy", "", "", "Moderate", "", "", "Hard", ""
             )
         )
+    else:
+        logging.info(
+            "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                "", "Easy", "", "Moderate", "", "Hard", ""
+            )
+        )
+
+    title = f"{'Class':<20} |" + "".join(
+        [
+            f" {splits[0]:<15} {splits[1]:<15} {splits[2]:<15} |"
+            if len(splits) == 3
+            else f" {splits[0]:<15} {splits[1]:<15} |"
+            for _ in range(len(DIFFICULTY_MAP.keys()))
+        ]
+    )
+    logging.info(title)
+    logging.info("-" * (20 + (15 * len(DIFFICULTY_MAP.keys()) * len(splits))))  # 172
+    for j, cls in enumerate(classes):
+        if len(splits) == 3:
+            logging.info(
+                "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
+                    cls,
+                    f"{split_diff_counts[0][cls]['easy']:<5} ({split_diff_ratios[0][cls]['easy']:.3f})",
+                    f"{split_diff_counts[1][cls]['easy']:<5} ({split_diff_ratios[1][cls]['easy']:.3f})",
+                    f"{split_diff_counts[2][cls]['easy']:<5} ({split_diff_ratios[2][cls]['easy']:.3f})",
+                    f"{split_diff_counts[0][cls]['moderate']:<5} ({split_diff_ratios[0][cls]['moderate']:.3f})",
+                    f"{split_diff_counts[1][cls]['moderate']:<5} ({split_diff_ratios[1][cls]['moderate']:.3f})",
+                    f"{split_diff_counts[2][cls]['moderate']:<5} ({split_diff_ratios[2][cls]['moderate']:.3f})",
+                    f"{split_diff_counts[0][cls]['hard']:<5} ({split_diff_ratios[0][cls]['hard']:.3f})",
+                    f"{split_diff_counts[1][cls]['hard']:<5} ({split_diff_ratios[1][cls]['hard']:.3f})",
+                    f"{split_diff_counts[2][cls]['hard']:<5} ({split_diff_ratios[2][cls]['hard']:.3f})",
+                )
+            )
+        else:
+            logging.info(
+                "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                    cls,
+                    f"{split_diff_counts[0][cls]['easy']:<5} ({split_diff_ratios[0][cls]['easy']:.3f})",
+                    f"{split_diff_counts[1][cls]['easy']:<5} ({split_diff_ratios[1][cls]['easy']:.3f})",
+                    f"{split_diff_counts[0][cls]['moderate']:<5} ({split_diff_ratios[0][cls]['moderate']:.3f})",
+                    f"{split_diff_counts[1][cls]['moderate']:<5} ({split_diff_ratios[1][cls]['moderate']:.3f})",
+                    f"{split_diff_counts[0][cls]['hard']:<5} ({split_diff_ratios[0][cls]['hard']:.3f})",
+                    f"{split_diff_counts[1][cls]['hard']:<5} ({split_diff_ratios[1][cls]['hard']:.3f})",
+                )
+            )
+
     tot = [
         [sum([x[d] for x in split_diff_counts[i].values()]) for d in DIFFICULTY_MAP.keys()]
-        for i in range(3)
+        for i in range(len(splits))
     ]
-    logging.info("-" * 172)
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "Total",
-            f"{sum([x['easy'] for x in split_diff_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
-            f"{sum([x['easy'] for x in split_diff_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
-            f"{sum([x['easy'] for x in split_diff_counts[2].values()]):<5} ({tot[2][0]/sum(tot[2]):.3f})",
-            f"{sum([x['moderate'] for x in split_diff_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
-            f"{sum([x['moderate'] for x in split_diff_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
-            f"{sum([x['moderate'] for x in split_diff_counts[2].values()]):<5} ({tot[2][1]/sum(tot[2]):.3f})",
-            f"{sum([x['hard'] for x in split_diff_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
-            f"{sum([x['hard'] for x in split_diff_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
-            f"{sum([x['hard'] for x in split_diff_counts[2].values()]):<5} ({tot[2][2]/sum(tot[2]):.3f})",
+    logging.info("-" * (20 + (15 * len(DIFFICULTY_MAP.keys()) * len(splits))))  # 172
+    if len(splits) == 3:
+        logging.info(
+            "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
+                "Total",
+                f"{sum([x['easy'] for x in split_diff_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
+                f"{sum([x['easy'] for x in split_diff_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
+                f"{sum([x['easy'] for x in split_diff_counts[2].values()]):<5} ({tot[2][0]/sum(tot[2]):.3f})",
+                f"{sum([x['moderate'] for x in split_diff_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
+                f"{sum([x['moderate'] for x in split_diff_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
+                f"{sum([x['moderate'] for x in split_diff_counts[2].values()]):<5} ({tot[2][1]/sum(tot[2]):.3f})",
+                f"{sum([x['hard'] for x in split_diff_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
+                f"{sum([x['hard'] for x in split_diff_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
+                f"{sum([x['hard'] for x in split_diff_counts[2].values()]):<5} ({tot[2][2]/sum(tot[2]):.3f})",
+            )
         )
-    )
+    else:
+        logging.info(
+            "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                "Total",
+                f"{sum([x['easy'] for x in split_diff_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
+                f"{sum([x['easy'] for x in split_diff_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
+                f"{sum([x['moderate'] for x in split_diff_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
+                f"{sum([x['moderate'] for x in split_diff_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
+                f"{sum([x['hard'] for x in split_diff_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
+                f"{sum([x['hard'] for x in split_diff_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
+            )
+        )
 
     split_distance_counts = best_segment_loss_details["distance"]["split_counts"]
     split_distance_ratios = best_segment_loss_details["distance"]["split_ratios"]
@@ -1032,54 +1110,94 @@ def print_summary(best_segment_loss_details):
     logging.info("Number and ratios of objects with corresponding distance levels in splits: ")
     logging.info("=" * 172)
 
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "", "", "<40", "", "", "40-50", "", "", ">50", ""
-        )
-    )
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "Class", "Train", "Val", "Test", "Train", "Val", "Test", "Train", "Val", "Test"
-        )
-    )
-    logging.info("-" * 172)
-    for j, cls in enumerate(CLASSES):
+    if len(splits) == 3:
         logging.info(
             "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-                cls,
-                f"{split_distance_counts[0][cls]['d<40']:<5} ({split_distance_ratios[0][cls]['d<40']:.3f})",
-                f"{split_distance_counts[1][cls]['d<40']:<5} ({split_distance_ratios[1][cls]['d<40']:.3f})",
-                f"{split_distance_counts[2][cls]['d<40']:<5} ({split_distance_ratios[2][cls]['d<40']:.3f})",
-                f"{split_distance_counts[0][cls]['d40-50']:<5} ({split_distance_ratios[0][cls]['d40-50']:.3f})",
-                f"{split_distance_counts[1][cls]['d40-50']:<5} ({split_distance_ratios[1][cls]['d40-50']:.3f})",
-                f"{split_distance_counts[2][cls]['d40-50']:<5} ({split_distance_ratios[2][cls]['d40-50']:.3f})",
-                f"{split_distance_counts[0][cls]['d>50']:<5} ({split_distance_ratios[0][cls]['d>50']:.3f})",
-                f"{split_distance_counts[1][cls]['d>50']:<5} ({split_distance_ratios[1][cls]['d>50']:.3f})",
-                f"{split_distance_counts[2][cls]['d>50']:<5} ({split_distance_ratios[2][cls]['d>50']:.3f})",
+                "", "", "<40", "", "", "40-50", "", "", ">50", ""
+            )
+        )
+    else:
+        logging.info(
+            "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                "", "<40", "", "40-50", "", ">50", ""
             )
         )
 
+    title = f"{'Class':<20} |" + "".join(
+        [
+            f" {splits[0]:<15} {splits[1]:<15} {splits[2]:<15} |"
+            if len(splits) == 3
+            else f" {splits[0]:<15} {splits[1]:<15} |"
+            for _ in range(len(DISTANCE_MAP.keys()))
+        ]
+    )
+    logging.info(title)
+    logging.info("-" * (20 + (15 * len(DISTANCE_MAP.keys()) * len(splits))))
+    for j, cls in enumerate(classes):
+        if len(splits) == 3:
+            logging.info(
+                "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
+                    cls,
+                    f"{split_distance_counts[0][cls]['d<40']:<5} ({split_distance_ratios[0][cls]['d<40']:.3f})",
+                    f"{split_distance_counts[1][cls]['d<40']:<5} ({split_distance_ratios[1][cls]['d<40']:.3f})",
+                    f"{split_distance_counts[2][cls]['d<40']:<5} ({split_distance_ratios[2][cls]['d<40']:.3f})",
+                    f"{split_distance_counts[0][cls]['d40-50']:<5} ({split_distance_ratios[0][cls]['d40-50']:.3f})",
+                    f"{split_distance_counts[1][cls]['d40-50']:<5} ({split_distance_ratios[1][cls]['d40-50']:.3f})",
+                    f"{split_distance_counts[2][cls]['d40-50']:<5} ({split_distance_ratios[2][cls]['d40-50']:.3f})",
+                    f"{split_distance_counts[0][cls]['d>50']:<5} ({split_distance_ratios[0][cls]['d>50']:.3f})",
+                    f"{split_distance_counts[1][cls]['d>50']:<5} ({split_distance_ratios[1][cls]['d>50']:.3f})",
+                    f"{split_distance_counts[2][cls]['d>50']:<5} ({split_distance_ratios[2][cls]['d>50']:.3f})",
+                )
+            )
+        else:
+            logging.info(
+                "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                    cls,
+                    f"{split_distance_counts[0][cls]['d<40']:<5} ({split_distance_ratios[0][cls]['d<40']:.3f})",
+                    f"{split_distance_counts[1][cls]['d<40']:<5} ({split_distance_ratios[1][cls]['d<40']:.3f})",
+                    f"{split_distance_counts[0][cls]['d40-50']:<5} ({split_distance_ratios[0][cls]['d40-50']:.3f})",
+                    f"{split_distance_counts[1][cls]['d40-50']:<5} ({split_distance_ratios[1][cls]['d40-50']:.3f})",
+                    f"{split_distance_counts[0][cls]['d>50']:<5} ({split_distance_ratios[0][cls]['d>50']:.3f})",
+                    f"{split_distance_counts[1][cls]['d>50']:<5} ({split_distance_ratios[1][cls]['d>50']:.3f})",
+                )
+            )
+
     tot = [
         [sum([x[d] for x in split_distance_counts[i].values()]) for d in DISTANCE_MAP.keys()]
-        for i in range(3)
+        for i in range(len(splits))
     ]
-    logging.info("-" * 172)
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "Total",
-            # fmt: off
-            f"{sum([x['d<40'] for x in split_distance_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
-            f"{sum([x['d<40'] for x in split_distance_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
-            f"{sum([x['d<40'] for x in split_distance_counts[2].values()]):<5} ({tot[2][0]/sum(tot[2]):.3f})",
-            f"{sum([x['d40-50'] for x in split_distance_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
-            f"{sum([x['d40-50'] for x in split_distance_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
-            f"{sum([x['d40-50'] for x in split_distance_counts[2].values()]):<5} ({tot[2][1]/sum(tot[2]):.3f})",
-            f"{sum([x['d>50'] for x in split_distance_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
-            f"{sum([x['d>50'] for x in split_distance_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
-            f"{sum([x['d>50'] for x in split_distance_counts[2].values()]):<5} ({tot[2][2]/sum(tot[2]):.3f})",
-            # fmt: on
+    logging.info("-" * (20 + (15 * len(DISTANCE_MAP.keys()) * len(splits))))
+    if len(splits) == 3:
+        logging.info(
+            "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
+                "Total",
+                # fmt: off
+                f"{sum([x['d<40'] for x in split_distance_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
+                f"{sum([x['d<40'] for x in split_distance_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
+                f"{sum([x['d<40'] for x in split_distance_counts[2].values()]):<5} ({tot[2][0]/sum(tot[2]):.3f})",
+                f"{sum([x['d40-50'] for x in split_distance_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
+                f"{sum([x['d40-50'] for x in split_distance_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
+                f"{sum([x['d40-50'] for x in split_distance_counts[2].values()]):<5} ({tot[2][1]/sum(tot[2]):.3f})",
+                f"{sum([x['d>50'] for x in split_distance_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
+                f"{sum([x['d>50'] for x in split_distance_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
+                f"{sum([x['d>50'] for x in split_distance_counts[2].values()]):<5} ({tot[2][2]/sum(tot[2]):.3f})",
+                # fmt: on
+            )
         )
-    )
+    else:
+        logging.info(
+            "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                "Total",
+                # fmt: off
+                f"{sum([x['d<40'] for x in split_distance_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
+                f"{sum([x['d<40'] for x in split_distance_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
+                f"{sum([x['d40-50'] for x in split_distance_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
+                f"{sum([x['d40-50'] for x in split_distance_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
+                f"{sum([x['d>50'] for x in split_distance_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
+                f"{sum([x['d>50'] for x in split_distance_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
+                # fmt: on
+            )
+        )
 
     split_num_points_counts = best_segment_loss_details["num_points"]["split_counts"]
     split_num_points_ratios = best_segment_loss_details["num_points"]["split_ratios"]
@@ -1089,54 +1207,94 @@ def print_summary(best_segment_loss_details):
     logging.info("Number and ratios of objects with corresponding number of points in splits: ")
     logging.info("=" * 172)
 
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "", "", "<20", "", "", "20-50", "", "", ">50", ""
-        )
-    )
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "Class", "Train", "Val", "Test", "Train", "Val", "Test", "Train", "Val", "Test"
-        )
-    )
-    logging.info("-" * 172)
-    for j, cls in enumerate(CLASSES):
+    if len(splits) == 3:
         logging.info(
             "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-                cls,
-                f"{split_num_points_counts[0][cls]['n<20']:<5} ({split_num_points_ratios[0][cls]['n<20']:.3f})",
-                f"{split_num_points_counts[1][cls]['n<20']:<5} ({split_num_points_ratios[1][cls]['n<20']:.3f})",
-                f"{split_num_points_counts[2][cls]['n<20']:<5} ({split_num_points_ratios[2][cls]['n<20']:.3f})",
-                f"{split_num_points_counts[0][cls]['n20-50']:<5} ({split_num_points_ratios[0][cls]['n20-50']:.3f})",
-                f"{split_num_points_counts[1][cls]['n20-50']:<5} ({split_num_points_ratios[1][cls]['n20-50']:.3f})",
-                f"{split_num_points_counts[2][cls]['n20-50']:<5} ({split_num_points_ratios[2][cls]['n20-50']:.3f})",
-                f"{split_num_points_counts[0][cls]['n>50']:<5} ({split_num_points_ratios[0][cls]['n>50']:.3f})",
-                f"{split_num_points_counts[1][cls]['n>50']:<5} ({split_num_points_ratios[1][cls]['n>50']:.3f})",
-                f"{split_num_points_counts[2][cls]['n>50']:<5} ({split_num_points_ratios[2][cls]['n>50']:.3f})",
+                "", "", "<20", "", "", "20-50", "", "", ">50", ""
+            )
+        )
+    else:
+        logging.info(
+            "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                "", "<20", "", "20-50", "", ">50", ""
             )
         )
 
+    title = f"{'Class':<20} |" + "".join(
+        [
+            f" {splits[0]:<15} {splits[1]:<15} {splits[2]:<15} |"
+            if len(splits) == 3
+            else f" {splits[0]:<15} {splits[1]:<15} |"
+            for _ in range(len(NUM_POINTS_MAP.keys()))
+        ]
+    )
+    logging.info(title)
+    logging.info("-" * (20 + (15 * len(NUM_POINTS_MAP.keys()) * len(splits))))
+    for j, cls in enumerate(classes):
+        if len(splits) == 3:
+            logging.info(
+                "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
+                    cls,
+                    f"{split_num_points_counts[0][cls]['n<20']:<5} ({split_num_points_ratios[0][cls]['n<20']:.3f})",
+                    f"{split_num_points_counts[1][cls]['n<20']:<5} ({split_num_points_ratios[1][cls]['n<20']:.3f})",
+                    f"{split_num_points_counts[2][cls]['n<20']:<5} ({split_num_points_ratios[2][cls]['n<20']:.3f})",
+                    f"{split_num_points_counts[0][cls]['n20-50']:<5} ({split_num_points_ratios[0][cls]['n20-50']:.3f})",
+                    f"{split_num_points_counts[1][cls]['n20-50']:<5} ({split_num_points_ratios[1][cls]['n20-50']:.3f})",
+                    f"{split_num_points_counts[2][cls]['n20-50']:<5} ({split_num_points_ratios[2][cls]['n20-50']:.3f})",
+                    f"{split_num_points_counts[0][cls]['n>50']:<5} ({split_num_points_ratios[0][cls]['n>50']:.3f})",
+                    f"{split_num_points_counts[1][cls]['n>50']:<5} ({split_num_points_ratios[1][cls]['n>50']:.3f})",
+                    f"{split_num_points_counts[2][cls]['n>50']:<5} ({split_num_points_ratios[2][cls]['n>50']:.3f})",
+                )
+            )
+        else:
+            logging.info(
+                "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                    cls,
+                    f"{split_num_points_counts[0][cls]['n<20']:<5} ({split_num_points_ratios[0][cls]['n<20']:.3f})",
+                    f"{split_num_points_counts[1][cls]['n<20']:<5} ({split_num_points_ratios[1][cls]['n<20']:.3f})",
+                    f"{split_num_points_counts[0][cls]['n20-50']:<5} ({split_num_points_ratios[0][cls]['n20-50']:.3f})",
+                    f"{split_num_points_counts[1][cls]['n20-50']:<5} ({split_num_points_ratios[1][cls]['n20-50']:.3f})",
+                    f"{split_num_points_counts[0][cls]['n>50']:<5} ({split_num_points_ratios[0][cls]['n>50']:.3f})",
+                    f"{split_num_points_counts[1][cls]['n>50']:<5} ({split_num_points_ratios[1][cls]['n>50']:.3f})",
+                )
+            )
+
     tot = [
         [sum([x[d] for x in split_num_points_counts[i].values()]) for d in NUM_POINTS_MAP.keys()]
-        for i in range(3)
+        for i in range(len(splits))
     ]
-    logging.info("-" * 172)
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "Total",
-            # fmt: off
-            f"{sum([x['n<20'] for x in split_num_points_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
-            f"{sum([x['n<20'] for x in split_num_points_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
-            f"{sum([x['n<20'] for x in split_num_points_counts[2].values()]):<5} ({tot[2][0]/sum(tot[2]):.3f})",
-            f"{sum([x['n20-50'] for x in split_num_points_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
-            f"{sum([x['n20-50'] for x in split_num_points_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
-            f"{sum([x['n20-50'] for x in split_num_points_counts[2].values()]):<5} ({tot[2][1]/sum(tot[2]):.3f})",
-            f"{sum([x['n>50'] for x in split_num_points_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
-            f"{sum([x['n>50'] for x in split_num_points_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
-            f"{sum([x['n>50'] for x in split_num_points_counts[2].values()]):<5} ({tot[2][2]/sum(tot[2]):.3f})",
-            # fmt: on
+    logging.info("-" * (20 + (15 * len(NUM_POINTS_MAP.keys()) * len(splits))))
+    if len(splits) == 3:
+        logging.info(
+            "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
+                "Total",
+                # fmt: off
+                f"{sum([x['n<20'] for x in split_num_points_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
+                f"{sum([x['n<20'] for x in split_num_points_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
+                f"{sum([x['n<20'] for x in split_num_points_counts[2].values()]):<5} ({tot[2][0]/sum(tot[2]):.3f})",
+                f"{sum([x['n20-50'] for x in split_num_points_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
+                f"{sum([x['n20-50'] for x in split_num_points_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
+                f"{sum([x['n20-50'] for x in split_num_points_counts[2].values()]):<5} ({tot[2][1]/sum(tot[2]):.3f})",
+                f"{sum([x['n>50'] for x in split_num_points_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
+                f"{sum([x['n>50'] for x in split_num_points_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
+                f"{sum([x['n>50'] for x in split_num_points_counts[2].values()]):<5} ({tot[2][2]/sum(tot[2]):.3f})",
+                # fmt: on
+            )
         )
-    )
+    else:
+        logging.info(
+            "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                "Total",
+                # fmt: off
+                f"{sum([x['n<20'] for x in split_num_points_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
+                f"{sum([x['n<20'] for x in split_num_points_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
+                f"{sum([x['n20-50'] for x in split_num_points_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
+                f"{sum([x['n20-50'] for x in split_num_points_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
+                f"{sum([x['n>50'] for x in split_num_points_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
+                f"{sum([x['n>50'] for x in split_num_points_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
+                # fmt: on
+            )
+        )
 
     split_occlusion_counts = best_segment_loss_details["occlusion"]["split_counts"]
     split_occlusion_ratios = best_segment_loss_details["occlusion"]["split_ratios"]
@@ -1146,108 +1304,177 @@ def print_summary(best_segment_loss_details):
     logging.info("Number and ratios of objects with occlusion levels in splits: ")
     logging.info("=" * 172)
 
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "",
-            "",
-            "Non",
-            "",
-            "",
-            "Partially",
-            "",
-            "",
-            "Mostly",
-            "",
-        )
-    )
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "Class",
-            "Train",
-            "Val",
-            "Test",
-            "Train",
-            "Val",
-            "Test",
-            "Train",
-            "Val",
-            "Test",
-        )
-    )
-    logging.info("-" * 172)
-    for j, cls in enumerate(CLASSES):
-        # fmt: off
+    if len(splits) == 3:
         logging.info(
             "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-                cls,
-                f"{split_occlusion_counts[0][cls]['NOT_OCCLUDED']:<5} ({split_occlusion_ratios[0][cls]['NOT_OCCLUDED']:.3f})",
-                f"{split_occlusion_counts[1][cls]['NOT_OCCLUDED']:<5} ({split_occlusion_ratios[1][cls]['NOT_OCCLUDED']:.3f})",
-                f"{split_occlusion_counts[2][cls]['NOT_OCCLUDED']:<5} ({split_occlusion_ratios[2][cls]['NOT_OCCLUDED']:.3f})",
-                f"{split_occlusion_counts[0][cls]['PARTIALLY_OCCLUDED']:<5} ({split_occlusion_ratios[0][cls]['PARTIALLY_OCCLUDED']:.3f})",
-                f"{split_occlusion_counts[1][cls]['PARTIALLY_OCCLUDED']:<5} ({split_occlusion_ratios[1][cls]['PARTIALLY_OCCLUDED']:.3f})",
-                f"{split_occlusion_counts[2][cls]['PARTIALLY_OCCLUDED']:<5} ({split_occlusion_ratios[2][cls]['PARTIALLY_OCCLUDED']:.3f})",
-                f"{split_occlusion_counts[0][cls]['MOSTLY_OCCLUDED']:<5} ({split_occlusion_ratios[0][cls]['MOSTLY_OCCLUDED']:.3f})",
-                f"{split_occlusion_counts[1][cls]['MOSTLY_OCCLUDED']:<5} ({split_occlusion_ratios[1][cls]['MOSTLY_OCCLUDED']:.3f})",
-                f"{split_occlusion_counts[2][cls]['MOSTLY_OCCLUDED']:<5} ({split_occlusion_ratios[2][cls]['MOSTLY_OCCLUDED']:.3f})",
+                "",
+                "",
+                "Non",
+                "",
+                "",
+                "Partially",
+                "",
+                "",
+                "Mostly",
+                "",
             )
-        )  # fmt: on
+        )
+    else:
+        logging.info(
+            "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                "",
+                "Non",
+                "",
+                "Partially",
+                "",
+                "Mostly",
+                "",
+            )
+        )
+
+    title = f"{'Class':<20} |" + "".join(
+        [
+            f" {splits[0]:<15} {splits[1]:<15} {splits[2]:<15} |"
+            if len(splits) == 3
+            else f" {splits[0]:<15} {splits[1]:<15} |"
+            for _ in range(len(OCCLUSION_MAP.values()) - 1)
+        ]
+    )
+    logging.info(title)
+    logging.info("-" * (20 + (15 * (len(OCCLUSION_MAP.values()) - 1) * len(splits))))
+    for j, cls in enumerate(classes):
+        if len(splits) == 3:
+            # fmt: off
+            logging.info(
+                "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
+                    cls,
+                    f"{split_occlusion_counts[0][cls]['NOT_OCCLUDED']:<5} ({split_occlusion_ratios[0][cls]['NOT_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[1][cls]['NOT_OCCLUDED']:<5} ({split_occlusion_ratios[1][cls]['NOT_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[2][cls]['NOT_OCCLUDED']:<5} ({split_occlusion_ratios[2][cls]['NOT_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[0][cls]['PARTIALLY_OCCLUDED']:<5} ({split_occlusion_ratios[0][cls]['PARTIALLY_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[1][cls]['PARTIALLY_OCCLUDED']:<5} ({split_occlusion_ratios[1][cls]['PARTIALLY_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[2][cls]['PARTIALLY_OCCLUDED']:<5} ({split_occlusion_ratios[2][cls]['PARTIALLY_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[0][cls]['MOSTLY_OCCLUDED']:<5} ({split_occlusion_ratios[0][cls]['MOSTLY_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[1][cls]['MOSTLY_OCCLUDED']:<5} ({split_occlusion_ratios[1][cls]['MOSTLY_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[2][cls]['MOSTLY_OCCLUDED']:<5} ({split_occlusion_ratios[2][cls]['MOSTLY_OCCLUDED']:.3f})",
+                )
+            )  # fmt: on
+        else:
+            # fmt: off
+            logging.info(
+                "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                    cls,
+                    f"{split_occlusion_counts[0][cls]['NOT_OCCLUDED']:<5} ({split_occlusion_ratios[0][cls]['NOT_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[1][cls]['NOT_OCCLUDED']:<5} ({split_occlusion_ratios[1][cls]['NOT_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[0][cls]['PARTIALLY_OCCLUDED']:<5} ({split_occlusion_ratios[0][cls]['PARTIALLY_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[1][cls]['PARTIALLY_OCCLUDED']:<5} ({split_occlusion_ratios[1][cls]['PARTIALLY_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[0][cls]['MOSTLY_OCCLUDED']:<5} ({split_occlusion_ratios[0][cls]['MOSTLY_OCCLUDED']:.3f})",
+                    f"{split_occlusion_counts[1][cls]['MOSTLY_OCCLUDED']:<5} ({split_occlusion_ratios[1][cls]['MOSTLY_OCCLUDED']:.3f})",
+                )
+            )  # fmt: on
+
     tot = [
         [sum([x[d] for x in split_occlusion_counts[i].values()]) for d in OCCLUSION_MAP.values()]
-        for i in range(3)
+        for i in range(len(splits))
     ]
-    logging.info("-" * 172)
-    logging.info(
-        # fmt: off
-        "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
-            "Total",
-            f"{sum([x['NOT_OCCLUDED'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
-            f"{sum([x['NOT_OCCLUDED'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
-            f"{sum([x['NOT_OCCLUDED'] for x in split_occlusion_counts[2].values()]):<5} ({tot[2][0]/sum(tot[2]):.3f})",
-            f"{sum([x['PARTIALLY_OCCLUDED'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
-            f"{sum([x['PARTIALLY_OCCLUDED'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
-            f"{sum([x['PARTIALLY_OCCLUDED'] for x in split_occlusion_counts[2].values()]):<5} ({tot[2][1]/sum(tot[2]):.3f})",
-            f"{sum([x['MOSTLY_OCCLUDED'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
-            f"{sum([x['MOSTLY_OCCLUDED'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
-            f"{sum([x['MOSTLY_OCCLUDED'] for x in split_occlusion_counts[2].values()]):<5} ({tot[2][2]/sum(tot[2]):.3f})",
-        )
-    )  # fmt: on
+    logging.info("-" * (20 + (15 * (len(OCCLUSION_MAP.values()) - 1) * len(splits))))
+    if len(splits) == 3:
+        logging.info(
+            # fmt: off
+            "{:<20} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} | {:<15} {:<15} {:<15} |".format(
+                "Total",
+                f"{sum([x['NOT_OCCLUDED'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
+                f"{sum([x['NOT_OCCLUDED'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
+                f"{sum([x['NOT_OCCLUDED'] for x in split_occlusion_counts[2].values()]):<5} ({tot[2][0]/sum(tot[2]):.3f})",
+                f"{sum([x['PARTIALLY_OCCLUDED'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
+                f"{sum([x['PARTIALLY_OCCLUDED'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
+                f"{sum([x['PARTIALLY_OCCLUDED'] for x in split_occlusion_counts[2].values()]):<5} ({tot[2][1]/sum(tot[2]):.3f})",
+                f"{sum([x['MOSTLY_OCCLUDED'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
+                f"{sum([x['MOSTLY_OCCLUDED'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
+                f"{sum([x['MOSTLY_OCCLUDED'] for x in split_occlusion_counts[2].values()]):<5} ({tot[2][2]/sum(tot[2]):.3f})",
+            )
+        )  # fmt: on
+    else:
+        logging.info(
+            # fmt: off
+            "{:<20} | {:<15} {:<15} | {:<15} {:<15} | {:<15} {:<15} |".format(
+                "Total",
+                f"{sum([x['NOT_OCCLUDED'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
+                f"{sum([x['NOT_OCCLUDED'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
+                f"{sum([x['PARTIALLY_OCCLUDED'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][1]/sum(tot[0]):.3f})",
+                f"{sum([x['PARTIALLY_OCCLUDED'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][1]/sum(tot[1]):.3f})",
+                f"{sum([x['MOSTLY_OCCLUDED'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][2]/sum(tot[0]):.3f})",
+                f"{sum([x['MOSTLY_OCCLUDED'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][2]/sum(tot[1]):.3f})",
+            )
+        )  # fmt: on
 
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} |".format(
-            "",
-            "",
-            "Unkown",
-            "",
-        )
-    )
-    logging.info(
-        "{:<20} | {:<15} {:<15} {:<15} |".format(
-            "Class",
-            "Train",
-            "Val",
-            "Test",
-        )
-    )
-    logging.info("-" * 72)
-    for j, cls in enumerate(CLASSES):
+    print()
+    if len(splits) == 3:
         logging.info(
             "{:<20} | {:<15} {:<15} {:<15} |".format(
-                cls,
-                f"{split_occlusion_counts[0][cls]['UNKNOWN']:<5} ({split_occlusion_ratios[0][cls]['UNKNOWN']:.3f})",
-                f"{split_occlusion_counts[1][cls]['UNKNOWN']:<5} ({split_occlusion_ratios[1][cls]['UNKNOWN']:.3f})",
-                f"{split_occlusion_counts[2][cls]['UNKNOWN']:<5} ({split_occlusion_ratios[2][cls]['UNKNOWN']:.3f})",
+                "",
+                "",
+                "Unkown",
+                "",
             )
         )
-    logging.info("-" * 72)
-    logging.info(
-        # fmt: off
-        "{:<20} | {:<15} {:<15} {:<15} |".format(
-            "Total",
-            f"{sum([x['UNKNOWN'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
-            f"{sum([x['UNKNOWN'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
-            f"{sum([x['UNKNOWN'] for x in split_occlusion_counts[2].values()]):<5} ({tot[2][0]/sum(tot[2]):.3f})",
+    else:
+        logging.info(
+            "{:<20} | {:<15} {:<15} |".format(
+                "",
+                "Unkown",
+                "",
+            )
         )
-    )  # fmt: on
+
+    title = f"{'Class':<20} |" + "".join(
+        [
+            f" {splits[0]:<15} {splits[1]:<15} {splits[2]:<15} |"
+            if len(splits) == 3
+            else f" {splits[0]:<15} {splits[1]:<15} |"
+            for _ in range(1)
+        ]
+    )
+    logging.info(title)
+    logging.info("-" * (20 + (15 * 1 * len(splits))))
+    for j, cls in enumerate(classes):
+        if len(splits) == 3:
+            logging.info(
+                "{:<20} | {:<15} {:<15} {:<15} |".format(
+                    cls,
+                    f"{split_occlusion_counts[0][cls]['UNKNOWN']:<5} ({split_occlusion_ratios[0][cls]['UNKNOWN']:.3f})",
+                    f"{split_occlusion_counts[1][cls]['UNKNOWN']:<5} ({split_occlusion_ratios[1][cls]['UNKNOWN']:.3f})",
+                    f"{split_occlusion_counts[2][cls]['UNKNOWN']:<5} ({split_occlusion_ratios[2][cls]['UNKNOWN']:.3f})",
+                )
+            )
+        else:
+            logging.info(
+                "{:<20} | {:<15} {:<15} |".format(
+                    cls,
+                    f"{split_occlusion_counts[0][cls]['UNKNOWN']:<5} ({split_occlusion_ratios[0][cls]['UNKNOWN']:.3f})",
+                    f"{split_occlusion_counts[1][cls]['UNKNOWN']:<5} ({split_occlusion_ratios[1][cls]['UNKNOWN']:.3f})",
+                )
+            )
+    logging.info("-" * (20 + (15 * 1 * len(splits))))
+    if len(splits) == 3:
+        logging.info(
+            # fmt: off
+            "{:<20} | {:<15} {:<15} {:<15} |".format(
+                "Total",
+                f"{sum([x['UNKNOWN'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
+                f"{sum([x['UNKNOWN'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
+                f"{sum([x['UNKNOWN'] for x in split_occlusion_counts[2].values()]):<5} ({tot[2][0]/sum(tot[2]):.3f})",
+            )
+        )  # fmt: on
+    else:
+        logging.info(
+            # fmt: off
+            "{:<20} | {:<15} {:<15} |".format(
+                "Total",
+                f"{sum([x['UNKNOWN'] for x in split_occlusion_counts[0].values()]):<5} ({tot[0][0]/sum(tot[0]):.3f})",
+                f"{sum([x['UNKNOWN'] for x in split_occlusion_counts[1].values()]):<5} ({tot[1][0]/sum(tot[1]):.3f})",
+            )
+        )  # fmt: on
 
 
 if __name__ == "__main__":
@@ -1271,6 +1498,15 @@ if __name__ == "__main__":
     root_path = args.root_path
     target_path = args.out_path
     point_cloud_range = [float(x) for x in args.point_cloud_range]
+    splits = args.splits
+    split_ratios = [float(x) for x in args.split_ratios]
+    classes = (
+        CLASSES
+        if len(args.exclude_classes) == 0
+        else [x for x in CLASSES if x not in args.exclude_classes]
+    )
+
+    assert len(splits) == len(split_ratios)
 
     assert os.path.exists(root_path)
 
@@ -1321,15 +1557,17 @@ if __name__ == "__main__":
             )
 
         for p in perms:
-            segment_loss_details = calc_segment_loss(p, *args)
+            segment_loss_details = calculate_segment_loss(p, *args)
             loss = segment_loss_details["loss"]
             if loss is not None and (best_loss is None or loss < best_loss):
                 best_loss = loss
                 best_segment_loss_details = segment_loss_details
                 n_found += 1
-            else:
+            elif loss is None:
                 reason = segment_loss_details["reason"]
                 filter_stats[reason] += 1
+            else:
+                n_found += 1
 
             with lock:
                 bar.update(1)
@@ -1344,7 +1582,7 @@ if __name__ == "__main__":
     queue = manager.Queue()
 
     def custom_callback(e):
-        logging.error(f"{type(e).__name__} {__file__} {e.__traceback__.tb_lineno}")
+        logging.error(f"{type(e).__name__} {__file__} {e}")
 
     with multiprocessing.Pool(args.p) as pool:
         start_time = time.perf_counter()
@@ -1359,8 +1597,8 @@ if __name__ == "__main__":
                     queue,
                     perms[position],
                     data,
-                    SPLIT_RATIO,
-                    CLASSES,
+                    split_ratios,
+                    classes,
                     CLASS_WEIGHTS,
                     DIFFICULTY_WEIGHTS,
                     DISTANCE_WEIGHTS,
@@ -1414,11 +1652,11 @@ if __name__ == "__main__":
 
     logging.info(f"Found total: {total_found} out of {perm_limit}")
 
-    print_summary(best_segment_loss_details)
+    log_summary(best_segment_loss_details, splits, classes)
 
     logging.info("Creating split folders and copying split files...")
     create_and_copy_split(
-        target_path, data, best_perm, best_segment_loss_details["split_idx_ranges"]
+        target_path, data, best_perm, best_segment_loss_details["split_idx_ranges"], splits
     )
 
     logging.info("Saving original split details...")
@@ -1427,6 +1665,6 @@ if __name__ == "__main__":
         segment_size,
         best_perm,
         best_segment_loss_details,
-        SPLIT_RATIO,
-        CLASSES,
+        splits,
+        split_ratios,
     )
