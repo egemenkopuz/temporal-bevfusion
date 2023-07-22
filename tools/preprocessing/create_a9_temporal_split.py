@@ -7,6 +7,7 @@ import sys
 import time
 import warnings
 from argparse import ArgumentParser, Namespace
+from collections import defaultdict
 from dataclasses import dataclass, field
 from glob import glob
 from itertools import permutations
@@ -30,12 +31,11 @@ CLASSES = [
     "OTHER",
 ]
 
-CLASS_WEIGHTS = [1, 15, 15, 5, 5, 15, 15, 20, 5, 5]
-
-DIFFICULTY_WEIGHTS = [5] * 10
-NUM_POINTS_WEIGHTS = [2] * 10
-OCCLUSION_WEIGHTS = [3] * 10
-DISTANCE_WEIGHTS = [5] * 10
+CLASS_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 0, 0]) * 4
+DIFFICULTY_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 0, 0]) * 4
+NUM_POINTS_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 0, 0]) * 2
+OCCLUSION_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 0, 0]) * 1
+DISTANCE_WEIGHTS = np.asarray([5, 12, 12, 5, 5, 15, 15, 20, 0, 0]) * 4
 
 DIFFICULTY_MAP = {
     "easy": {"distance": "d<40", "num_points": "n>50", "occlusion": "no_occluded"},
@@ -73,6 +73,8 @@ class TemporalSequenceDetails:
     # fmt: off
     scene_token: str
     no_total_frames: int
+    total_bboxes: int
+    total_bboxes_filtered: int
     total_class_stats: Dict[str, int] = field(repr=True, compare=False)
     total_difficulty_stats: Dict[str, Dict[str, int]] = field(repr=False, compare=False)
     total_distance_stats: Dict[str, Dict[str, int]] = field(repr=False, compare=False)
@@ -90,6 +92,9 @@ class TemporalSequenceDetails:
     frame_pcd_paths: List[str] = field(default_factory=list, repr=False, compare=False)
     frame_pcd_labels_paths: List[str] = field(default_factory=list, repr=False, compare=False)
     # fmt: on
+
+    def __len__(self):
+        return self.total_bboxes
 
     def get_class_stats_in_range(self, start: int, end: int) -> Dict[str, int]:
         return {cls: sum([x[cls] for x in self.frame_class_stats[start:end]]) for cls in CLASSES}
@@ -170,6 +175,7 @@ def get_args() -> Namespace:
     parser.add_argument("--include-same_classes-in-occlusion", default=False, action="store_true")
     parser.add_argument("--occlusion-th", type=float, default=0.5, required=False)
     parser.add_argument("--seed", type=int, default=42, required=False)
+    parser.add_argument("--point-cloud-range", nargs="+", default=[])
     parser.add_argument(
         "-log",
         "--loglevel",
@@ -180,12 +186,15 @@ def get_args() -> Namespace:
     return parser.parse_args()
 
 
-def create_sequence_details(root_path: str) -> Dict[str, TemporalSequenceDetails]:
+def create_sequence_details(
+    root_path: str, point_cloud_range: List[float] = []
+) -> Dict[str, TemporalSequenceDetails]:
     """
     Create a dictionary of sequence details.
 
     Args:
         root_path: root path of the dataset
+        point_cloud_range: range of point cloud to include
 
     Returns:
         Dict: dictionary of sequence details
@@ -213,7 +222,9 @@ def create_sequence_details(root_path: str) -> Dict[str, TemporalSequenceDetails
             if scene_token not in data:
                 data[scene_token] = TemporalSequenceDetails(
                     scene_token=scene_token,
-                    no_total_frames=1,
+                    no_total_frames=0,
+                    total_bboxes=0,
+                    total_bboxes_filtered=0,
                     total_class_stats={cls: 0 for cls in CLASSES},
                     total_difficulty_stats={
                         cls: {x: 0 for x in DIFFICULTY_MAP.keys()} for cls in CLASSES
@@ -236,11 +247,24 @@ def create_sequence_details(root_path: str) -> Dict[str, TemporalSequenceDetails
             occlusion_stats = {cls: {x: 0 for x in OCCLUSION_MAP.values()} for cls in CLASSES}
             for obj in frame_objects.values():
                 obj_type = obj["object_data"]["type"]
-
-                class_stats[obj_type] += 1
                 if "cuboid" in obj["object_data"]:
-                    # distance from sensor
                     loc = np.asarray(obj["object_data"]["cuboid"]["val"][:3], dtype=np.float32)
+
+                    # filter bbox outside of given point cloud range
+                    if len(point_cloud_range) != 0 and not (
+                        loc[0] > point_cloud_range[0]
+                        and loc[0] < point_cloud_range[3]
+                        and loc[1] > point_cloud_range[1]
+                        and loc[1] < point_cloud_range[4]
+                        and loc[2] > point_cloud_range[2]
+                        and loc[2] < point_cloud_range[5]
+                    ):
+                        data[scene_token].total_bboxes_filtered += 1
+                        continue
+                    else:
+                        data[scene_token].total_bboxes += 1
+
+                    # distance from sensor
                     distance = np.sqrt(np.sum(np.array(loc[:2]) ** 2))
                     for k, v in DISTANCE_MAP.items():
                         if v[0] < distance <= v[1]:
@@ -278,6 +302,8 @@ def create_sequence_details(root_path: str) -> Dict[str, TemporalSequenceDetails
                                     data[scene_token].total_num_points_stats[obj_type][k] += 1
                                     num_points_stats[obj_type][k] += 1
 
+                    class_stats[obj_type] += 1
+
             data[scene_token].frame_difficulty_stats.append(difficulty_stats)
             data[scene_token].frame_distance_stats.append(distance_stats)
             data[scene_token].frame_num_points_stats.append(num_points_stats)
@@ -294,6 +320,12 @@ def create_sequence_details(root_path: str) -> Dict[str, TemporalSequenceDetails
             data[scene_token].frame_img_s2_label_paths.append(imgs_s2_labels[i])
             data[scene_token].frame_pcd_paths.append(pcds[i])
             data[scene_token].frame_pcd_labels_paths.append(pcds_labels[i])
+
+    for x, y in data.items():
+        tot = y.total_bboxes + y.total_bboxes_filtered
+        logging.info(
+            f"Sequence {x} : filtered {y.total_bboxes_filtered:<5} ({y.total_bboxes_filtered/tot:.3f}) - remained {y.total_bboxes:<5} ({y.total_bboxes/tot:.3f}) - total {tot}"
+        )
 
     return data
 
@@ -435,6 +467,25 @@ def calc_segment_loss(
         split_cls_ratios.append(
             {cls: x / total_split_cls_counts for cls, x in split_cls_counts[i].items()}
         )
+
+        # force to have each class in all of the splits
+    if include_all_classes:
+        for x in split_cls_counts:
+            for cls, count in x.items():
+                if count == 0:
+                    return {"loss": None, "reason": "include_all_classes"}
+
+    # force to have each sequence in all of the splits
+    if include_all_sequences:
+        for i in range(len(split_ratio)):
+            for j, seq in enumerate(perm):
+                a = (
+                    np.asarray(perm)[int(split_idx_ranges[i]) : int(split_idx_ranges[i + 1])] == seq
+                ).sum()
+                if a == 0:
+                    return {"loss": None, "reason": "include_all_sequences"}
+
+    for i in range(len(split_ratio)):
         total_split_difficulty_counts = [
             sum([split_difficulty_counts[i][cls][diff] for cls in CLASSES])
             for diff in DIFFICULTY_MAP.keys()
@@ -450,69 +501,8 @@ def calc_segment_loss(
                 for cls in CLASSES
             }
         )
-        total_split_occlusion_counts = [
-            sum([split_occlusion_counts[i][cls][occl] for cls in CLASSES])
-            for occl in OCCLUSION_MAP.values()
-        ]
-        split_occlusion_ratios.append(
-            {
-                cls: {
-                    occl: split_occlusion_counts[i][cls][occl] / total_split_occlusion_counts[j]
-                    if total_split_occlusion_counts[j] != 0
-                    else 0
-                    for j, occl in enumerate(OCCLUSION_MAP.values())
-                }
-                for cls in CLASSES
-            }
-        )
-        total_split_num_points_counts = [
-            sum([split_num_points_counts[i][cls][nump] for cls in CLASSES])
-            for nump in NUM_POINTS_MAP.keys()
-        ]
-        split_num_points_ratios.append(
-            {
-                cls: {
-                    nump: split_num_points_counts[i][cls][nump] / total_split_num_points_counts[j]
-                    if total_split_num_points_counts[j] != 0
-                    else 0
-                    for j, nump in enumerate(NUM_POINTS_MAP.keys())
-                }
-                for cls in CLASSES
-            }
-        )
-        total_split_distance_counts = [
-            sum([split_distance_counts[i][cls][d] for cls in CLASSES]) for d in DISTANCE_MAP.keys()
-        ]
-        split_distance_ratios.append(
-            {
-                cls: {
-                    d: split_distance_counts[i][cls][d] / total_split_distance_counts[j]
-                    if total_split_distance_counts[j] != 0
-                    else 0
-                    for j, d in enumerate(DISTANCE_MAP.keys())
-                }
-                for cls in CLASSES
-            }
-        )
 
-    # force to have each class in all of the splits
-    if include_all_classes:
-        for x in split_cls_counts:
-            for cls, count in x.items():
-                if count == 0:
-                    return {"loss": None}
-
-    # force to have each sequence in all of the splits
-    if include_all_sequences:
-        for i in range(len(split_ratio)):
-            for j, seq in enumerate(perm):
-                a = (
-                    np.asarray(perm)[int(split_idx_ranges[i]) : int(split_idx_ranges[i + 1])] == seq
-                ).sum()
-                if a == 0:
-                    return {"loss": None}
-
-    # force each split to have same classes present
+        # force each split to have same classes present with given thresholds
     if include_same_classes_in_difficulty:
         class_presences = [
             {diff: {cls: False for cls in classes} for diff in DIFFICULTY_MAP.keys()}
@@ -530,44 +520,26 @@ def calc_segment_loss(
                     if cls_b == class_presences[0][id][cls]:
                         tot += 1
         th = len(classes) * 2 * len(DIFFICULTY_MAP.keys())
-        if th * difficulty_threshold_ratio <= th - tot:
-            return {"loss": None}
-    if include_same_classes_in_distance:
-        class_presences = [
-            {d: {cls: False for cls in classes} for d in DISTANCE_MAP.keys()} for _ in range(3)
+        if th * difficulty_threshold_ratio > tot:
+            return {"loss": None, "reason": "difficulty-threshold"}
+
+    for i in range(len(split_ratio)):
+        total_split_occlusion_counts = [
+            sum([split_occlusion_counts[i][cls][occl] for cls in CLASSES])
+            for occl in OCCLUSION_MAP.values()
         ]
-        for split_idx, x in enumerate(split_distance_counts):
-            for cls, dists in x.items():
-                for dist, v in dists.items():
-                    if v > 0:
-                        class_presences[split_idx][dist][cls] = True
-        tot = 0
-        for x in class_presences[1:]:
-            for id, clss in x.items():
-                for cls, cls_b in clss.items():
-                    if cls_b == class_presences[0][id][cls]:
-                        tot += 1
-        th = len(classes) * 2 * len(DISTANCE_MAP.keys())
-        if th * distance_threshold_ratio <= th - tot:
-            return {"loss": None}
-    if include_same_classes_in_num_points:
-        class_presences = [
-            {p: {cls: False for cls in classes} for p in NUM_POINTS_MAP.keys()} for _ in range(3)
-        ]
-        for split_idx, x in enumerate(split_num_points_counts):
-            for cls, ps in x.items():
-                for p, v in ps.items():
-                    if v > 0:
-                        class_presences[split_idx][p][cls] = True
-        tot = 0
-        for x in class_presences[1:]:
-            for id, clss in x.items():
-                for cls, cls_b in clss.items():
-                    if cls_b == class_presences[0][id][cls]:
-                        tot += 1
-        th = len(classes) * 2 * len(NUM_POINTS_MAP.keys())
-        if th * num_points_threshold_ratio <= th - tot:
-            return {"loss": None}
+        split_occlusion_ratios.append(
+            {
+                cls: {
+                    occl: split_occlusion_counts[i][cls][occl] / total_split_occlusion_counts[j]
+                    if total_split_occlusion_counts[j] != 0
+                    else 0
+                    for j, occl in enumerate(OCCLUSION_MAP.values())
+                }
+                for cls in CLASSES
+            }
+        )
+
     if include_same_classes_in_occlusion:
         class_presences = [
             {o: {cls: False for cls in classes} for o in OCCLUSION_MAP.values()} for _ in range(3)
@@ -584,8 +556,79 @@ def calc_segment_loss(
                     if cls_b == class_presences[0][id][cls]:
                         tot += 1
         th = len(classes) * 2 * len(OCCLUSION_MAP.values())
-        if th * occlusion_threshold_ratio <= th - tot:
-            return {"loss": None}
+        if th * occlusion_threshold_ratio > tot:
+            return {"loss": None, "reason": "occlusion-threshold"}
+
+    for i in range(len(split_ratio)):
+        total_split_num_points_counts = [
+            sum([split_num_points_counts[i][cls][nump] for cls in CLASSES])
+            for nump in NUM_POINTS_MAP.keys()
+        ]
+        split_num_points_ratios.append(
+            {
+                cls: {
+                    nump: split_num_points_counts[i][cls][nump] / total_split_num_points_counts[j]
+                    if total_split_num_points_counts[j] != 0
+                    else 0
+                    for j, nump in enumerate(NUM_POINTS_MAP.keys())
+                }
+                for cls in CLASSES
+            }
+        )
+
+    if include_same_classes_in_num_points:
+        class_presences = [
+            {p: {cls: False for cls in classes} for p in NUM_POINTS_MAP.keys()} for _ in range(3)
+        ]
+        for split_idx, x in enumerate(split_num_points_counts):
+            for cls, ps in x.items():
+                for p, v in ps.items():
+                    if v > 0:
+                        class_presences[split_idx][p][cls] = True
+        tot = 0
+        for x in class_presences[1:]:
+            for id, clss in x.items():
+                for cls, cls_b in clss.items():
+                    if cls_b == class_presences[0][id][cls]:
+                        tot += 1
+        th = len(classes) * 2 * len(NUM_POINTS_MAP.keys())
+        if th * num_points_threshold_ratio > tot:
+            return {"loss": None, "reason": "num_points-threshold"}
+
+    for i in range(len(split_ratio)):
+        total_split_distance_counts = [
+            sum([split_distance_counts[i][cls][d] for cls in CLASSES]) for d in DISTANCE_MAP.keys()
+        ]
+        split_distance_ratios.append(
+            {
+                cls: {
+                    d: split_distance_counts[i][cls][d] / total_split_distance_counts[j]
+                    if total_split_distance_counts[j] != 0
+                    else 0
+                    for j, d in enumerate(DISTANCE_MAP.keys())
+                }
+                for cls in CLASSES
+            }
+        )
+
+    if include_same_classes_in_distance:
+        class_presences = [
+            {d: {cls: False for cls in classes} for d in DISTANCE_MAP.keys()} for _ in range(3)
+        ]
+        for split_idx, x in enumerate(split_distance_counts):
+            for cls, dists in x.items():
+                for dist, v in dists.items():
+                    if v > 0:
+                        class_presences[split_idx][dist][cls] = True
+        tot = 0
+        for x in class_presences[1:]:
+            for id, clss in x.items():
+                for cls, cls_b in clss.items():
+                    if cls_b == class_presences[0][id][cls]:
+                        tot += 1
+        th = len(classes) * 2 * len(DISTANCE_MAP.keys())
+        if th * distance_threshold_ratio > tot:
+            return {"loss": None, "reason": "distance-threshold"}
 
     # compare the class distributions between splits
     total_cls_loss = 0
@@ -781,7 +824,6 @@ def save_original_split_details(
     target_path: str,
     segment_size: int,
     perm: List[Tuple[str, Tuple[int]]],
-    split_idx_ranges: List[float],
     best_segment_loss_details,
     split_ratio: List[int] = [0.8, 0.1, 0.1],
     classes: List[str] = CLASSES,
@@ -793,13 +835,13 @@ def save_original_split_details(
         target_path: target path to copy the split
         segment_size: number of frames in a segment
         perm: selected permutation of segments
-        split_idx_ranges: split index ranges
         best_class_counts: class counts of the best permutation
         best_class_ratios: class ratios of the best permutation
         split_ratio: ratio of splits
         classes: list of classes
     """
     orig_split_details = {}
+    split_idx_ranges = best_segment_loss_details["split_idx_ranges"]
 
     for i, split in enumerate(["train", "val", "test"]):
         orig_split_details[split] = {}
@@ -812,15 +854,25 @@ def save_original_split_details(
             orig_split_details[split]["original_sequences"][seq] = (
                 np.asarray(perm)[int(split_idx_ranges[i]) : int(split_idx_ranges[i + 1])] == seq
             ).sum()
+
+        for x in ["class", "difficulty", "distance", "num_points", "occlusion"]:
+            orig_split_details[split][x] = {
+                "split_counts": best_segment_loss_details[x]["split_counts"][i],
+                "split_ratios": best_segment_loss_details[x]["split_ratios"][i],
+            }
     seq_assigned_split = ["train"] * int(len(perm) * split_ratio[0])
     seq_assigned_split.extend(["val"] * int(len(perm) * split_ratio[1]))
     seq_assigned_split.extend(["test"] * int(len(perm) * split_ratio[2]))
-    orig_split_details["permutation"] = [
+    orig_split_details["perm_details"] = [
         {x[0]: {"start": x[1][0], "end": x[1][1], "split": seq_assigned_split[i]}}
         for i, x in enumerate(perm)
     ]
 
-    orig_split_details["details"] = best_segment_loss_details
+    orig_split_details["losses"] = {"total": best_segment_loss_details["loss"]}
+    for x in ["class", "difficulty", "distance", "num_points", "occlusion"]:
+        orig_split_details["losses"][x] = best_segment_loss_details[x]["loss"]
+
+    orig_split_details["perm"] = best_segment_loss_details["perm"]
 
     class NpEncoder(json.JSONEncoder):
         def default(self, obj):
@@ -836,156 +888,12 @@ def save_original_split_details(
         json.dump(orig_split_details, f, indent=4, cls=NpEncoder)
 
 
-if __name__ == "__main__":
-    args = get_args()
-
-    os.makedirs(args.out_path, exist_ok=True)
-
-    logging.basicConfig(
-        filename=os.path.join(args.out_path, "script.log"),
-        filemode="w",
-        format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
-        level=args.loglevel.upper(),
-    )
-    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
-    logging.info(vars(args))
-
-    np.random.seed(args.seed)
-
-    segment_size = args.segment_size
-    perm_limit = args.perm_limit
-    root_path = args.root_path
-    target_path = args.out_path
-
-    assert os.path.exists(root_path)
-
-    logging.info("Creating sequence details...")
-    data = create_sequence_details(root_path=root_path)
-
-    assert len(data) != 0
-
-    bucket_size = {}
-    for x, y in data.items():
-        bucket_size[x] = y.no_total_frames // segment_size
-    segment_list = []
-    for x, y in bucket_size.items():
-        for z in range(y):
-            start_idx = z * segment_size
-            end_idx = z * segment_size + segment_size
-            segment_list.append((x, (start_idx, end_idx)))
-    segment_list = np.asarray(segment_list)
-
-    perm = permutations(segment_list, len(segment_list))
-
-    perms = []
-    while len(perms) < perm_limit:
-        perms.append(list(segment_list[np.random.permutation(len(segment_list))]))
-
-    logging.info(f"total number of iterations: {len(perms)}")
-
-    best_perm: List[Tuple[str, Tuple[int]]] = None
-    best_loss: float = None
-    best_segment_loss_details = {}
-
-    def task(position, lock, queue, perms, *args):
-        total_iterations = len(perms)
-        best_loss = None
-        best_segment_loss_details = {}
-        with lock:
-            bar = tqdm(
-                desc=f'Process {position}',
-                total=total_iterations,
-                position=position,
-                leave=False,
-                mininterval=1
-            )
-
-        for p in perms:
-            segment_loss_details = calc_segment_loss(p, *args)
-            loss = segment_loss_details["loss"]
-            if loss is not None and (best_loss is None or loss < best_loss):
-                best_loss = loss
-                best_segment_loss_details = segment_loss_details
-
-            with lock:
-                bar.update(1)
-
-        with lock:
-            bar.close()
-
-        queue.put(best_segment_loss_details)
-
-    manager = multiprocessing.Manager()
-    lock = manager.Lock()
-    queue = manager.Queue()
-
-    def custom_callback(e):
-        logging.error(f"{type(e).__name__} {__file__} {e.__traceback__.tb_lineno}")
-
-    with multiprocessing.Pool(args.p) as pool:
-        start_time = time.perf_counter()
-        n = len(perms) // args.p
-        perms = [perms[i:i + n] for i in range(0, len(perms), n)]
-        for position in range(args.p):
-            pool.apply_async(
-                task,
-                [
-                    position + 1,
-                    lock,
-                    queue,
-                    perms[position],
-                    data,
-                    SPLIT_RATIO,
-                    CLASSES,
-                    CLASS_WEIGHTS,
-                    DIFFICULTY_WEIGHTS,
-                    DISTANCE_WEIGHTS,
-                    NUM_POINTS_WEIGHTS,
-                    OCCLUSION_WEIGHTS,
-                    args.include_all_classes,
-                    args.include_all_sequences,
-                    args.include_same_classes_in_difficulty,
-                    args.difficulty_th,
-                    args.include_same_classes_in_distance,
-                    args.distance_th,
-                    args.include_same_classes_in_num_points,
-                    args.num_points_th,
-                    args.include_same_classes_in_occlusion,
-                    args.occlusion_th,
-                ],
-                error_callback=custom_callback
-            )
-
-        pool.close()
-        pool.join()
-
-    end_time = time.perf_counter()
-
-    while not queue.empty():
-        segment_loss_details = queue.get()
-        loss = segment_loss_details["loss"]
-
-        if loss is not None and (best_loss is None or loss < best_loss):
-            best_loss = loss
-            best_segment_loss_details = segment_loss_details
-            best_perm = segment_loss_details["perm"]
-            class_loss = segment_loss_details["class"]["loss"]
-            diff_loss = segment_loss_details["difficulty"]["loss"]
-            distance_loss = segment_loss_details["distance"]["loss"]
-            num_points_loss = segment_loss_details["num_points"]["loss"]
-            occlusion_loss = segment_loss_details["occlusion"]["loss"]
-
-    logging.info(f"Elapsed time: {end_time - start_time}")
-
-    if len(best_segment_loss_details) == 0:
-        logging.error("Could not find a split that satisfies the constraints...")
-        exit()
-
+def print_summary(best_segment_loss_details):
     split_idx_ranges = best_segment_loss_details["split_idx_ranges"]
 
     # logging.info split statistics
     logging.info("=" * 172)
-    logging.info(f"Best Split Summary w/ loss : {best_loss}")
+    logging.info(f"Best Split Summary w/ loss : {best_segment_loss_details['loss']}")
     logging.info(f"- Class loss: {best_segment_loss_details['class']['loss']}")
     logging.info(f"- Difficulty loss: {best_segment_loss_details['difficulty']['loss']}")
     logging.info(f"- Distance loss: {best_segment_loss_details['distance']['loss']}")
@@ -1341,12 +1249,176 @@ if __name__ == "__main__":
         )
     )  # fmt: on
 
+
+if __name__ == "__main__":
+    args = get_args()
+
+    os.makedirs(args.out_path, exist_ok=True)
+
+    logging.basicConfig(
+        filename=os.path.join(args.out_path, "script.log"),
+        filemode="w",
+        format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
+        level=args.loglevel.upper(),
+    )
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+    logging.info(vars(args))
+
+    np.random.seed(args.seed)
+
+    segment_size = args.segment_size
+    perm_limit = args.perm_limit
+    root_path = args.root_path
+    target_path = args.out_path
+    point_cloud_range = [float(x) for x in args.point_cloud_range]
+
+    assert os.path.exists(root_path)
+
+    logging.info("Creating sequence details...")
+    data = create_sequence_details(root_path, point_cloud_range)
+
+    assert len(data) != 0
+    for x in data.values():
+        assert len(x) != 0, "No frames found in sequence"
+
+    bucket_size = {}
+    for x, y in data.items():
+        bucket_size[x] = y.no_total_frames // segment_size
+    segment_list = []
+    for x, y in bucket_size.items():
+        for z in range(y):
+            start_idx = z * segment_size
+            end_idx = z * segment_size + segment_size
+            segment_list.append((x, (start_idx, end_idx)))
+    segment_list = np.asarray(segment_list)
+
+    perm = permutations(segment_list, len(segment_list))
+
+    perms = []
+    while len(perms) < perm_limit:
+        perms.append(list(segment_list[np.random.permutation(len(segment_list))]))
+
+    logging.info(f"Total number of iterations: {len(perms)}")
+
+    best_perm: List[Tuple[str, Tuple[int]]] = None
+    best_loss: float = None
+    best_segment_loss_details = {}
+
+    # multi-processing task function
+    def task(position, lock, queue, perms, *args):
+        total_iterations = len(perms)
+        n_found = 0
+        best_loss = None
+        best_segment_loss_details = {"loss": None}
+        filter_stats = defaultdict(int)
+        with lock:
+            bar = tqdm(
+                desc=f"Process {position}",
+                total=total_iterations,
+                position=position,
+                leave=False,
+                mininterval=1,
+            )
+
+        for p in perms:
+            segment_loss_details = calc_segment_loss(p, *args)
+            loss = segment_loss_details["loss"]
+            if loss is not None and (best_loss is None or loss < best_loss):
+                best_loss = loss
+                best_segment_loss_details = segment_loss_details
+                n_found += 1
+            else:
+                reason = segment_loss_details["reason"]
+                filter_stats[reason] += 1
+
+            with lock:
+                bar.update(1)
+
+        with lock:
+            bar.close()
+
+        queue.put((n_found, filter_stats, best_segment_loss_details))
+
+    manager = multiprocessing.Manager()
+    lock = manager.Lock()
+    queue = manager.Queue()
+
+    def custom_callback(e):
+        logging.error(f"{type(e).__name__} {__file__} {e.__traceback__.tb_lineno}")
+
+    with multiprocessing.Pool(args.p) as pool:
+        start_time = time.perf_counter()
+        n = len(perms) // args.p
+        perms = [perms[i : i + n] for i in range(0, len(perms), n)]
+        for position in range(args.p):
+            pool.apply_async(
+                task,
+                [
+                    position + 1,
+                    lock,
+                    queue,
+                    perms[position],
+                    data,
+                    SPLIT_RATIO,
+                    CLASSES,
+                    CLASS_WEIGHTS,
+                    DIFFICULTY_WEIGHTS,
+                    DISTANCE_WEIGHTS,
+                    NUM_POINTS_WEIGHTS,
+                    OCCLUSION_WEIGHTS,
+                    args.include_all_classes,
+                    args.include_all_sequences,
+                    args.include_same_classes_in_difficulty,
+                    args.difficulty_th,
+                    args.include_same_classes_in_distance,
+                    args.distance_th,
+                    args.include_same_classes_in_num_points,
+                    args.num_points_th,
+                    args.include_same_classes_in_occlusion,
+                    args.occlusion_th,
+                ],
+                error_callback=custom_callback,
+            )
+            time.sleep(2)
+
+        pool.close()
+        pool.join()
+
+    end_time = time.perf_counter()
+
+    total_found = 0
+    total_filter_stats = defaultdict(int)
+    while not queue.empty():
+        n_found, filter_stats, segment_loss_details = queue.get()
+        total_found += n_found
+        loss = segment_loss_details["loss"]
+
+        for x, y in filter_stats.items():
+            total_filter_stats[x] += y
+
+        if loss is not None and (best_loss is None or loss < best_loss):
+            best_loss = loss
+            best_segment_loss_details = segment_loss_details
+            best_perm = segment_loss_details["perm"]
+
+    time.sleep(1)
+    logging.info(f"Elapsed time: {end_time - start_time}")
+    if len(total_filter_stats) != 0:
+        logging.info("Filter reason counts: ")
+        for x, y in total_filter_stats.items():
+            logging.info(f"\t {x:<30} : {y:<15}")
+
+    if len(best_segment_loss_details) == 0:
+        logging.error("Could not find a split that satisfies the constraints...")
+        exit()
+
+    logging.info(f"Found total: {total_found} out of {perm_limit}")
+
+    print_summary(best_segment_loss_details)
+
     logging.info("Creating split folders and copying split files...")
     create_and_copy_split(
-        target_path,
-        data,
-        best_perm,
-        split_idx_ranges,
+        target_path, data, best_perm, best_segment_loss_details["split_idx_ranges"]
     )
 
     logging.info("Saving original split details...")
@@ -1354,7 +1426,6 @@ if __name__ == "__main__":
         target_path,
         segment_size,
         best_perm,
-        split_idx_ranges,
         best_segment_loss_details,
         SPLIT_RATIO,
         CLASSES,
