@@ -60,19 +60,19 @@ class A9Dataset(Custom3DDataset):
     mean_ap_weight = 5
 
     eval_list = [
-        "overall",
-        "easy",
-        "moderate",
-        "hard",
-        "d<40",
-        "d40-50",
-        "d>50",
-        "n<20",
-        "n20-50",
-        "n>50",
-        "no_occluded",
-        "partially_occluded",
         "mostly_occluded",
+        "partially_occluded",
+        "no_occluded",
+        "n>50",
+        "n20-50",
+        "n<20",
+        "d>50",
+        "d40-50",
+        "d<40",
+        "hard",
+        "moderate",
+        "easy",
+        "overall",
     ]
 
     def __init__(
