@@ -137,12 +137,12 @@ class A92KITTI:
         self.point_cloud_save_dir = "point_clouds"
         self.num_workers = num_workers
 
-        self.imagesets: Dict[str, list] = {"training": [], "validation": [], "testing": []}
+        self.imagesets: Dict[str, list] = {x: [] for x in splits}
 
         self.map_set_to_dir_idx = {"training": 0, "validation": 1, "testing": 2}
         self.map_version_to_dir = {"training": "train", "validation": "val", "testing": "test"}
 
-        self.occlusion_map = {"NOT_OCCLUDED": 0, "PARTIALLY_OCCLUDED": 1, "MOSTLY_OCCLUDED": 2}
+        self.difficulty_map = {"easy": 0, "moderate": 1, "hard": 2}
 
     def convert(self, info_prefix: str) -> None:
         """
@@ -172,13 +172,15 @@ class A92KITTI:
             )
 
             with mpp.Pool(processes=4) as pool:
-                pool.starmap(
+                pool.starmap_async(
                     self.convert_pcd_to_bin,
                     [
                         (x, os.path.join(self.point_cloud_save_dir, x.split("/")[-1][:-4]))
                         for x in pcd_list
                     ],
                 )
+                pool.close()
+                pool.join()
 
             pcd_list = [
                 os.path.join(self.point_cloud_save_dir, x.split("/")[-1][:-4]) + ".bin"
@@ -206,7 +208,7 @@ class A92KITTI:
                 pcd_labels_list,
                 img_south1_labels_list,
                 img_south2_labels_list,
-                False,  # was test
+                False,
             )
 
             metadata = dict(version="r2")
@@ -324,6 +326,8 @@ class A92KITTI:
                 valid_flag = []
                 num_lidar_pts = []
                 num_radar_pts = []
+                difficulties = []
+                distances = []
 
                 for id in lidar_anno_frame["objects"]:
                     object_data = lidar_anno_frame["objects"][id]["object_data"]
@@ -333,6 +337,9 @@ class A92KITTI:
                     rot = np.asarray(
                         object_data["cuboid"]["val"][3:7], dtype=np.float32
                     )  # quaternion in x,y,z,w
+
+                    distance = np.sqrt(np.sum(np.array(loc[:2]) ** 2))
+                    distances.append(distance)
 
                     rot_temp = Rotation.from_quat(rot)
                     rot_temp = rot_temp.as_euler("xyz", degrees=False)
@@ -349,6 +356,9 @@ class A92KITTI:
                     for n in object_data["cuboid"]["attributes"]["num"]:
                         if n["name"] == "num_points":
                             num_lidar_pts.append(n["val"])
+                    for n in object_data["cuboid"]["attributes"]["text"]:
+                        if n["name"] == "difficulty":
+                            difficulties.append(self.difficulty_map[n["val"]])
 
                     num_radar_pts.append(0)
 
@@ -358,6 +368,8 @@ class A92KITTI:
                 info["gt_velocity"] = np.array(velocity).reshape(-1, 2)
                 info["num_lidar_pts"] = np.array(num_lidar_pts)
                 info["num_radar_pts"] = np.array(num_radar_pts)
+                info["difficulties"] = np.array(difficulties)
+                info["distances"] = np.array(distances)
                 info["valid_flag"] = np.array(valid_flag, dtype=bool)
 
             infos_list.append(info)

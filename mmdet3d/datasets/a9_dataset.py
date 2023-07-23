@@ -189,30 +189,25 @@ class A9Dataset(Custom3DDataset):
 
             for _, camera_info in info["cams"].items():
                 data["image_paths"].append(camera_info["data_path"])
-
                 # lidar to camera transform
                 camera2lidar = camera_info["sensor2lidar"]
                 camera2lidar = np.vstack([camera2lidar, [0.0, 0.0, 0.0, 1.0]])
                 lidar2camera = np.linalg.inv(camera2lidar)
                 lidar2camera = lidar2camera[:-1, :]
                 data["lidar2camera"].append(lidar2camera)
-
                 # camera intrinsics
                 data["camera_intrinsics"].append(camera_info["camera_intrinsics"])
-
                 # lidar to image transform
                 data["lidar2image"].append(camera_info["lidar2image"])
-
                 # camera to ego transform
                 data["camera2ego"].append(camera_info["sensor2ego"])
-
                 # camera to lidar transform
                 data["camera2lidar"].append(camera_info["sensor2lidar"])
 
-        # if self.test_mode:
-        #     annos = None
-        # else:
-        annos = self.get_ann_info(index)
+        if self.test_mode:
+            annos = None
+        else:
+            annos = self.get_ann_info(index)
         data["ann_info"] = annos
         return data
 
@@ -236,9 +231,13 @@ class A9Dataset(Custom3DDataset):
             mask = info["valid_flag"]
         else:
             mask = info["num_lidar_pts"] > 0
+
         gt_bboxes_3d = info["gt_boxes"][mask]
         gt_names_3d = info["gt_names"][mask]
+        gt_difficulty = info["difficulties"][mask]
+        gt_distance = info["distances"][mask]
         gt_labels_3d = []
+
         for cat in gt_names_3d:
             if cat in self.CLASSES:
                 gt_labels_3d.append(self.CLASSES.index(cat))
@@ -260,6 +259,8 @@ class A9Dataset(Custom3DDataset):
             gt_bboxes_3d=gt_bboxes_3d,
             gt_labels_3d=gt_labels_3d,
             gt_names=gt_names_3d,
+            difficulty=gt_difficulty,
+            distance=gt_distance,
         )
         return anns_results
 
