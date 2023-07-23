@@ -59,7 +59,7 @@ python tools/preprocessing/a9_add_difficulty_labels.py --root-path ./data/a9_tem
 3 - You can then run the following command to find the optimal balanced split and split the dataset into training, validation and test sets (reduce the perm-limit if it is taking too long to run):
 
 ```bash
-python tools/preprocessing/create_a9_temporal_split.py --root-path ./data/a9_temporal_no_split --out-path ./data/a9_temporal --seed 42 --segment-size 30 --perm-limit 60000 --loglevel INFO -p 6 --include-all-classes --include-all-sequences  --include-same_classes-in-difficulty --difficulty-th 1.0 --include-same_classes-in-distance --distance-th 1.0 --include-same_classes-in-num-points --num-points-th 1.0 --include-same_classes-in-occlusion --occlusion-th 0.75 --point-cloud-range -25.0 -64.0 -10.0 64.0 64.0 0.0 --splits train val test --split-ratios 0.8 0.1 0.1 --exclude-classes EMERGENCY_VEHICLE OTHER
+python tools/preprocessing/create_a9_temporal_split.py --root-path ./data/a9_temporal_no_split --out-path ./data/a9_temporal --seed 42 --segment-size 30 --perm-limit 60000 --loglevel INFO -p 6 --include-all-classes --include-all-sequences  --include-same-classes-in-difficulty --difficulty-th 1.0 --include-same-classes-in-distance --distance-th 1.0 --include-same-classes-in-num-points --num-points-th 1.0 --include-same-classes-in-occlusion --occlusion-th 0.75 --point-cloud-range -25.0 -64.0 -10.0 64.0 64.0 0.0 --splits train val test --split-ratios 0.8 0.1 0.1 --exclude-classes OTHER
 ```
 
 4 - In order to make new seperate sequence segments into to their own pseudo sequences, run the following command to tokenize the dataset again:
