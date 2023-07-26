@@ -181,7 +181,7 @@ def create_groundtruth_database(
                     type="LoadPointsFromFile",
                     coord_type="LIDAR",
                     load_dim=5,
-                    use_dim=4,
+                    use_dim=5,
                 ),
                 dict(type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True),
             ],
