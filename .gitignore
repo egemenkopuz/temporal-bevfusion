@@ -3,6 +3,7 @@ pretrained
 runs*
 viz*
 vis*
+checkpoints
 
 
 # Byte-compiled / optimized / DLL files
