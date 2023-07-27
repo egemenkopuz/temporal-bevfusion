@@ -38,17 +38,18 @@ class A9Dataset(Custom3DDataset):
         "vel_err": "mAVE",
     }
 
+    # below ranges are not applied for A9
     cls_range = {
-        "CAR": 64,
-        "TRUCK": 64,
-        "BUS": 64,
-        "TRAILER": 64,
-        "VAN": 64,
-        "EMERGENCY_VEHICLE": 64,
-        "PEDESTRIAN": 64,
-        "MOTORCYCLE": 64,
-        "BICYCLE": 64,
-        "OTHER": 64,
+        "CAR": 80,
+        "TRUCK": 80,
+        "BUS": 80,
+        "TRAILER": 80,
+        "VAN": 80,
+        "EMERGENCY_VEHICLE": 80,
+        "PEDESTRIAN": 80,
+        "MOTORCYCLE": 80,
+        "BICYCLE": 80,
+        "OTHER": 80,
     }
 
     dist_fcn = "center_distance"
@@ -204,10 +205,10 @@ class A9Dataset(Custom3DDataset):
                 # camera to lidar transform
                 data["camera2lidar"].append(camera_info["sensor2lidar"])
 
-        if self.test_mode:
-            annos = None
-        else:
-            annos = self.get_ann_info(index)
+        # if self.test_mode: # A9 has annotation for test split
+        #     annos = None
+        # else:
+        annos = self.get_ann_info(index)
         data["ann_info"] = annos
         return data
 
@@ -771,20 +772,13 @@ class A9Dataset(Custom3DDataset):
         :param nusc: An instance of the NuScenes class.
         :param eval_boxes: An instance of the EvalBoxes class.
         :param max_dist: Maps the detection name to the eval distance threshold for that class.
+        :param point_range: Only evaluate boxes within this range from the ego vehicle.
         :param verbose: Whether to print to stdout.
         """
         # Accumulators for number of filtered boxes.
-        total, dist_filter, point_filter = 0, 0, 0
+        total, after_filter, point_filter = 0, 0, 0
         for timestamp in eval_boxes:
-            # Filter on distance first.
             total += len(eval_boxes[timestamp])
-            eval_boxes[timestamp] = [
-                box
-                for box in eval_boxes[timestamp]
-                if box["ego_dist"] < max_dist[box["detection_name"]]
-            ]
-            dist_filter += len(eval_boxes[timestamp])
-
             # filter based on point_range
             if point_range is not None:
                 eval_boxes[timestamp] = [
@@ -799,6 +793,15 @@ class A9Dataset(Custom3DDataset):
                         and box["location"][2] < point_range[5]
                     )
                 ]
+            # Filter on distance.
+            if max_dist is not None:
+                eval_boxes[timestamp] = [
+                    box
+                    for box in eval_boxes[timestamp]
+                    if box["ego_dist"] < max_dist[box["detection_name"]]
+                ]
+
+            after_filter += len(eval_boxes[timestamp])
 
             # Then remove boxes with zero points in them. Eval boxes have -1 points by default.
             eval_boxes[timestamp] = [
@@ -808,7 +811,7 @@ class A9Dataset(Custom3DDataset):
 
         if verbose:
             print("=> Original number of boxes: %d" % total)
-            print("=> After distance based filtering: %d" % dist_filter)
+            print("=> After distance based filtering: %d" % after_filter)
             print("=> After LIDAR and RADAR points based filtering: %d" % point_filter)
 
         return eval_boxes
@@ -962,12 +965,12 @@ class A9Dataset(Custom3DDataset):
         if verbose:
             print("Filtering predictions")
         self.pred_boxes = self.filter_eval_boxes(
-            self.pred_boxes, config["class_range"], config["point_cloud_range"], verbose=verbose
+            self.pred_boxes, None, config["point_cloud_range"], verbose=verbose
         )
         if verbose:
             print("Filtering ground truth annotations")
         self.gt_boxes = self.filter_eval_boxes(
-            self.gt_boxes, config["class_range"], config["point_cloud_range"], verbose=verbose
+            self.gt_boxes, None, config["point_cloud_range"], verbose=verbose
         )
 
         self.keys = self.gt_boxes.keys()
