@@ -133,5 +133,5 @@ torchpack dist-run -np 1 python tools/visualize.py runs/camera-only/configs.yaml
 ## Benchmarking
 
 ```bash
-python tools/benchmark.py runs/bevfusion/configs.yaml runs/bevfusion/latest.pth --samples 200
+python tools/benchmark.py runs/bevfusion/configs.yaml runs/bevfusion/latest.pth
 ```
