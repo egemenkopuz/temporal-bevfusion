@@ -26,9 +26,9 @@ class A9Dataset(Custom3DDataset):
         "PEDESTRIAN",
         "BUS",
         "MOTORCYCLE",
-        "OTHER",
         "BICYCLE",
         "EMERGENCY_VEHICLE",
+        "OTHER",
     )
 
     ErrNameMapping = {
@@ -947,6 +947,7 @@ class A9Dataset(Custom3DDataset):
         output_dir: str = None,
         verbose: bool = True,
         extensive_report: bool = False,
+        save_summary_path: Optional[str] = None,
     ):
         assert osp.exists(result_path), "Error: The result file does not exist!"
 
@@ -1087,8 +1088,8 @@ class A9Dataset(Custom3DDataset):
                 print(f"{eval_name} - %s: %.4f" % (err_name_mapping[tp_name], tp_val))
             print(f"{eval_name} - NDS: %.4f" % (metrics_summary["nd_score"]))
             print("Eval time: %.1fs" % metrics_summary["eval_time"])
-            total_gt_boxes = sum([len(x) for x in curr_gt_boxes.values()])
-            print(f"Total number of gt bboxes: {total_gt_boxes}")
+            total_gt_bboxes = sum([len(x) for x in curr_gt_boxes.values()])
+            print(f"Total number of gt bboxes: {total_gt_bboxes}")
             print(f"GT class counts: {curr_gt_class_counts}")
 
             # Print per-class metrics.
@@ -1112,6 +1113,14 @@ class A9Dataset(Custom3DDataset):
                     )
                 )
 
+            metrics_summary["total_gt_bboxes"] = total_gt_bboxes
+            metrics_summary["class_counts"] = {}
+            for x in self.CLASSES:
+                if x in curr_gt_class_counts:
+                    metrics_summary["class_counts"][x] = curr_gt_class_counts[x]
+                else:
+                    metrics_summary["class_counts"][x] = 0
+
             all_metrics_summary[eval_name] = metrics_summary
             all_metric_data_list[eval_name] = metric_data_list
 
@@ -1121,8 +1130,11 @@ class A9Dataset(Custom3DDataset):
 
         with open(os.path.join(output_dir, "metrics_summary.json"), "w") as f:
             json.dump(all_metrics_summary["overall"], f, indent=2)
-        with open(os.path.join(output_dir, "all_metrics_summary.json"), "w") as f:
-            json.dump(all_metrics_summary, f, indent=2)
+
+        if save_summary_path is not None:
+            os.makedirs(os.path.dirname(save_summary_path), exist_ok=True)
+            with open(save_summary_path, "w") as f:
+                json.dump(all_metrics_summary, f, indent=2)
 
         mdl_dump = {
             key[0] + ":" + str(key[1]): self.serializeMetricDara(value)
@@ -1141,6 +1153,7 @@ class A9Dataset(Custom3DDataset):
         metric="bbox",
         result_name="pts_bbox",
         extensive_report: bool = False,
+        save_summary_path: Optional[str] = None,
     ):
         """Evaluation for a single model in nuScenes protocol.
 
@@ -1151,6 +1164,9 @@ class A9Dataset(Custom3DDataset):
             metric (str): Metric name used for evaluation. Default: 'bbox'.
             result_name (str): Result name in the metric prefix.
                 Default: 'pts_bbox'.
+            extensive_report (bool): Whether to print extensive report.
+                Default: False.
+            save_summary_path (str | None): Path to save the summary of
 
         Returns:
             dict: Dictionary of evaluation details.
@@ -1163,6 +1179,7 @@ class A9Dataset(Custom3DDataset):
             output_dir=output_dir,
             verbose=False,
             extensive_report=extensive_report,
+            save_summary_path=save_summary_path,
         )
 
         # record metrics
@@ -1206,6 +1223,7 @@ class A9Dataset(Custom3DDataset):
 
         metrics = {}
         extensive_report = kwargs["extensive_report"] if "extensive_report" in kwargs else False
+        save_summary_path = kwargs["save_summary_path"] if "save_summary_path" in kwargs else None
 
         if "boxes_3d" in results[0]:
             result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
@@ -1214,12 +1232,18 @@ class A9Dataset(Custom3DDataset):
                 for name in result_names:
                     print("Evaluating bboxes of {}".format(name))
                     ret_dict = self._evaluate_single(
-                        result_files[name], extensive_report=extensive_report
+                        result_files[name],
+                        extensive_report=extensive_report,
+                        save_summary_path=save_summary_path,
                     )
                 metrics.update(ret_dict)
             elif isinstance(result_files, str):
                 metrics.update(
-                    self._evaluate_single(result_files, extensive_report=extensive_report)
+                    self._evaluate_single(
+                        result_files,
+                        extensive_report=extensive_report,
+                        save_summary_path=save_summary_path,
+                    )
                 )
 
             if tmp_dir is not None:

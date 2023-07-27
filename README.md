@@ -94,14 +94,13 @@ BEV Fusion
 
 ```bash
 # BEV Fusion
-torchpack dist-run -np 2 python tools/test.py runs/bevfusion/configs.yaml runs/bevfusion/latest.pth --eval bbox --eval-options extensive_report=True
+torchpack dist-run -np 2 python tools/test.py runs/bevfusion/configs.yaml runs/bevfusion/latest.pth --eval bbox --eval-options extensive_report=True save_summary_path="runs/bevfusion/test_results.json"
 
 # Lidar-only
-torchpack dist-run -np 2 python tools/test.py runs/lidar-only/configs.yaml runs/lidar-only/latest.pth --eval bbox --eval-options extensive_report=True
+torchpack dist-run -np 2 python tools/test.py runs/lidar-only/configs.yaml runs/lidar-only/latest.pth --eval bbox --eval-options extensive_report=True save_summary_path="runs/lidar-only/test_results.json"
 
 # Camera-only
-torchpack dist-run -np 2 python tools/test.py runs/camera-only/configs.yaml runs/camera-only/latest.pth --eval bbox --eval-options extensive_report=True
-
+torchpack dist-run -np 2 python tools/test.py runs/camera-only/configs.yaml runs/camera-only/latest.pth --eval bbox --eval-options extensive_report=True save_summary_path="runs/camera-only/test_results.json"
 ```
 
 ## Visualization
