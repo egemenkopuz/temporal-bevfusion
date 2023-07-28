@@ -1,5 +1,5 @@
 voxel_size: [0.1, 0.1, 0.2]
-point_cloud_range: [-25.0, -75.0, -10.0, 125.0, 75.0, 0.0]
+point_cloud_range: [-20.0, -80.0, -10.0, 140.0, 80.0, 0.0]
 
 data:
   samples_per_gpu: 6
@@ -30,22 +30,22 @@ model:
       neck:
         in_channels: [192, 384, 768]
       vtransform:
-        xbound: [-25.0, 125.0, 0.4] # can be changed to 0.4
-        ybound: [-75.0, 75.0, 0.4] # can be changed to 0.4
+        xbound: [-20.0, 140.0, 0.4]
+        ybound: [-80.0, 80.0, 0.4]
     lidar:
       voxelize:
         point_cloud_range: ${point_cloud_range}
         voxel_size: ${voxel_size}
         max_voxels: [120000, 160000]
       backbone:
-        sparse_shape: [1500, 1500, 51]
+        sparse_shape: [1600, 1600, 51]
 
   heads:
     object:
       train_cfg:
-        grid_size: [1500, 1500, 51]
+        grid_size: [1600, 1600, 51]
       test_cfg:
-        grid_size: [1500, 1500, 51]
+        grid_size: [1600, 1600, 51]
 
 lr_config:
   policy: CosineAnnealing

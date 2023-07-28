@@ -6,7 +6,7 @@ model:
       auxiliary: true
       in_channels: null
       hidden_channel: 128
-      num_classes: 8
+      num_classes: 9
       num_decoder_layers: 1
       num_heads: 8
       nms_kernel_size: 3
@@ -17,9 +17,9 @@ model:
       train_cfg:
         dataset: a9
         point_cloud_range: ${point_cloud_range}
-        grid_size: [1500, 1500, 1]
+        grid_size: [1600, 1600, 1]
         voxel_size: ${voxel_size}
-        out_size_factor: 7.97
+        out_size_factor: 8
         gaussian_overlap: 0.1
         min_radius: 2
         pos_weight: -1
@@ -42,8 +42,8 @@ model:
             weight: 0.25
       test_cfg:
         dataset: a9
-        grid_size: [1500, 1500, 1]
-        out_size_factor: 7.97
+        grid_size: [1600, 1600, 1]
+        out_size_factor: 8
         voxel_size: ${voxel_size[:2]}
         pc_range: ${point_cloud_range[:2]}
         nms_type: null
@@ -56,9 +56,9 @@ model:
       bbox_coder:
         type: TransFusionBBoxCoder
         pc_range: ${point_cloud_range[:2]}
-        post_center_range: [-85.0, -85.0, -10.0, 85.0, 85.0, 0.0]
+        post_center_range: [-25.0, -85.0, -10.0, 145.0, 85.0, 0.0]
         score_threshold: 0.05
-        out_size_factor: 7.97
+        out_size_factor: 8
         voxel_size: ${voxel_size[:2]}
         code_size: 10
       loss_cls:

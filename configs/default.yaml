@@ -1,4 +1,4 @@
-seed: 42
+seed: 4242
 deterministic: false
 
 checkpoint_config:
