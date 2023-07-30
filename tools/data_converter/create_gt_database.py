@@ -172,51 +172,20 @@ def create_groundtruth_database(
         )
 
     elif dataset_class_name == "A9Dataset":
-        assert with_mask == False, "A9Dataset is not eligible for with_mask parameter"
-        if not load_augmented:
-            dataset_cfg.update(
-                use_valid_flag=True,
-                pipeline=[
-                    dict(
-                        type="LoadPointsFromFile",
-                        coord_type="LIDAR",
-                        load_dim=5,
-                        use_dim=5,
-                    ),
-                    dict(
-                        type="LoadPointsFromMultiSweeps",
-                        sweeps_num=10,
-                        use_dim=[0, 1, 2, 3, 4],
-                        pad_empty_sweeps=True,
-                        remove_close=True,
-                    ),
-                    dict(type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True),
-                ],
-            )
-        else:
-            dataset_cfg.update(
-                use_valid_flag=True,
-                pipeline=[
-                    dict(
-                        type="LoadPointsFromFile",
-                        coord_type="LIDAR",
-                        load_dim=16,
-                        use_dim=list(range(16)),
-                        load_augmented=load_augmented,
-                    ),
-                    dict(
-                        type="LoadPointsFromMultiSweeps",
-                        sweeps_num=10,
-                        load_dim=16,
-                        use_dim=list(range(16)),
-                        pad_empty_sweeps=True,
-                        remove_close=True,
-                        load_augmented=load_augmented,
-                    ),
-                    dict(type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True),
-                ],
-            )
-
+        assert not with_mask, "A9Dataset is not eligible for with_mask parameter"
+        assert not load_augmented, "A9Dataset is not eligible for load_augmented parameter"
+        dataset_cfg.update(
+            use_valid_flag=True,
+            pipeline=[
+                dict(
+                    type="LoadPointsFromFile",
+                    coord_type="LIDAR",
+                    load_dim=5,
+                    use_dim=5,
+                ),
+                dict(type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True),
+            ],
+        )
     elif dataset_class_name == "NuScenesDataset":
         if not load_augmented:
             dataset_cfg.update(
@@ -261,7 +230,6 @@ def create_groundtruth_database(
                     dict(type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True),
                 ],
             )
-
     elif dataset_class_name == "WaymoDataset":
         dataset_cfg.update(
             test_mode=False,
@@ -406,6 +374,8 @@ def create_groundtruth_database(
                 db_info["group_id"] = group_dict[local_group_id]
                 if "score" in annos:
                     db_info["score"] = annos["score"][i]
+                if "distance" in annos:
+                    db_info["distance"] = annos["distance"][i]
                 if with_mask:
                     db_info.update({"box2d_camera": gt_boxes[i]})
                 if names[i] in all_db_infos:

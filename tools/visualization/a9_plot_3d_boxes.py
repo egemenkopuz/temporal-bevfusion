@@ -2,6 +2,7 @@ import json
 import os
 from argparse import ArgumentParser, Namespace
 from glob import glob
+from typing import List, Optional
 
 import matplotlib as mpl
 import numpy as np
@@ -37,6 +38,7 @@ def a9_plot_3d_boxes(
     input_folder_path_detections: str,
     index: int = 0,
     point_size: int = 2,
+    point_range: Optional[List[float]] = None,
     show_coordinate_frame: bool = False,
     color_distance: bool = False,
     color_detection: bool = False,
@@ -53,6 +55,17 @@ def a9_plot_3d_boxes(
     points = np.array(pcd.points)
 
     print("Raw: ", points.shape)
+    if point_range is not None:
+        in_range_flags = (
+            (points[:, 0] > point_range[0])
+            & (points[:, 1] > point_range[1])
+            & (points[:, 2] > point_range[2])
+            & (points[:, 0] < point_range[3])
+            & (points[:, 1] < point_range[4])
+            & (points[:, 2] < point_range[5])
+        )
+        points = points[in_range_flags]
+        print("Filtered with given point range: ", points.shape)
 
     # remove rows having all zeroes
     points_filtered = points[~np.all(points == 0, axis=1)]
@@ -84,7 +97,7 @@ def a9_plot_3d_boxes(
     # corner_point_min = np.array([-150, -150, -10])
     # corner_point_max = np.array([150, 150, 5])
 
-    print("Filtered: ", points_filtered.shape)
+    print("Final: ", points_filtered.shape)
 
     # points = np.vstack((points_filtered, corner_point_min, corner_point_max))
     points = points_filtered

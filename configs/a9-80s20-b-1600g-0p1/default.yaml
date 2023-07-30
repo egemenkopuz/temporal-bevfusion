@@ -1,14 +1,16 @@
 dataset_type: A9Dataset
-dataset_root: data/a9_bevfusion/
-gt_paste_stop_epoch: 15
+dataset_root: data/a9_temporal_80_20_bevfusion/
+gt_paste_stop_epoch: -1
 reduce_beams: 32
 load_dim: 5
-use_dim: 5
+use_dim: 4 # x, y, z, intensity
 load_augmented: null
 
-max_epochs: 20
+queue_length: 0 # temporal
 
-point_cloud_range: [-75.0, -75.0, -8.0, 75.0, 75.0, 0.0]
+point_cloud_range: [-20.0, -80.0, -10.0, 140.0, 80.0, 0.0]
+eval_point_cloud_range: [-20.0, -80.0, -10.0, 140.0, 80.0, 0.0]
+
 voxel_size: [0.1, 0.1, 0.2]
 image_size: [256, 704]
 
@@ -16,7 +18,7 @@ augment2d:
   resize: [[0.4, 0.4], [0.4, 0.4]]
   rotate: [-5.4, 5.4]
   gridmask:
-    prob: 0.1
+    prob: 0.0
     fixed_prob: true
 
 augment3d:
@@ -33,6 +35,7 @@ object_classes:
   - BUS
   - MOTORCYCLE
   - BICYCLE
+  - EMERGENCY_VEHICLE
 
 input_modality:
   use_lidar: true
@@ -52,15 +55,6 @@ train_pipeline:
     use_dim: ${use_dim}
     reduce_beams: ${reduce_beams}
     load_augmented: ${load_augmented}
-  # -
-  #   type: LoadPointsFromMultiSweeps
-  #   sweeps_num: 9
-  #   load_dim: ${load_dim}
-  #   use_dim: ${use_dim}
-  #   reduce_beams: ${reduce_beams}
-  #   pad_empty_sweeps: true
-  #   remove_close: true
-  #   load_augmented: ${load_augmented}
   -
     type: LoadAnnotations3D
     with_bbox_3d: true
@@ -84,6 +78,7 @@ train_pipeline:
           BUS: 5
           MOTORCYCLE: 5
           BICYCLE: 5
+          EMERGENCY_VEHICLE: 5
       classes: ${object_classes}
       sample_groups:
         CAR: 2
@@ -94,6 +89,7 @@ train_pipeline:
         BUS: 5
         MOTORCYCLE: 5
         BICYCLE: 5
+        EMERGENCY_VEHICLE: 3
       points_loader:
         type: LoadPointsFromFile
         coord_type: LIDAR
@@ -173,15 +169,6 @@ test_pipeline:
     use_dim: ${use_dim}
     reduce_beams: ${reduce_beams}
     load_augmented: ${load_augmented}
-  # -
-  #   type: LoadPointsFromMultiSweeps
-  #   sweeps_num: 9
-  #   load_dim: ${load_dim}
-  #   use_dim: ${use_dim}
-  #   reduce_beams: ${reduce_beams}
-  #   pad_empty_sweeps: true
-  #   remove_close: true
-  #   load_augmented: ${load_augmented}
   -
     type: LoadAnnotations3D
     with_bbox_3d: true
@@ -252,15 +239,17 @@ data:
     modality: ${input_modality}
     test_mode: false
     box_type_3d: LiDAR
+    eval_point_cloud_range: ${eval_point_cloud_range}
   test:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
-    ann_file: ${dataset_root + "a9_infos_test.pkl"}
+    ann_file: ${dataset_root + "a9_infos_val.pkl"}
     pipeline: ${test_pipeline}
     object_classes: ${object_classes}
     modality: ${input_modality}
-    test_mode: true
+    test_mode: false
     box_type_3d: LiDAR
+    eval_point_cloud_range: ${eval_point_cloud_range}
 
 evaluation:
   interval: 1

@@ -1,11 +1,11 @@
 voxel_size: [0.1, 0.1, 0.2]
-point_cloud_range: [-75.0, -75.0, -8.0, 75.0, 75.0, 0.0]
+point_cloud_range: [-20.0, -80.0, -10.0, 140.0, 80.0, 0.0]
 
 optimizer:
-  lr: 2.0e-5
+  lr: 2.0e-4
 
 data:
-  samples_per_gpu: 8
+  samples_per_gpu: 6
   workers_per_gpu: 6
 
 model:
@@ -18,8 +18,8 @@ model:
         max_voxels: [120000, 160000]
       backbone:
         type: SparseEncoder
-        in_channels: 5
-        sparse_shape: [1500, 1500, 41]
+        in_channels: 4
+        sparse_shape: [1600, 1600, 51]
         output_channels: 128
         order:
           - conv
@@ -39,6 +39,6 @@ model:
   heads:
     object:
       train_cfg:
-        grid_size: [1500, 1500, 41]
+        grid_size: [1600, 1600, 51]
       test_cfg:
-        grid_size: [1500, 1500, 41]
+        grid_size: [1600, 1600, 51]

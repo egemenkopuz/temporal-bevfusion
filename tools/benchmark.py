@@ -1,14 +1,17 @@
 import argparse
+import os
 import time
 import torch
 from mmcv import Config
 from mmcv.parallel import MMDataParallel
 from mmcv.runner import load_checkpoint, wrap_fp16_model
+from torchpack.utils.config import configs
 
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_fusion_model
 from torchpack.utils.config import configs
 from mmdet3d.utils import recursive_eval
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="MMDet benchmark a model")
@@ -19,6 +22,7 @@ def parse_args():
     parser.add_argument("--fp16", action="store_true")
     args = parser.parse_args()
     return args
+
 
 def main():
     args = parse_args()
@@ -57,6 +61,8 @@ def main():
     num_warmup = 5
     pure_inf_time = 0
 
+    samples_count = len(data_loader)
+
     # benchmark with several samples and take the average
     for i, data in enumerate(data_loader):
 
@@ -73,12 +79,9 @@ def main():
             pure_inf_time += elapsed
             if (i + 1) % args.log_interval == 0:
                 fps = (i + 1 - num_warmup) / pure_inf_time
-                print(
-                    f"Done image [{i + 1:<3}/ {args.samples}], "
-                    f"fps: {fps:.1f} img / s"
-                )
+                print(f"Done image [{i + 1:<3}/ {samples_count}], " f"fps: {fps:.1f} img / s")
 
-        if (i + 1) == args.samples:
+        if (i + 1) == samples_count:
             pure_inf_time += elapsed
             fps = (i + 1 - num_warmup) / pure_inf_time
             print(f"Overall fps: {fps:.1f} img / s")

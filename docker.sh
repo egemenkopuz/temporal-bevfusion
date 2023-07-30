@@ -15,7 +15,8 @@ then
         nvidia-docker run --name "egemen-bevfusion" \
                 -v $(pwd):/root/mmdet3d \
                 -v $(pwd)/data:/dataset \
-                -v /mnt/ssd_1tb_samsung/datasets/:/mnt/ssd_1tb_samsung/datasets/ \
+                -v /mnt/ssd_4tb_samsung/datasets/:/mnt/ssd_4tb_samsung/datasets/ \
+		-v /mnt/ssd_4tb_samsung/egemen/:/mnt/ssd_4tb_samsung/egemen/ \
                 --env="DISPLAY" \
                 --shm-size 16g \
                 -d -it "egemen/bevfusion:egemen";

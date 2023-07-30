@@ -13,14 +13,19 @@
             "justMyCode": true,
             "args": [
                 "--root-path", "./data/a9_temporal_no_split",
-                "--out-path", "./data/a9_temporal",
+                "--out-path", "./data/a9_temporal_debug",
                 "--segment-size", "30",
-                "--perm-limit", "20",
+                "--perm-limit", "10",
                 "-p", "1",
-                "--include-same_classes-in-difficulty",
-                "--include-same_classes-in-distance",
-                "--include-same_classes-in-num-points",
-                "--include-same_classes-in-occlusion"
+                // "--include-all-classes",
+                // "--include-all-sequences",
+                // "--include-same_classes-in-difficulty", "--difficulty-th", "1.0",
+                "--include-same_classes-in-distance", "--distance-th", "1.0",
+                // "--include-same_classes-in-num-points", "--num-points-th", "1.0",
+                // "--include-same_classes-in-occlusion", "--occlusion-th", "1.0",
+                "--point-cloud-range", "-25.0", "-64.0", "-10.0", "64.0", "64.0", "0.0",
+                "--splits", "train", "val",
+                "--split-ratios", "0.8", "0.2",
             ]
         }
     ]

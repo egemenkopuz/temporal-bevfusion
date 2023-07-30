@@ -1,9 +1,9 @@
 import argparse
 import logging
 import os
+from glob import glob
 from typing import Optional
 
-from data_converter import nuscenes_converter as nuscenes_converter
 from data_converter.create_gt_database import create_groundtruth_database
 
 
@@ -24,9 +24,24 @@ def a9_data_prep(
         info_prefix (str): The prefix of info filenames.
         out_dir (str): Output directory of the groundtruth database info.
     """
+
     from data_converter import a9_converter as a9
 
-    splits = ["training", "validation", "testing"]
+    # get the basenames in root_path
+    root_folders = [os.path.basename(x) for x in glob(os.path.join(root_path, "*"))]
+
+    splits = []
+    if "train" in root_folders:
+        splits.append("training")
+    else:
+        raise ValueError("No training split found in root_path")
+
+    if "val" in root_folders:
+        splits.append("validation")
+    if "test" in root_folders:
+        splits.append("testing")
+
+    assert len(splits) > 0, "No splits found in root_path"
 
     load_dir = os.path.join(root_path)
     save_dir = os.path.join(out_dir)
@@ -62,6 +77,8 @@ def nuscenes_data_prep(
         out_dir (str): Output directory of the groundtruth database info.
         max_sweeps (int): Number of input consecutive frames. Default: 10
     """
+    from data_converter import nuscenes_converter as nuscenes_converter
+
     if load_augmented is None:
         # otherwise, infos must have been created, we just skip.
         nuscenes_converter.create_nuscenes_infos(
@@ -133,10 +150,10 @@ parser.add_argument(
     default="warning",
     help="Provide logging level. Example --loglevel debug, default=warning",
 )
-args = parser.parse_args()
-logging.basicConfig(level=args.loglevel.upper())
 
 if __name__ == "__main__":
+    args = parser.parse_args()
+    logging.basicConfig(level=args.loglevel.upper())
     load_augmented = None
     if args.virtual:
         if args.painted:

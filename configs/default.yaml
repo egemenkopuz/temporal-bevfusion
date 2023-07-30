@@ -1,9 +1,9 @@
-seed: 42
+seed: 4242
 deterministic: false
 
 checkpoint_config:
   interval: 1
-  max_keep_ckpts: 1
+  max_keep_ckpts: 3
 
 log_config:
   interval: 50

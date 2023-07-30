@@ -22,10 +22,10 @@ model:
         out_channels: 80
         image_size: ${image_size}
         feature_size: ${[image_size[0] // 8, image_size[1] // 8]}
-        xbound: [-75, 75, 0.4]
-        ybound: [-75, 75, 0.4]
-        zbound: [-8.0, 0.0, 8]
-        dbound: [1.0, 60.0, 0.5]
+        xbound: [-20.0, 140.0, 0.4]
+        ybound: [-80.0, 80.0, 0.4]
+        zbound: [-12.0, 8.0, 20]
+        dbound: [1.0, 60.0, 1]
         downsample: 2
     lidar:
       voxelize:
@@ -35,8 +35,8 @@ model:
         max_voxels: [90000, 120000]
       backbone:
         type: SparseEncoder
-        in_channels: 5
-        sparse_shape: [1500, 1500, 41]
+        in_channels: 4
+        sparse_shape: [1600, 1600, 51]
         output_channels: 128
         order:
           - conv
@@ -57,6 +57,6 @@ model:
 lr_config: null
 
 optimizer:
-  lr: 2.0e-4
+  lr: 3.0e-4
 
-max_epochs: 10
+max_epochs: 6
