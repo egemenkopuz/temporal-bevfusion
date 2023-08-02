@@ -279,7 +279,7 @@ class BEVFusion(Base3DFusionModel):
                     x.clone().detach().cpu().numpy().squeeze(),
                     self.save_bev_features["xlim"],
                     self.save_bev_features["ylim"],
-                    False,
+                    True,
                 )
         else:
             assert len(features) == 1, features

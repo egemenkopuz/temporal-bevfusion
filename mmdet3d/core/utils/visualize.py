@@ -196,7 +196,7 @@ def visualize_bev_feature(
     rotate: bool = False,
 ) -> None:
     bev_feature = bev_feature / np.linalg.norm(bev_feature)
-    bev_feature = np.max(bev_feature, axis=0)
+    bev_feature = np.sum(bev_feature, axis=0)
     if rotate:
         bev_feature = np.rot90(bev_feature)
 
