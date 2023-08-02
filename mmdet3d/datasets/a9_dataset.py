@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+import random
 import tempfile
 import time
 from collections import defaultdict
@@ -9,6 +10,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import mmcv
 import numpy as np
+import torch
+from mmcv.parallel import DataContainer as DC
 from mmdet.datasets import DATASETS
 from scipy.spatial.transform import Rotation
 
@@ -35,21 +38,20 @@ class A9Dataset(Custom3DDataset):
         "trans_err": "mATE",
         "scale_err": "mASE",
         "orient_err": "mAOE",
-        "vel_err": "mAVE",
     }
 
-    # below ranges are not applied for A9
+    # below ranges are used only to filter outliers in detections
     cls_range = {
-        "CAR": 80,
-        "TRUCK": 80,
-        "BUS": 80,
-        "TRAILER": 80,
-        "VAN": 80,
-        "EMERGENCY_VEHICLE": 80,
-        "PEDESTRIAN": 80,
-        "MOTORCYCLE": 80,
-        "BICYCLE": 80,
-        "OTHER": 80,
+        "CAR": 100,
+        "TRUCK": 100,
+        "BUS": 100,
+        "TRAILER": 100,
+        "VAN": 100,
+        "EMERGENCY_VEHICLE": 100,
+        "PEDESTRIAN": 100,
+        "MOTORCYCLE": 100,
+        "BICYCLE": 100,
+        "OTHER": 100,
     }
 
     dist_fcn = "center_distance"
@@ -83,16 +85,23 @@ class A9Dataset(Custom3DDataset):
         dataset_root=None,
         object_classes=None,
         load_interval=1,
-        with_velocity=True,
         modality=None,
         box_type_3d="LiDAR",
         filter_empty_gt=True,
         test_mode=False,
         use_valid_flag=False,
-        eval_point_cloud_range=None,
+        eval_point_cloud_range: Optional[List[float]] = None,
+        queue_length: int = 0,
     ) -> None:
         self.load_interval = load_interval
         self.use_valid_flag = use_valid_flag
+
+        assert eval_point_cloud_range is None or len(eval_point_cloud_range) == 6
+        assert isinstance(queue_length, int) and queue_length >= 0
+
+        self.eval_point_cloud_range = eval_point_cloud_range
+        self.queue_length = queue_length
+
         super().__init__(
             dataset_root=dataset_root,
             ann_file=ann_file,
@@ -104,11 +113,10 @@ class A9Dataset(Custom3DDataset):
             test_mode=test_mode,
         )
 
-        self.with_velocity = with_velocity
-
         self.eval_detection_configs = {
             "class_range": self.cls_range,
             "point_cloud_range": eval_point_cloud_range,
+            "queue_length": queue_length,
             "dist_fcn": self.dist_fcn,
             "dist_ths": self.dist_ths,
             "dist_th_tp": self.dist_th_tp,
@@ -180,6 +188,14 @@ class A9Dataset(Custom3DDataset):
         # lidar to ego transform
         data["lidar2ego"] = info["lidar2ego"]
 
+        # temporal
+        if self.queue_length > 0:
+            data["scene_token"] = info["scene_token"]
+            data["token"] = info["token"]
+            data["prev"] = info["prev"]
+            data["next"] = info["next"]
+            data["frame_idx"] = info["frame_idx"]
+
         if self.modality["use_camera"]:
             data["image_paths"] = []
             data["lidar2camera"] = []
@@ -211,6 +227,95 @@ class A9Dataset(Custom3DDataset):
         annos = self.get_ann_info(index)
         data["ann_info"] = annos
         return data
+
+    def union2one(self, queue):
+        imgs_list = [each["img"].data for each in queue]
+        points_list = [each["points"].data for each in queue]
+        metas_map = [{}] * len(queue)
+
+        prev_scene_token = None
+        for i, each in enumerate(queue):
+            metas_map[i] = each["metas"].data
+            if metas_map[i]["scene_token"] != prev_scene_token:
+                metas_map[i]["prev_bev_exists"] = False
+                prev_scene_token = metas_map[i]["scene_token"]
+            else:
+                metas_map[i]["prev_bev_exists"] = True
+
+        queue[-1]["img"] = DC(torch.stack(imgs_list), cpu_only=False, stack=True)
+        queue[-1]["points"] = DC(points_list, cpu_only=False)
+        queue[-1]["metas"] = DC(metas_map, cpu_only=True)
+        queue = queue[-1]
+
+        return queue
+
+    def prepare_train_data(self, index):
+        """Training data preparation.
+
+        Args:
+            index (int): Index for accessing the target data.
+
+        Returns:
+            dict: Training data dict of the corresponding index.
+        """
+        if self.queue_length == 0:
+            input_dict = self.get_data_info(index)
+            if input_dict is None:
+                return None
+            self.pre_pipeline(input_dict)
+            example = self.pipeline(input_dict)
+            if self.filter_empty_gt and (
+                example is None or ~(example["gt_labels_3d"]._data != -1).any()
+            ):
+                return None
+            return example
+        else:  # temporal
+            queue = []
+            index_list = list(range(index - self.queue_length, index))
+            random.shuffle(index_list)
+            index_list = sorted(index_list[1:])
+            index_list.append(index)
+            for i in index_list:
+                i = max(0, i)
+                input_dict = self.get_data_info(i)
+                if input_dict is None:
+                    return None
+                self.pre_pipeline(input_dict)
+                example = self.pipeline(input_dict)
+                if self.filter_empty_gt and (
+                    example is None or ~(example["gt_labels_3d"]._data != -1).any()
+                ):
+                    return None
+                queue.append(example)
+            return self.union2one(queue)
+
+    def prepare_test_data(self, index):
+        """Prepare data for testing.
+
+        Args:
+            index (int): Index for accessing the target data.
+
+        Returns:
+            dict: Testing data dict of the corresponding index.
+        """
+        if self.queue_length == 0:
+            input_dict = self.get_data_info(index)
+            self.pre_pipeline(input_dict)
+            example = self.pipeline(input_dict)
+            return example
+        else:  # temporal
+            queue = []
+            index_list = list(range(index - self.queue_length, index))
+            random.shuffle(index_list)
+            index_list = sorted(index_list[1:])
+            index_list.append(index)
+            for i in index_list:
+                i = max(0, i)
+                input_dict = self.get_data_info(i)
+                self.pre_pipeline(input_dict)
+                example = self.pipeline(input_dict)
+                queue.append(example)
+            return self.union2one(queue)
 
     def get_ann_info(self, index):
         """Get annotation info according to the given index.
@@ -245,12 +350,6 @@ class A9Dataset(Custom3DDataset):
             else:
                 gt_labels_3d.append(-1)
         gt_labels_3d = np.array(gt_labels_3d)
-
-        if self.with_velocity:
-            gt_velocity = info["gt_velocity"][mask]
-            nan_mask = np.isnan(gt_velocity[:, 0])
-            gt_velocity[nan_mask] = [0.0, 0.0]
-            gt_bboxes_3d = np.concatenate([gt_bboxes_3d, gt_velocity], axis=-1)
 
         gt_bboxes_3d = LiDARInstance3DBoxes(
             gt_bboxes_3d, box_dim=gt_bboxes_3d.shape[-1], origin=(0.5, 0.5, 0.5)
@@ -294,7 +393,6 @@ class A9Dataset(Custom3DDataset):
                     translation=box["center"].tolist(),
                     size=box["wlh"].tolist(),
                     rotation=box["orientation"],
-                    velocity=box["velocity"][:2].tolist(),
                     detection_name=name,
                     detection_score=box["score"],
                 )
@@ -376,7 +474,6 @@ class A9Dataset(Custom3DDataset):
                         "location": box["translation"][:3],
                         "size": box["size"],
                         "rotation": box["rotation"],
-                        "velocity": box["velocity"],
                         "num_pts": -1 if "num_pts" not in box else int(box["num_pts"]),
                         "detection_name": box["detection_name"],
                         "detection_score": -1.0
@@ -465,7 +562,6 @@ class A9Dataset(Custom3DDataset):
                         "location": loc,
                         "size": dim,
                         "rotation": yaw,
-                        "velocity": [0, 0],
                         "num_pts": num_lidar_pts,
                         "occlusion": occlusion_level,
                         "difficulty": difficulty_level,
@@ -491,16 +587,6 @@ class A9Dataset(Custom3DDataset):
         return np.linalg.norm(
             np.array(pred_box["translation"][:2]) - np.array(gt_box["translation"][:2])
         )
-
-    def velocity_l2(self, gt_box, pred_box) -> float:
-        """
-        L2 distance between the velocity vectors (xy only).
-        If the predicted velocities are nan, we return inf, which is subsequently clipped to 1.
-        :param gt_box: GT annotation sample.
-        :param pred_box: Predicted sample.
-        :return: L2 distance.
-        """
-        return np.linalg.norm(np.array(pred_box["velocity"]) - np.array(gt_box["velocity"]))
 
     def yaw_diff(self, gt_box, eval_box, period: float = 2 * np.pi) -> float:
         """
@@ -618,7 +704,6 @@ class A9Dataset(Custom3DDataset):
                 "precision": np.zeros(101),
                 "confidence": np.zeros(101),
                 "trans_err": np.ones(101),
-                "vel_err": np.ones(101),
                 "scale_err": np.ones(101),
                 "orient_err": np.ones(101),
             }
@@ -646,7 +731,7 @@ class A9Dataset(Custom3DDataset):
         conf = []  # Accumulator of confidences.
 
         # match_data holds the extra metrics we calculate for each match.
-        match_data = {"trans_err": [], "vel_err": [], "scale_err": [], "orient_err": [], "conf": []}
+        match_data = {"trans_err": [], "scale_err": [], "orient_err": [], "conf": []}
 
         # ---------------------------------------------
         # Match and accumulate match data.
@@ -684,7 +769,6 @@ class A9Dataset(Custom3DDataset):
                 gt_box_match = gt_boxes[pred_box["timestamp"]][match_gt_idx]
 
                 match_data["trans_err"].append(self.center_distance(gt_box_match, pred_box))
-                match_data["vel_err"].append(self.velocity_l2(gt_box_match, pred_box))
                 match_data["scale_err"].append(1 - self.scale_iou(gt_box_match, pred_box))
 
                 # Barrier orientation is only determined up to 180 degree. (For cones orientation is discarded later)
@@ -709,7 +793,6 @@ class A9Dataset(Custom3DDataset):
                 "precision": np.zeros(101),
                 "confidence": np.zeros(101),
                 "trans_err": np.ones(101),
-                "vel_err": np.ones(101),
                 "scale_err": np.ones(101),
                 "orient_err": np.ones(101),
             }
@@ -755,7 +838,6 @@ class A9Dataset(Custom3DDataset):
             "precision": prec,
             "confidence": conf,
             "trans_err": match_data["trans_err"],
-            "vel_err": match_data["vel_err"],
             "scale_err": match_data["scale_err"],
             "orient_err": match_data["orient_err"],
         }
@@ -859,7 +941,6 @@ class A9Dataset(Custom3DDataset):
             "precision": value["precision"].tolist(),
             "confidence": value["confidence"].tolist(),
             "trans_err": value["trans_err"].tolist(),
-            "vel_err": value["vel_err"].tolist(),
             "scale_err": value["scale_err"].tolist(),
             "orient_err": value["orient_err"].tolist(),
         }
@@ -869,15 +950,6 @@ class A9Dataset(Custom3DDataset):
 
         filtered_evals = defaultdict(list)
 
-        difficulty_map = {
-            "easy": {"distance": "d<40", "num_points": "n>50", "occlusion": None},
-            "moderate": {
-                "distance": "d40-50",
-                "num_points": "n20-50",
-                "occlusion": "partially_occluded",
-            },
-            "hard": {"distance": "d>50", "num_points": "n<20", "occlusion": "mostly_occluded"},
-        }
         distance_map = {"d<40": [0, 40], "d40-50": [40, 50], "d>50": [50, 64]}
         num_points_map = {"n<20": [5, 20], "n20-50": [20, 50], "n>50": [50, 999999]}
         occlusion_map = {
@@ -886,7 +958,7 @@ class A9Dataset(Custom3DDataset):
             "mostly_occluded": "MOSTLY_OCCLUDED",
         }
 
-        if eval_name == "overall":  # no filtering
+        if eval_name == "overall":  # no filtering applied
             return evals
 
         elif eval_name in [
@@ -1024,7 +1096,7 @@ class A9Dataset(Custom3DDataset):
                     metrics["label_aps"][class_name][dist_th] = ap
 
                 # Compute TP metrics.
-                TP_METRICS = ["trans_err", "scale_err", "orient_err", "vel_err"]
+                TP_METRICS = ["trans_err", "scale_err", "orient_err"]
                 for metric_name in TP_METRICS:
                     metric_data = metric_data_list[(class_name, self.dist_th_tp)]
                     tp = self.calc_tp(metric_data, self.min_recall, metric_name)
@@ -1082,7 +1154,6 @@ class A9Dataset(Custom3DDataset):
                 "trans_err": "mATE",
                 "scale_err": "mASE",
                 "orient_err": "mAOE",
-                "vel_err": "mAVE",
             }
             for tp_name, tp_val in metrics_summary["tp_errors"].items():
                 print(f"{eval_name} - %s: %.4f" % (err_name_mapping[tp_name], tp_val))
@@ -1094,22 +1165,18 @@ class A9Dataset(Custom3DDataset):
 
             # Print per-class metrics.
             print(f"\n{eval_name} - Per-class results:")
-            print(
-                "%-20s\t%-6s\t%-6s\t%-6s\t%-6s\t%-6s"
-                % ("Object Class", "AP", "ATE", "ASE", "AOE", "AVE")
-            )
+            print("%-20s\t%-6s\t%-6s\t%-6s\t%-6s" % ("Object Class", "AP", "ATE", "ASE", "AOE"))
             class_aps = metrics_summary["mean_dist_aps"]
             class_tps = metrics_summary["label_tp_errors"]
             for class_name in class_aps.keys():
                 print(
-                    "%-20s\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f"
+                    "%-20s\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f"
                     % (
                         class_name,
                         class_aps[class_name],
                         class_tps[class_name]["trans_err"],
                         class_tps[class_name]["scale_err"],
                         class_tps[class_name]["orient_err"],
-                        class_tps[class_name]["vel_err"],
                     )
                 )
 
@@ -1277,14 +1344,12 @@ def output_to_box_dict(detection):
 
     box_list = []
     for i in range(len(box3d)):
-        velocity = (*box3d.tensor[i, 7:9], 0.0)
         box = {
             "center": np.array(box_gravity_center[i]),
             "wlh": np.array(box_dims[i]),
             "orientation": box_yaw[i],
             "label": int(labels[i]) if not np.isnan(labels[i]) else labels[i],
             "score": float(scores[i]) if not np.isnan(scores[i]) else scores[i],
-            "velocity": np.array(velocity),
             "name": None,
         }
         box_list.append(box)
@@ -1308,12 +1373,22 @@ def filter_box_in_lidar_cs(boxes, classes, eval_configs):
             coordinate.
     """
     box_list = []
+    point_range = eval_configs["point_cloud_range"]
     for box in boxes:
+        box_x = box["center"][0]
+        box_y = box["center"][1]
+        if (
+            box_x > point_range[0]
+            and box_x < point_range[3]
+            and box_y > point_range[1]
+            and box_y < point_range[4]
+        ):
+            box_list.append(box)
         # filter det in ego.
-        cls_range_map = eval_configs["class_range"]
-        radius = np.linalg.norm(box["center"][:2], 2)
-        det_range = cls_range_map[classes[box["label"]]]
-        if radius > det_range:
-            continue
-        box_list.append(box)
+        # cls_range_map = eval_configs["class_range"]
+        # radius = np.linalg.norm(box["center"][:2], 2)
+        # det_range = cls_range_map[classes[box["label"]]]
+        # if radius > det_range:
+        #     continue
+        # box_list.append(box)
     return box_list

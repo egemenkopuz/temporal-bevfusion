@@ -1,13 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import numpy as np
+import torch
 from mmcv.parallel import DataContainer as DC
-
-from mmdet3d.core.bbox import BaseInstance3DBoxes
-from mmdet3d.core.points import BasePoints
 from mmdet.datasets.builder import PIPELINES
 from mmdet.datasets.pipelines import to_tensor
 
-import torch
+from mmdet3d.core.bbox import BaseInstance3DBoxes
+from mmdet3d.core.points import BasePoints
 
 
 @PIPELINES.register_module()
@@ -80,9 +79,7 @@ class DefaultFormatBundle3D:
                 elif "gt_names" in results and isinstance(results["gt_names"][0], list):
                     # gt_labels might be a list of list in multi-view setting
                     results["gt_labels"] = [
-                        np.array(
-                            [self.class_names.index(n) for n in res], dtype=np.int64
-                        )
+                        np.array([self.class_names.index(n) for n in res], dtype=np.int64)
                         for res in results["gt_names"]
                     ]
                 elif "gt_names" in results:
@@ -153,6 +150,10 @@ class Collect3D:
             "img_norm_cfg",
             "pcd_trans",
             "token",
+            "scene_token",  # for temporal
+            "prev",  # for temporal
+            "next",  # for temporal
+            "frame_idx",  # for temporal
             "pcd_scale_factor",
             "pcd_rotation",
             "lidar_path",
