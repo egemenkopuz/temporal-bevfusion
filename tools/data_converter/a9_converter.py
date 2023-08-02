@@ -73,8 +73,8 @@ south12lidar = np.linalg.inv(
 
 south2intrinsics = np.asarray(
     [
-        [1029.2795655594014, 0.0, 982.0311857478633],
-        [0.0, 1122.2781391971948, 1129.1480997238505],
+        [1315.158203125, 0.0, 962.7348338975571],
+        [0.0, 1362.7757568359375, 580.6482296623581],
         [0.0, 0.0, 1.0],
     ],
     dtype=np.float32,
@@ -322,7 +322,6 @@ class A92KITTI:
             if not test:
                 gt_boxes = []
                 gt_names = []
-                velocity = []
                 valid_flag = []
                 num_lidar_pts = []
                 num_radar_pts = []
@@ -350,7 +349,6 @@ class A92KITTI:
 
                     gt_boxes.append(gt_box)
                     gt_names.append(object_data["type"])
-                    velocity.append([0, 0])
                     valid_flag.append(True)
 
                     for n in object_data["cuboid"]["attributes"]["num"]:
@@ -365,7 +363,6 @@ class A92KITTI:
                 gt_boxes = np.asarray(gt_boxes, dtype=np.float32)
                 info["gt_boxes"] = gt_boxes
                 info["gt_names"] = np.array(gt_names)
-                info["gt_velocity"] = np.array(velocity).reshape(-1, 2)
                 info["num_lidar_pts"] = np.array(num_lidar_pts)
                 info["num_radar_pts"] = np.array(num_radar_pts)
                 info["difficulties"] = np.array(difficulties)
