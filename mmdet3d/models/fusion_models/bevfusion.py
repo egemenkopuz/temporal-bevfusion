@@ -246,20 +246,19 @@ class BEVFusion(Base3DFusionModel):
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
 
-            if self.save_bev_features is not None:
+            if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
                 # assuming batch size = 1
-                if "out_dir" in self.save_bev_features:
-                    visualize_bev_feature(
-                        os.path.join(
-                            self.save_bev_features["out_dir"],
-                            f"bev-{sensor}",
-                            f"{metas[0]['timestamp']}.png",
-                        ),
-                        feature.clone().detach().cpu().numpy().squeeze(),
-                        self.save_bev_features["xlim"],
-                        self.save_bev_features["ylim"],
-                        True if sensor == "lidar" else False,
-                    )
+                visualize_bev_feature(
+                    os.path.join(
+                        self.save_bev_features["out_dir"],
+                        f"bev-feat-{sensor}",
+                        f"{metas[0]['timestamp']}.png",
+                    ),
+                    feature.clone().detach().cpu().numpy().squeeze(),
+                    self.save_bev_features["xlim"],
+                    self.save_bev_features["ylim"],
+                    True if sensor == "lidar" else False,
+                )
 
             features.append(feature)
 
@@ -269,6 +268,19 @@ class BEVFusion(Base3DFusionModel):
 
         if self.fuser is not None:
             x = self.fuser(features)
+
+            if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
+                visualize_bev_feature(
+                    os.path.join(
+                        self.save_bev_features["out_dir"],
+                        "bev-feat-fused",
+                        f"{metas[0]['timestamp']}.png",
+                    ),
+                    x.clone().detach().cpu().numpy().squeeze(),
+                    self.save_bev_features["xlim"],
+                    self.save_bev_features["ylim"],
+                    False,
+                )
         else:
             assert len(features) == 1, features
             x = features[0]

@@ -15,6 +15,10 @@ from tqdm import tqdm
 
 from mmdet3d.core import LiDARInstance3DBoxes
 from mmdet3d.core.utils import visualize_camera, visualize_lidar, visualize_map
+from mmdet3d.core.utils.visualize import (
+    visualize_camera_combined,
+    visualize_lidar_combined,
+)
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_model
 
@@ -53,6 +57,9 @@ def main() -> None:
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--save-bboxes", action="store_true")
     parser.add_argument("--save-labels", action="store_true")
+    parser.add_argument("--save-bboxes-dir", type=str, default=None)
+    parser.add_argument("--save-labels-dir", type=str, default=None)
+    parser.add_argument("--include-combined", action="store_true")
     args, opts = parser.parse_known_args()
 
     configs.load(args.config, recursive=True)
@@ -116,7 +123,9 @@ def main() -> None:
                 labels = labels[indices]
             if not cfg.data.train.dataset.type == "A9Dataset":
                 bboxes[..., 2] -= bboxes[..., 5] / 2
-            bboxes = LiDARInstance3DBoxes(bboxes, box_dim=9)
+                bboxes = LiDARInstance3DBoxes(bboxes, box_dim=9)
+            else:
+                bboxes = LiDARInstance3DBoxes(bboxes, box_dim=7)
         elif args.mode == "pred" and "boxes_3d" in outputs[0]:
             bboxes = outputs[0]["boxes_3d"].tensor.numpy()
             scores = outputs[0]["scores_3d"].numpy()
@@ -135,7 +144,23 @@ def main() -> None:
                 labels = labels[indices]
             if not cfg.data.train.dataset.type == "A9Dataset":
                 bboxes[..., 2] -= bboxes[..., 5] / 2
-            bboxes = LiDARInstance3DBoxes(bboxes, box_dim=9)
+                bboxes = LiDARInstance3DBoxes(bboxes, box_dim=9)
+            else:
+                bboxes = LiDARInstance3DBoxes(bboxes, box_dim=7)
+
+            if args.include_combined:
+                gt_bboxes = data["gt_bboxes_3d"].data[0][0].tensor.numpy()
+                gt_labels = data["gt_labels_3d"].data[0][0].numpy()
+
+                if args.bbox_classes is not None:
+                    gt_indices = np.isin(gt_labels, args.bbox_classes)
+                    gt_bboxes = bboxes[gt_indices]
+                    gt_labels = labels[gt_indices]
+                if not cfg.data.train.dataset.type == "A9Dataset":
+                    gt_bboxes[..., 2] -= gt_bboxes[..., 5] / 2
+                    gt_bboxes = LiDARInstance3DBoxes(gt_bboxes, box_dim=9)
+                else:
+                    gt_bboxes = LiDARInstance3DBoxes(gt_bboxes, box_dim=7)
         else:
             bboxes = None
             labels = None
@@ -153,7 +178,7 @@ def main() -> None:
             for k, image_path in enumerate(metas["filename"]):
                 image = mmcv.imread(image_path)
                 visualize_camera(
-                    os.path.join(args.out_dir, f"camera-{k}", f"{name}.png"),
+                    os.path.join(args.out_dir, f"camera-{k}-pred", f"{name}.jpg"),
                     image,
                     bboxes=bboxes,
                     labels=labels,
@@ -161,11 +186,20 @@ def main() -> None:
                     classes=cfg.object_classes,
                     dataset=cfg.data.train.dataset.type,
                 )
+                if args.include_combined:
+                    visualize_camera_combined(
+                        os.path.join(args.out_dir, f"camera-{k}-combined", f"{name}.jpg"),
+                        image,
+                        pred_bboxes=bboxes,
+                        gt_bboxes=gt_bboxes,
+                        transform=metas["lidar2image"][k],
+                        dataset=cfg.data.train.dataset.type,
+                    )
 
         if "points" in data:
             lidar = data["points"].data[0][0].numpy()
             visualize_lidar(
-                os.path.join(args.out_dir, "lidar", f"{name}.png"),
+                os.path.join(args.out_dir, "bev-pred", f"{name}.jpg"),
                 lidar,
                 bboxes=bboxes,
                 labels=labels,
@@ -174,18 +208,35 @@ def main() -> None:
                 classes=cfg.object_classes,
                 dataset=cfg.data.train.dataset.type,
             )
+            if args.include_combined:
+                visualize_lidar_combined(
+                    os.path.join(args.out_dir, "bev-combined", f"{name}.jpg"),
+                    lidar,
+                    pred_bboxes=bboxes,
+                    gt_bboxes=gt_bboxes,
+                    xlim=[cfg.point_cloud_range[d] for d in [0, 3]],
+                    ylim=[cfg.point_cloud_range[d] for d in [1, 4]],
+                )
 
         # save bbox
         if args.save_bboxes and bboxes is not None:
             bboxes.tensor = bboxes.tensor.cpu()
             bboxes = bboxes.tensor.numpy()
-            os.makedirs(os.path.join(args.out_dir, "bbox"), exist_ok=True)
-            np.save(os.path.join(args.out_dir, "bbox", f"{name}.npy"), bboxes)
+            if args.save_bboxes_dir:
+                os.makedirs(args.save_bboxes_dir, exist_ok=True)
+                np.save(os.path.join(args.save_bboxes_dir, f"{name}.npy"), bboxes)
+            else:
+                os.makedirs(os.path.join(args.out_dir, "bbox-pred"), exist_ok=True)
+                np.save(os.path.join(args.out_dir, "bbox-pred", f"{name}.npy"), bboxes)
 
         # save labels
         if args.save_labels and labels is not None:
-            os.makedirs(os.path.join(args.out_dir, "label"), exist_ok=True)
-            np.save(os.path.join(args.out_dir, "label", f"{name}.npy"), labels)
+            if args.save_labels_dir:
+                os.makedirs(args.save_labels_dir, exist_ok=True)
+                np.save(os.path.join(args.save_labels_dir, f"{name}.npy"), labels)
+            else:
+                os.makedirs(os.path.join(args.out_dir, "labels-pred"), exist_ok=True)
+                np.save(os.path.join(args.out_dir, "labels-pred", f"{name}.npy"), labels)
 
         if masks is not None:
             visualize_map(
