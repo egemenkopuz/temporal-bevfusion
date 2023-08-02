@@ -3,9 +3,9 @@ import os
 
 import mmcv
 import numpy as np
+from mmdet.datasets import PIPELINES
 
 from mmdet3d.core.bbox import box_np_ops
-from mmdet.datasets import PIPELINES
 
 from ..builder import OBJECTSAMPLERS
 from .utils import box_collision_test
@@ -22,9 +22,7 @@ class BatchSampler:
         drop_reminder (bool): Drop reminder. Default: False.
     """
 
-    def __init__(
-        self, sampled_list, name=None, epoch=None, shuffle=True, drop_reminder=False
-    ):
+    def __init__(self, sampled_list, name=None, epoch=None, shuffle=True, drop_reminder=False):
         self._sampled_list = sampled_list
         self._indices = np.arange(len(sampled_list))
         if shuffle:
@@ -208,15 +206,11 @@ class DataBaseSampler:
         """
         sampled_num_dict = {}
         sample_num_per_class = []
-        for class_name, max_sample_num in zip(
-            self.sample_classes, self.sample_max_nums
-        ):
+        for class_name, max_sample_num in zip(self.sample_classes, self.sample_max_nums):
             class_label = self.cat2label[class_name]
             # sampled_num = int(max_sample_num -
             #                   np.sum([n == class_name for n in gt_names]))
-            sampled_num = int(
-                max_sample_num - np.sum([n == class_label for n in gt_labels])
-            )
+            sampled_num = int(max_sample_num - np.sum([n == class_label for n in gt_labels]))
             sampled_num = np.round(self.rate * sampled_num).astype(np.int64)
             sampled_num_dict[class_name] = sampled_num
             sample_num_per_class.append(sampled_num)
@@ -227,23 +221,17 @@ class DataBaseSampler:
 
         for class_name, sampled_num in zip(self.sample_classes, sample_num_per_class):
             if sampled_num > 0:
-                sampled_cls = self.sample_class_v2(
-                    class_name, sampled_num, avoid_coll_boxes
-                )
+                sampled_cls = self.sample_class_v2(class_name, sampled_num, avoid_coll_boxes)
 
                 sampled += sampled_cls
                 if len(sampled_cls) > 0:
                     if len(sampled_cls) == 1:
                         sampled_gt_box = sampled_cls[0]["box3d_lidar"][np.newaxis, ...]
                     else:
-                        sampled_gt_box = np.stack(
-                            [s["box3d_lidar"] for s in sampled_cls], axis=0
-                        )
+                        sampled_gt_box = np.stack([s["box3d_lidar"] for s in sampled_cls], axis=0)
 
                     sampled_gt_bboxes += [sampled_gt_box]
-                    avoid_coll_boxes = np.concatenate(
-                        [avoid_coll_boxes, sampled_gt_box], axis=0
-                    )
+                    avoid_coll_boxes = np.concatenate([avoid_coll_boxes, sampled_gt_box], axis=0)
 
         ret = None
         if len(sampled) > 0:
@@ -267,16 +255,12 @@ class DataBaseSampler:
 
                 s_points_list.append(s_points)
 
-            gt_labels = np.array(
-                [self.cat2label[s["name"]] for s in sampled], dtype=np.long
-            )
+            gt_labels = np.array([self.cat2label[s["name"]] for s in sampled], dtype=np.long)
             ret = {
                 "gt_labels_3d": gt_labels,
                 "gt_bboxes_3d": sampled_gt_bboxes,
                 "points": s_points_list[0].cat(s_points_list),
-                "group_ids": np.arange(
-                    gt_bboxes.shape[0], gt_bboxes.shape[0] + len(sampled)
-                ),
+                "group_ids": np.arange(gt_bboxes.shape[0], gt_bboxes.shape[0] + len(sampled)),
             }
 
         return ret
