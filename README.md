@@ -22,11 +22,10 @@ Accessing the terminal
 bash docker.sh exec
 ```
 
-Installing
+Installing (inside the docker container)
 
 ```bash
-cd mmdet3d && pip install -r requirements.txt
-python setup.py develop
+cd mmdet3d && make
 ```
 
 # A9 Dataset
