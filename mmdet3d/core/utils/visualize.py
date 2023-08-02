@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 
 from ..bbox import LiDARInstance3DBoxes
 
-__all__ = ["visualize_camera", "visualize_lidar", "visualize_map"]
+__all__ = ["visualize_camera", "visualize_lidar", "visualize_map", "visualize_bev_feature"]
 
 
 OBJECT_PALETTE = {
@@ -60,6 +60,8 @@ def visualize_camera(
     *,
     bboxes: Optional[LiDARInstance3DBoxes] = None,
     labels: Optional[np.ndarray] = None,
+    gt_bboxes: Optional[LiDARInstance3DBoxes] = None,
+    gt_labels: Optional[np.ndarray] = None,
     transform: Optional[np.ndarray] = None,
     classes: Optional[List[str]] = None,
     color: Optional[Tuple[int, int, int]] = None,
@@ -74,59 +76,112 @@ def visualize_camera(
     else:
         object_palette = OBJECT_PALETTE
 
-    if bboxes is not None and len(bboxes) > 0:
+    assert bboxes is not None and len(bboxes) > 0
+
+    corners = bboxes.corners
+    num_bboxes = corners.shape[0]
+
+    coords = np.concatenate([corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1)
+
+    if dataset == "A9Dataset":
+        transform = np.vstack([transform, np.asarray([0, 0, 0, 1])])
+    else:
+        transform = copy.deepcopy(transform).reshape(4, 4)
+
+    coords = coords @ transform.T
+    coords = coords.reshape(-1, 8, 4)
+
+    indices = np.all(coords[..., 2] > 0, axis=1)
+    coords = coords[indices]
+    labels = labels[indices]
+
+    indices = np.argsort(-np.min(coords[..., 2], axis=1))
+    coords = coords[indices]
+    labels = labels[indices]
+
+    coords = coords.reshape(-1, 4)
+    coords[:, 2] = np.clip(coords[:, 2], a_min=1e-5, a_max=1e5)
+    coords[:, 0] /= coords[:, 2]
+    coords[:, 1] /= coords[:, 2]
+
+    coords = coords[..., :2].reshape(-1, 8, 2)
+    for index in range(coords.shape[0]):
+        name = classes[labels[index]]
+        for start, end in [
+            (0, 1),
+            (0, 3),
+            (0, 4),
+            (1, 2),
+            (1, 5),
+            (3, 2),
+            (3, 7),
+            (4, 5),
+            (4, 7),
+            (2, 6),
+            (5, 6),
+            (6, 7),
+        ]:
+            cv2.line(
+                canvas,
+                coords[index, start].astype(np.int),
+                coords[index, end].astype(np.int),
+                color or object_palette[name],
+                thickness,
+                cv2.LINE_AA,
+            )
+    canvas = canvas.astype(np.uint8)
+    canvas = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
+
+    mmcv.mkdir_or_exist(os.path.dirname(fpath))
+    mmcv.imwrite(canvas, fpath)
+
+
+def visualize_camera_combined(
+    fpath: str,
+    image: np.ndarray,
+    *,
+    pred_bboxes: Optional[LiDARInstance3DBoxes] = None,
+    gt_bboxes: Optional[LiDARInstance3DBoxes] = None,
+    transform: Optional[np.ndarray] = None,
+    thickness: float = 4,
+    dataset: str,
+) -> None:
+    canvas = image.copy()
+    canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
+
+    assert pred_bboxes is not None and len(pred_bboxes) > 0
+    assert gt_bboxes is not None and len(gt_bboxes) > 0
+
+    if dataset == "A9Dataset":
+        transform = np.vstack([transform, np.asarray([0, 0, 0, 1])])
+    else:
+        transform = copy.deepcopy(transform).reshape(4, 4)
+
+    # fmt: off
+    def draw_lines(bboxes, color):
         corners = bboxes.corners
         num_bboxes = corners.shape[0]
-
         coords = np.concatenate([corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1)
-
-        if dataset == "A9Dataset":
-            transform = np.vstack([transform, np.asarray([0, 0, 0, 1])])
-        else:
-            transform = copy.deepcopy(transform).reshape(4, 4)
-
         coords = coords @ transform.T
         coords = coords.reshape(-1, 8, 4)
-
         indices = np.all(coords[..., 2] > 0, axis=1)
         coords = coords[indices]
-        labels = labels[indices]
-
         indices = np.argsort(-np.min(coords[..., 2], axis=1))
         coords = coords[indices]
-        labels = labels[indices]
-
         coords = coords.reshape(-1, 4)
         coords[:, 2] = np.clip(coords[:, 2], a_min=1e-5, a_max=1e5)
         coords[:, 0] /= coords[:, 2]
         coords[:, 1] /= coords[:, 2]
-
         coords = coords[..., :2].reshape(-1, 8, 2)
         for index in range(coords.shape[0]):
-            name = classes[labels[index]]
-            for start, end in [
-                (0, 1),
-                (0, 3),
-                (0, 4),
-                (1, 2),
-                (1, 5),
-                (3, 2),
-                (3, 7),
-                (4, 5),
-                (4, 7),
-                (2, 6),
-                (5, 6),
-                (6, 7),
-            ]:
-                cv2.line(
-                    canvas,
-                    coords[index, start].astype(np.int),
-                    coords[index, end].astype(np.int),
-                    color or object_palette[name],
-                    thickness,
-                    cv2.LINE_AA,
-                )
-        canvas = canvas.astype(np.uint8)
+            for start, end in [(0, 1), (0, 3), (0, 4), (1, 2), (1, 5), (3, 2), (3, 7), (4, 5), (4, 7), (2, 6), (5, 6), (6, 7)]:
+                cv2.line(canvas, coords[index, start].astype(np.int), coords[index, end].astype(np.int), color, thickness, cv2.LINE_AA)
+    # fmt: on
+
+    draw_lines(gt_bboxes, (0, 255, 0))
+    draw_lines(pred_bboxes, (255, 0, 0))
+
+    canvas = canvas.astype(np.uint8)
     canvas = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
 
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
@@ -179,6 +234,8 @@ def visualize_lidar(
     thickness: float = 25,
     dataset: str,
 ) -> None:
+    assert bboxes is not None and len(bboxes) > 0
+
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
     if dataset == "A9Dataset":
@@ -200,16 +257,75 @@ def visualize_lidar(
             c="white",
         )
 
-    if bboxes is not None and len(bboxes) > 0:
-        coords = bboxes.corners[:, [0, 3, 7, 4, 0], :2]
-        for index in range(coords.shape[0]):
-            name = classes[labels[index]]
-            plt.plot(
-                coords[index, :, 0],
-                coords[index, :, 1],
-                linewidth=thickness,
-                color=np.array(color or object_palette[name]) / 255,
-            )
+    coords = bboxes.corners[:, [0, 3, 7, 4, 0], :2]
+    for index in range(coords.shape[0]):
+        name = classes[labels[index]]
+        plt.plot(
+            coords[index, :, 0],
+            coords[index, :, 1],
+            linewidth=thickness,
+            color=np.array(color or object_palette[name]) / 255,
+        )
+
+    mmcv.mkdir_or_exist(os.path.dirname(fpath))
+    fig.savefig(
+        fpath,
+        dpi=10,
+        facecolor="black",
+        format="png",
+        bbox_inches="tight",
+        pad_inches=0,
+    )
+    plt.close()
+
+
+def visualize_lidar_combined(
+    fpath: str,
+    lidar: Optional[np.ndarray] = None,
+    *,
+    pred_bboxes: Optional[LiDARInstance3DBoxes] = None,
+    gt_bboxes: Optional[LiDARInstance3DBoxes] = None,
+    xlim: Tuple[float, float] = (-50, 50),
+    ylim: Tuple[float, float] = (-50, 50),
+    radius: float = 15,
+    thickness: float = 15,
+) -> None:
+    assert pred_bboxes is not None and len(pred_bboxes) > 0
+    assert gt_bboxes is not None and len(gt_bboxes) > 0
+
+    fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
+
+    ax = plt.gca()
+    ax.set_xlim(*xlim)
+    ax.set_ylim(*ylim)
+    ax.set_aspect(1)
+    ax.set_axis_off()
+
+    if lidar is not None:
+        plt.scatter(
+            lidar[:, 0],
+            lidar[:, 1],
+            s=radius,
+            c="white",
+        )
+
+    pred_coords = pred_bboxes.corners[:, [0, 3, 7, 4, 0], :2]
+    for index in range(pred_coords.shape[0]):
+        plt.plot(
+            pred_coords[index, :, 0],
+            pred_coords[index, :, 1],
+            linewidth=thickness,
+            color=np.array((255, 0, 0)) / 255,
+        )
+
+    gt_coords = gt_bboxes.corners[:, [0, 3, 7, 4, 0], :2]
+    for index in range(gt_coords.shape[0]):
+        plt.plot(
+            gt_coords[index, :, 0],
+            gt_coords[index, :, 1],
+            linewidth=thickness,
+            color=np.array((0, 255, 0)) / 255,
+        )
 
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
     fig.savefig(
