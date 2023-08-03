@@ -92,6 +92,8 @@ class A9Dataset(Custom3DDataset):
         use_valid_flag=False,
         eval_point_cloud_range: Optional[List[float]] = None,
         queue_length: int = 0,
+        queue_range_threshold: int = 0,
+        online: bool = False,
     ) -> None:
         self.load_interval = load_interval
         self.use_valid_flag = use_valid_flag
@@ -101,6 +103,8 @@ class A9Dataset(Custom3DDataset):
 
         self.eval_point_cloud_range = eval_point_cloud_range
         self.queue_length = queue_length
+        self.queue_range_threshold = queue_range_threshold
+        self.online = online
 
         super().__init__(
             dataset_root=dataset_root,
@@ -111,12 +115,14 @@ class A9Dataset(Custom3DDataset):
             box_type_3d=box_type_3d,
             filter_empty_gt=filter_empty_gt,
             test_mode=test_mode,
+            online=online,
         )
 
         self.eval_detection_configs = {
             "class_range": self.cls_range,
             "point_cloud_range": eval_point_cloud_range,
             "queue_length": queue_length,
+            "queue_range_threshold": queue_range_threshold,
             "dist_fcn": self.dist_fcn,
             "dist_ths": self.dist_ths,
             "dist_th_tp": self.dist_th_tp,
@@ -242,6 +248,11 @@ class A9Dataset(Custom3DDataset):
             else:
                 metas_map[i]["prev_bev_exists"] = True
 
+            if metas_map[i]["next"] not in [None, ""]:
+                metas_map[i]["next_bev_exists"] = True
+            else:
+                metas_map[i]["next_bev_exists"] = False
+
         queue[-1]["img"] = DC(torch.stack(imgs_list), cpu_only=False, stack=True)
         queue[-1]["points"] = DC(points_list, cpu_only=False)
         queue[-1]["metas"] = DC(metas_map, cpu_only=True)
@@ -271,15 +282,25 @@ class A9Dataset(Custom3DDataset):
             return example
         else:  # temporal
             queue = []
-            index_list = list(range(index - self.queue_length, index))
-            random.shuffle(index_list)
-            index_list = sorted(index_list[1:])
+            index_list = list(
+                range(index - (self.queue_length - 1 + self.queue_range_threshold), index)
+            )
+            random.shuffle(index_list)  # to add randomness if range is greater
+            index_list = sorted(index_list[-(self.queue_length - 1) :])
             index_list.append(index)
-            for i in index_list:
+            latest_dict = None
+            debug_frame_indices = []
+            for i in index_list[::-1]:
                 i = max(0, i)
                 input_dict = self.get_data_info(i)
-                if input_dict is None:
-                    return None
+                if (
+                    latest_dict is not None
+                    and input_dict["scene_token"] != latest_dict["scene_token"]
+                ):
+                    input_dict = latest_dict
+                else:
+                    latest_dict = copy.deepcopy(input_dict)
+                debug_frame_indices.append(input_dict["frame_idx"])
                 self.pre_pipeline(input_dict)
                 example = self.pipeline(input_dict)
                 if self.filter_empty_gt and (
@@ -287,7 +308,8 @@ class A9Dataset(Custom3DDataset):
                 ):
                     return None
                 queue.append(example)
-            return self.union2one(queue)
+            # print(f"train {index} debug_frame_indices", debug_frame_indices[::-1])
+            return self.union2one(queue[::-1])
 
     def prepare_test_data(self, index):
         """Prepare data for testing.
@@ -305,17 +327,30 @@ class A9Dataset(Custom3DDataset):
             return example
         else:  # temporal
             queue = []
-            index_list = list(range(index - self.queue_length, index))
-            random.shuffle(index_list)
-            index_list = sorted(index_list[1:])
+            index_list = list(
+                range(index - (self.queue_length - 1 + self.queue_range_threshold), index)
+            )
+            random.shuffle(index_list)  # to add randomness if range is greater
+            index_list = sorted(index_list[-(self.queue_length - 1) :])
             index_list.append(index)
-            for i in index_list:
+            latest_dict = None
+            debug_frame_indices = []
+            for i in index_list[::-1]:
                 i = max(0, i)
                 input_dict = self.get_data_info(i)
+                if (
+                    latest_dict is not None
+                    and input_dict["scene_token"] != latest_dict["scene_token"]
+                ):
+                    input_dict = latest_dict
+                else:
+                    latest_dict = copy.deepcopy(input_dict)
+                debug_frame_indices.append(input_dict["frame_idx"])
                 self.pre_pipeline(input_dict)
                 example = self.pipeline(input_dict)
                 queue.append(example)
-            return self.union2one(queue)
+            # print(f"test {index} debug_frame_indices", debug_frame_indices[::-1])
+            return self.union2one(queue[::-1])
 
     def get_ann_info(self, index):
         """Get annotation info according to the given index.
