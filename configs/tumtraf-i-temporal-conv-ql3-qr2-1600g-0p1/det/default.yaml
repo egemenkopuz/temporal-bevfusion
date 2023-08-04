@@ -1,0 +1,10 @@
+model:
+  type: TBEVFusion
+  encoders: null
+  fuser: null
+  temporal_fuser:
+    type: ConvFuser
+    in_channels: [256, 256, 256]
+    out_channels: 256
+  heads:
+    map: null
