@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 def get_args() -> Namespace:
     """
-    Parse given arguments for tokenize_a9_dataset_labels function.
+    Parse given arguments for tokenize_tumtraf_dataset_labels function.
 
     Returns:
         Namespace: parsed arguments
@@ -47,7 +47,7 @@ class FrameDetails:
     next: str
 
 
-def tokenize_a9_dataset_labels(
+def tokenize_tumtraf_dataset_labels(
     root_path: str,
     out_path: str = None,
     idx_diff_rem: int = 20,
@@ -274,7 +274,7 @@ def tokenize_a9_dataset_labels(
 if __name__ == "__main__":
     args = get_args()
     logging.basicConfig(level=args.loglevel.upper())
-    tokenize_a9_dataset_labels(
+    tokenize_tumtraf_dataset_labels(
         root_path=args.root_path,
         out_path=args.out_path,
         range_diff_threshold_train=args.threshold_train,

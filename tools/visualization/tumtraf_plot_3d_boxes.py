@@ -15,7 +15,7 @@ from .utils.geometry import add_open3d_axis, visualize_bounding_box
 
 def get_args() -> Namespace:
     """
-    Parse given arguments for a9_plot_3d_boxes function.
+    Parse given arguments for tumtraf_plot_3d_boxes function.
 
     Returns:
         Namespace: parsed arguments
@@ -33,7 +33,7 @@ def get_args() -> Namespace:
     return parser.parse_args()
 
 
-def a9_plot_3d_boxes(
+def tumtraf_plot_3d_boxes(
     input_folder_path_point_clouds: str,
     input_folder_path_detections: str,
     index: int = 0,
@@ -177,13 +177,13 @@ def process_detections(label_data, pcd, vis, color_detection: bool = False):
                 pcd.colors = o3d.utility.Vector3dVector(colors)
 
             visualize_bounding_box(
-                l, w, h, rotation_yaw, position_3d, category, vis, None, None, "a9"
+                l, w, h, rotation_yaw, position_3d, category, vis, None, None, "TUMTraf-I"
             )
 
 
 if __name__ == "__main__":
     args = get_args()
-    a9_plot_3d_boxes(
+    tumtraf_plot_3d_boxes(
         input_folder_path_point_clouds=args.input_folder_path_point_clouds,
         input_folder_path_detections=args.input_folder_path_detections,
         index=args.index,

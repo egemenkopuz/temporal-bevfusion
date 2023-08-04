@@ -26,7 +26,7 @@ OBJECT_PALETTE = {
     "traffic_cone": (47, 79, 79),
 }
 
-A9_OBJECT_PALETTE = {
+TUMTRAF_OBJECT_PALETTE = {
     "CAR": (0, 204, 246),
     "TRUCK": (63, 233, 185),
     "BUS": (217, 138, 134),
@@ -71,8 +71,8 @@ def visualize_camera(
     canvas = image.copy()
     canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
 
-    if dataset == "A9Dataset":
-        object_palette = A9_OBJECT_PALETTE
+    if dataset == "TUMTrafIntersectionDataset":
+        object_palette = TUMTRAF_OBJECT_PALETTE
     else:
         object_palette = OBJECT_PALETTE
 
@@ -82,7 +82,7 @@ def visualize_camera(
 
         coords = np.concatenate([corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1)
 
-        if dataset == "A9Dataset":
+        if dataset == "TUMTrafIntersectionDataset":
             transform = np.vstack([transform, np.asarray([0, 0, 0, 1])])
         else:
             transform = copy.deepcopy(transform).reshape(4, 4)
@@ -154,7 +154,7 @@ def visualize_camera_combined(
         and gt_bboxes is not None
         and len(gt_bboxes) > 0
     ):
-        if dataset == "A9Dataset":
+        if dataset == "TUMTrafIntersectionDataset":
             transform = np.vstack([transform, np.asarray([0, 0, 0, 1])])
         else:
             transform = copy.deepcopy(transform).reshape(4, 4)
@@ -238,8 +238,8 @@ def visualize_lidar(
 ) -> None:
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
-    if dataset == "A9Dataset":
-        object_palette = A9_OBJECT_PALETTE
+    if dataset == "TUMTrafIntersectionDataset":
+        object_palette = TUMTRAF_OBJECT_PALETTE
     else:
         object_palette = OBJECT_PALETTE
 

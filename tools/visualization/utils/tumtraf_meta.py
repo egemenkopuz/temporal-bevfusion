@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class A9Meta:
+class TUMTrafMeta:
     image_width = 1920
     image_height = 1200
 

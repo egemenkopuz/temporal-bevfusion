@@ -487,7 +487,7 @@ class CenterHead(BaseModule):
             # anno_box = gt_bboxes_3d.new_zeros((max_objs, 10), dtype=torch.float32)
             anno_box = gt_bboxes_3d.new_zeros(
                 (max_objs, 8), dtype=torch.float32
-            )  # without velocity for A9
+            )  # without velocity for TUMTraf-I
 
             ind = gt_labels_3d.new_zeros((max_objs), dtype=torch.int64)
             mask = gt_bboxes_3d.new_zeros((max_objs), dtype=torch.uint8)
@@ -603,7 +603,7 @@ class CenterHead(BaseModule):
                     preds_dict[0]["height"],
                     preds_dict[0]["dim"],
                     preds_dict[0]["rot"],
-                    # preds_dict[0]["vel"], # no velocity in A9
+                    # preds_dict[0]["vel"], # no velocity in TUMTraf-I
                 ),
                 dim=1,
             )

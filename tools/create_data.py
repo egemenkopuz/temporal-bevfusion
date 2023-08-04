@@ -7,13 +7,13 @@ from typing import Optional
 from data_converter.create_gt_database import create_groundtruth_database
 
 
-def a9_data_prep(
+def tumtraf_intersection_data_prep(
     root_path: str,
     info_prefix: str,
     out_dir: str,
     labels_path: Optional[str] = None,
 ) -> None:
-    """Prepare data related to A9 dataset.
+    """Prepare data related to TUMTraf-I dataset.
 
     Related data consists of '.pkl' files recording basic infos,
     2D annotations and groundtruth database.
@@ -25,7 +25,7 @@ def a9_data_prep(
         out_dir (str): Output directory of the groundtruth database info.
     """
 
-    from data_converter import a9_converter as a9
+    from data_converter import tumtraf_intersection_converter as tumtraf
 
     # get the basenames in root_path
     root_folders = [os.path.basename(x) for x in glob(os.path.join(root_path, "*"))]
@@ -48,10 +48,15 @@ def a9_data_prep(
 
     os.makedirs(save_dir, exist_ok=True, mode=0o777)
 
-    a9.A92KITTI(splits, load_dir, save_dir, labels_path=labels_path).convert(info_prefix)
+    tumtraf.TUMTrafIntersection2KITTI(splits, load_dir, save_dir, labels_path=labels_path).convert(
+        info_prefix
+    )
 
     create_groundtruth_database(
-        "A9Dataset", save_dir, info_prefix, f"{save_dir}/{info_prefix}_infos_train.pkl"
+        "TUMTrafIntersectionDataset",
+        save_dir,
+        info_prefix,
+        f"{save_dir}/{info_prefix}_infos_train.pkl",
     )
 
 
@@ -193,10 +198,10 @@ if __name__ == "__main__":
             max_sweeps=args.max_sweeps,
             load_augmented=load_augmented,
         )
-    elif args.dataset in ["A9", "a9"]:
-        a9_data_prep(
+    elif str(args.dataset).lower() == "tumtraf-i":
+        tumtraf_intersection_data_prep(
             root_path=args.root_path,
-            info_prefix="a9",
+            info_prefix="tumtraf",
             out_dir=args.out_dir,
             labels_path=args.labels_path,
         )

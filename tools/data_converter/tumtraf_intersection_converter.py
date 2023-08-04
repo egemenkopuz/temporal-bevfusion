@@ -103,10 +103,10 @@ south22lidar = np.linalg.inv(
 )[:-1, :]
 
 
-class A92KITTI:
-    """A9 dataset to KITTI converter.
+class TUMTrafIntersection2KITTI:
+    """TUMTraf-I dataset to KITTI converter.
 
-    This class serves as the converter to change the A9 data to KITTI format.
+    This class serves as the converter to change the TUMTraf-I data to KITTI format.
     """
 
     def __init__(
@@ -151,9 +151,9 @@ class A92KITTI:
         Args:
             info_prefix (str): The prefix of info filenames.
         """
-        logging.info("A9 Conversion - start")
+        logging.info("TUMTraf-I Conversion - start")
         for split in self.splits:
-            logging.info(f"A9 Conversion - split: {split}")
+            logging.info(f"TUMTraf-I Conversion - split: {split}")
 
             split_source_path = os.path.join(self.load_dir, self.map_version_to_dir[split])
             self._create_folder(split)
@@ -230,7 +230,7 @@ class A92KITTI:
                     info_path = os.path.join(self.save_dir, f"{info_prefix}_infos_val.pkl")
                     mmcv.dump(data, info_path)
 
-        logging.info("A9 Conversion - end")
+        logging.info("TUMTraf-I Conversion - end")
 
     def _fill_infos(
         self,

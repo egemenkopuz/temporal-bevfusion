@@ -22,7 +22,7 @@ from mmdet3d.core.utils.visualize import (
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_model
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 
 def recursive_eval(obj, globals=None):
@@ -77,6 +77,8 @@ def main() -> None:
     torch.cuda.set_device(dist.local_rank())
 
     # build the dataloader
+    # if args.split != "train" and cfg.data[args.split].type == "TUMTrafIntersectionDataset":
+    #     cfg.data[args.split].online = False
     dataset = build_dataset(cfg.data[args.split])
     dataflow = build_dataloader(
         dataset,
@@ -104,6 +106,9 @@ def main() -> None:
             break
 
         metas = data["metas"].data[0][0]
+        if isinstance(metas, list):
+            metas = metas[-1]
+
         if "token" in metas:
             name = "{}-{}".format(metas["timestamp"], metas["token"])
         else:
@@ -121,7 +126,7 @@ def main() -> None:
                 indices = np.isin(labels, args.bbox_classes)
                 bboxes = bboxes[indices]
                 labels = labels[indices]
-            if not cfg.data.train.dataset.type == "A9Dataset":
+            if not cfg.data.train.dataset.type == "TUMTrafIntersectionDataset":
                 bboxes[..., 2] -= bboxes[..., 5] / 2
                 bboxes = LiDARInstance3DBoxes(bboxes, box_dim=9)
             else:
@@ -142,7 +147,7 @@ def main() -> None:
                 bboxes = bboxes[indices]
                 scores = scores[indices]
                 labels = labels[indices]
-            if not cfg.data.train.dataset.type == "A9Dataset":
+            if not cfg.data.train.dataset.type == "TUMTrafIntersectionDataset":
                 bboxes[..., 2] -= bboxes[..., 5] / 2
                 bboxes = LiDARInstance3DBoxes(bboxes, box_dim=9)
             else:
@@ -156,7 +161,7 @@ def main() -> None:
                     gt_indices = np.isin(gt_labels, args.bbox_classes)
                     gt_bboxes = bboxes[gt_indices]
                     gt_labels = labels[gt_indices]
-                if not cfg.data.train.dataset.type == "A9Dataset":
+                if not cfg.data.train.dataset.type == "TUMTrafIntersectionDataset":
                     gt_bboxes[..., 2] -= gt_bboxes[..., 5] / 2
                     gt_bboxes = LiDARInstance3DBoxes(gt_bboxes, box_dim=9)
                 else:
@@ -173,6 +178,12 @@ def main() -> None:
             masks = masks >= args.map_score
         else:
             masks = None
+
+        lidar = data["points"].data[0][0]
+        if isinstance(lidar, list):
+            lidar = lidar[-1].numpy()
+        else:
+            lidar = lidar.numpy()
 
         if "img" in data:
             for k, image_path in enumerate(metas["filename"]):
@@ -197,7 +208,6 @@ def main() -> None:
                     )
 
         if "points" in data:
-            lidar = data["points"].data[0][0].numpy()
             visualize_lidar(
                 os.path.join(args.out_dir, "bev-pred", f"{name}.jpg"),
                 lidar,

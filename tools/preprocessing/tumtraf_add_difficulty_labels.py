@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 def get_args() -> Namespace:
     """
-    Parse given arguments for add_a9_dataset_difficulty_labels function.
+    Parse given arguments for add_tumtraf_dataset_difficulty_labels function.
 
     Returns:
         Namespace: parsed arguments
@@ -49,7 +49,7 @@ class FrameDetails:
     next: str
 
 
-def add_a9_dataset_difficulty_labels(
+def add_tumtraf_dataset_difficulty_labels(
     root_path: str,
     out_path: str = None,
 ):
@@ -136,7 +136,7 @@ def add_a9_dataset_difficulty_labels(
 if __name__ == "__main__":
     args = get_args()
     logging.basicConfig(level=args.loglevel.upper())
-    add_a9_dataset_difficulty_labels(
+    add_tumtraf_dataset_difficulty_labels(
         root_path=args.root_path,
         out_path=args.out_path,
     )

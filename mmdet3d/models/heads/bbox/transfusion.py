@@ -257,7 +257,7 @@ class TransFusionHead(nn.Module):
                 :,
                 2,
             ] = F.max_pool2d(heatmap[:, 2], kernel_size=1, stride=1, padding=0)
-        elif self.test_cfg["dataset"] == "a9":
+        elif self.test_cfg["dataset"] == "TUMTraf-I":
             local_max[
                 :,
                 4,
@@ -742,7 +742,7 @@ class TransFusionHead(nn.Module):
                     dict(num_class=1, class_names=["Pedestrian"], indices=[1], radius=0.7),
                     dict(num_class=1, class_names=["Cyclist"], indices=[2], radius=0.7),
                 ]
-            elif self.test_cfg["dataset"] == "a9":
+            elif self.test_cfg["dataset"] == "TUMTraf-I":
                 self.tasks = [
                     dict(
                         num_class=1,

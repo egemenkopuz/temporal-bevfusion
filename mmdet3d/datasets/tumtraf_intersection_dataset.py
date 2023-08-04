@@ -20,7 +20,7 @@ from .custom_3d import Custom3DDataset
 
 
 @DATASETS.register_module()
-class A9Dataset(Custom3DDataset):
+class TUMTrafIntersectionDataset(Custom3DDataset):
     CLASSES = (
         "CAR",
         "TRAILER",
@@ -227,7 +227,7 @@ class A9Dataset(Custom3DDataset):
                 # camera to lidar transform
                 data["camera2lidar"].append(camera_info["sensor2lidar"])
 
-        # if self.test_mode: # A9 has annotation for test split
+        # if self.test_mode: # TUMTraf-I has annotation for test split
         #     annos = None
         # else:
         annos = self.get_ann_info(index)
@@ -1047,7 +1047,7 @@ class A9Dataset(Custom3DDataset):
 
         return list(cls_list), cls_total
 
-    def _evaluate_a9(
+    def _custom_evaluate(
         self,
         config: dict,
         result_path: str,
@@ -1059,7 +1059,7 @@ class A9Dataset(Custom3DDataset):
         assert osp.exists(result_path), "Error: The result file does not exist!"
 
         if verbose:
-            print("Initializing A9 nuScenes detection evaluation")
+            print("Initializing TUMTraf-I detection evaluation")
         self.pred_boxes, self.meta = self.load_prediction(
             result_path, self.max_boxes_per_sample, verbose=verbose
         )
@@ -1275,7 +1275,7 @@ class A9Dataset(Custom3DDataset):
         """
         output_dir = osp.join(*osp.split(result_path)[:-1])
 
-        self._evaluate_a9(
+        self._custom_evaluate(
             config=self.eval_detection_configs,
             result_path=result_path,
             output_dir=output_dir,

@@ -70,7 +70,7 @@ pcd_n_folder_name = "s110_lidar_ouster_north"
 
 def get_args() -> Namespace:
     """
-    Parse given arguments for find_and_create_a9_temporal_split function.
+    Parse given arguments for find_and_create_tumtraf_temporal_split function.
 
     Returns:
         Namespace: parsed arguments

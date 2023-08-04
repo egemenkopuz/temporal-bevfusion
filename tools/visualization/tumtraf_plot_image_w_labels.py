@@ -9,13 +9,13 @@ import numpy as np
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 
-from .utils import A9Meta
+from .utils import TUMTrafMeta
 from .utils.geometry import draw_line, get_corners
 
 
 def get_args() -> Namespace:
     """
-    Parse given arguments for a9_plot_image_w_labels function.
+    Parse given arguments for tumtraf_plot_image_w_labels function.
 
     Returns:
         Namespace: parsed arguments
@@ -34,7 +34,7 @@ def get_args() -> Namespace:
     return parser.parse_args()
 
 
-def a9_plot_image_w_labels(
+def tumtraf_plot_image_w_labels(
     input_folder_path_images_south1: str,
     input_folder_path_images_south2: str,
     input_folder_path_labels_south1: str,
@@ -88,7 +88,7 @@ def process_image_labels(img, label_data) -> List:
     for frame_id, frame_obj in label_data["openlabel"]["frames"].items():
         for id, label in frame_obj["objects"].items():
             category = label["object_data"]["type"].upper()
-            color = A9Meta.class_id_colors[category]
+            color = TUMTrafMeta.class_id_colors[category]
             # swap channels because opencv uses bgr
             color_bgr = (color[2], color[1], color[0])
             color_bgr = [int(c * 255) for c in color_bgr]
@@ -148,7 +148,7 @@ def process_lidar_labels(
             ]
 
             category = label["object_data"]["type"].upper()
-            color = A9Meta.class_id_colors[category]
+            color = TUMTrafMeta.class_id_colors[category]
             color = (color[2], color[1], color[0])
 
             points_3d = get_corners(
@@ -191,9 +191,9 @@ def project_3d_to_2d(points_3d, lidar_location: Union[Literal["south1"], Literal
 
     # project points to 2D
     if lidar_location == "south1":
-        points = np.matmul(A9Meta.lidar2s1image, points_3d[:4, :])
+        points = np.matmul(TUMTrafMeta.lidar2s1image, points_3d[:4, :])
     else:
-        points = np.matmul(A9Meta.lidar2s2image, points_3d[:4, :])
+        points = np.matmul(TUMTrafMeta.lidar2s2image, points_3d[:4, :])
 
     edge_points = []
     for i in range(len(points[0, :])):
@@ -201,7 +201,7 @@ def project_3d_to_2d(points_3d, lidar_location: Union[Literal["south1"], Literal
             pos_x = int((points[0, i] / points[2, i]))
             pos_y = int((points[1, i] / points[2, i]))
             # if pos_x >= 0 and pos_x < 1920 and pos_y >= 0 and pos_y < 1200:
-            if pos_x < A9Meta.image_width and pos_y < A9Meta.image_height:
+            if pos_x < TUMTrafMeta.image_width and pos_y < TUMTrafMeta.image_height:
                 edge_points.append((pos_x, pos_y))
 
     return edge_points
@@ -209,7 +209,7 @@ def project_3d_to_2d(points_3d, lidar_location: Union[Literal["south1"], Literal
 
 if __name__ == "__main__":
     args = get_args()
-    a9_plot_image_w_labels(
+    tumtraf_plot_image_w_labels(
         input_folder_path_images_south1=args.images_south1_folder_path,
         input_folder_path_images_south2=args.images_south2_folder_path,
         input_folder_path_labels_south1=args.labels_south1_folder_path,

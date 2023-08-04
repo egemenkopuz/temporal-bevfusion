@@ -171,9 +171,11 @@ def create_groundtruth_database(
             ],
         )
 
-    elif dataset_class_name == "A9Dataset":
-        assert not with_mask, "A9Dataset is not eligible for with_mask parameter"
-        assert not load_augmented, "A9Dataset is not eligible for load_augmented parameter"
+    elif dataset_class_name == "TUMTrafIntersectionDataset":
+        assert not with_mask, "TUMTrafIntersectionDataset is not eligible for with_mask parameter"
+        assert (
+            not load_augmented
+        ), "TUMTrafIntersectionDataset is not eligible for load_augmented parameter"
         dataset_cfg.update(
             use_valid_flag=True,
             pipeline=[
@@ -322,7 +324,7 @@ def create_groundtruth_database(
                 gt_boxes, gt_masks, mask_inds, annos["img"]
             )
 
-        if dataset_class_name == "A9Dataset":
+        if dataset_class_name == "TUMTrafIntersectionDataset":
             temp_name = str(example["lidar_path"]).split("/")
             temp_name = temp_name[-1].split("_")
             pcd_idx = temp_name[0] + "_" + temp_name[1]
@@ -330,7 +332,7 @@ def create_groundtruth_database(
             image_idx = example["sample_idx"]
 
         for i in range(num_obj):
-            if dataset_class_name == "A9Dataset":
+            if dataset_class_name == "TUMTrafIntersectionDataset":
                 filename = f"{pcd_idx}_{names[i]}_{i}.bin"
             else:
                 filename = f"{image_idx}_{names[i]}_{i}.bin"
@@ -363,7 +365,7 @@ def create_groundtruth_database(
                     "num_points_in_gt": gt_points.shape[0],
                     "difficulty": difficulty[i],
                 }
-                if dataset_class_name != "A9Dataset":
+                if dataset_class_name != "TUMTrafIntersectionDataset":
                     db_info["image_idx"] = image_idx
 
                 local_group_id = group_ids[i]
