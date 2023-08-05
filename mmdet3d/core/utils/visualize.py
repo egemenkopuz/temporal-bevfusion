@@ -197,6 +197,8 @@ def visualize_bev_feature(
     ylim: Tuple[float, float] = (-50, 50),
     rotate: bool = False,
 ) -> None:
+    if bev_feature.ndim == 4:
+        bev_feature = bev_feature[0]
     bev_feature = bev_feature / np.linalg.norm(bev_feature)
     bev_feature = np.sum(bev_feature, axis=0)
     if rotate:
