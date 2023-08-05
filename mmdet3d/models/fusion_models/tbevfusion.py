@@ -1,3 +1,4 @@
+import os
 from itertools import chain
 from typing import Any, Dict, List, Optional
 
@@ -155,14 +156,54 @@ class TBEVFusion(BEVFusion):
                 raise ValueError(f"unsupported sensor: {sensor}")
             features.append(feature)
 
+            if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
+                # assuming batch size = 1
+                visualize_bev_feature(
+                    os.path.join(
+                        self.save_bev_features["out_dir"],
+                        f"bev-feat-{sensor}",
+                        f"{metas['timestamp']}.png",
+                    ),
+                    feature.clone().detach().cpu().numpy().squeeze(),
+                    self.save_bev_features["xlim"],
+                    self.save_bev_features["ylim"],
+                    True,
+                )
+
         if not self.training:
             # avoid OOM
             features = features[::-1]
 
         if self.fuser is not None:
             features = self.fuser(features)
+
         elif len(features) == 1:
             features = features[0]
+
+        if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
+            visualize_bev_feature(
+                os.path.join(
+                    self.save_bev_features["out_dir"],
+                    "bev-feat-fused",
+                    f"{metas[0]['timestamp']}.png",
+                ),
+                features.clone().detach().cpu().numpy().squeeze(),
+                self.save_bev_features["xlim"],
+                self.save_bev_features["ylim"],
+                True,
+            )
+        # else:
+        #     visualize_bev_feature(
+        #         os.path.join(
+        #             "test_visuals",
+        #             "bev-feat-fused",
+        #             f"{metas[0]['timestamp']}.png",
+        #         ),
+        #         features.clone().detach().cpu().numpy().squeeze(),
+        #         [-20, 140],
+        #         [-80, 80],
+        #         True,
+        #     )
 
         if online:
             self.cache_queue.enqueue(features, metas[0]["frame_idx"])
@@ -172,6 +213,31 @@ class TBEVFusion(BEVFusion):
             x = self.temporal_fuser(features)
         else:
             x = features[0]
+
+        if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
+            visualize_bev_feature(
+                os.path.join(
+                    self.save_bev_features["out_dir"],
+                    "bev-feat-temporal-fused",
+                    f"{metas[0]['timestamp']}.png",
+                ),
+                x.clone().detach().cpu().numpy().squeeze(),
+                self.save_bev_features["xlim"],
+                self.save_bev_features["ylim"],
+                True,
+            )
+        # else:
+        #     visualize_bev_feature(
+        #         os.path.join(
+        #             "test_visuals",
+        #             "bev-feat-temporal-fused",
+        #             f"{metas[0]['timestamp']}.png",
+        #         ),
+        #         x.clone().detach().cpu().numpy().squeeze(),
+        #         [-20, 140],
+        #         [-80, 80],
+        #         True,
+        #     )
 
         # if online:
         #     global _frame_indices_iter
@@ -276,12 +342,41 @@ class TBEVFusion(BEVFusion):
                         prev_feature = self.extract_lidar_features(prev_points[i])
                     else:
                         raise ValueError(f"unsupported sensor: {sensor}")
-                    prev_features.append(prev_feature)
 
-                prev_features = prev_features[::-1]
+                    if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
+                        # assuming batch size = 1
+                        visualize_bev_feature(
+                            os.path.join(
+                                self.save_bev_features["out_dir"],
+                                f"bev-feat-prev{i}-{sensor}",
+                                f"{prev_metas[i][0]['timestamp']}.png",
+                            ),
+                            prev_feature.clone().detach().cpu().numpy().squeeze(),
+                            self.save_bev_features["xlim"],
+                            self.save_bev_features["ylim"],
+                            True,
+                        )
+                    # else:
+                    #     visualize_bev_feature(
+                    #         os.path.join(
+                    #             "test_visuals",
+                    #             f"bev-feat-prev{i}-{sensor}",
+                    #             f"{prev_metas[i][0]['timestamp']}.png",
+                    #         ),
+                    #         prev_feature.clone().detach().cpu().numpy().squeeze(),
+                    #         [-20, 140],
+                    #         [-80, 80],
+                    #         True,
+                    #     )
+
+                    prev_features.append(prev_feature.detach())
+
+                if not self.training:
+                    # avoid OOM
+                    prev_features = prev_features[::-1]
 
                 if self.fuser is not None:
-                    x = self.fuser(prev_features)
+                    x = self.fuser(prev_features).detach()
                     prev_all_features.append(x)
                 elif len(prev_features) == 1:
                     prev_all_features.append(prev_features[0])

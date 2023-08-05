@@ -105,7 +105,7 @@ class BEVFusion(Base3DFusionModel):
         img_metas,
     ) -> torch.Tensor:
         B, N, C, H, W = x.size()
-        x = x.view(B * N, C, H, W)
+        x = x.reshape(B * N, C, H, W)
 
         x = self.encoders["camera"]["backbone"](x)
         x = self.encoders["camera"]["neck"](x)
@@ -257,7 +257,7 @@ class BEVFusion(Base3DFusionModel):
                     feature.clone().detach().cpu().numpy().squeeze(),
                     self.save_bev_features["xlim"],
                     self.save_bev_features["ylim"],
-                    True if sensor == "lidar" else False,
+                    True,
                 )
 
             features.append(feature)
@@ -268,22 +268,22 @@ class BEVFusion(Base3DFusionModel):
 
         if self.fuser is not None:
             x = self.fuser(features)
-
-            if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
-                visualize_bev_feature(
-                    os.path.join(
-                        self.save_bev_features["out_dir"],
-                        "bev-feat-fused",
-                        f"{metas[0]['timestamp']}.png",
-                    ),
-                    x.clone().detach().cpu().numpy().squeeze(),
-                    self.save_bev_features["xlim"],
-                    self.save_bev_features["ylim"],
-                    True,
-                )
         else:
             assert len(features) == 1, features
             x = features[0]
+
+        if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
+            visualize_bev_feature(
+                os.path.join(
+                    self.save_bev_features["out_dir"],
+                    "bev-feat-fused",
+                    f"{metas[0]['timestamp']}.png",
+                ),
+                x.clone().detach().cpu().numpy().squeeze(),
+                self.save_bev_features["xlim"],
+                self.save_bev_features["ylim"],
+                True,
+            )
 
         batch_size = x.shape[0]
 
