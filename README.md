@@ -121,8 +121,8 @@ You can also use the following optional arguments:
 - **--include-combined** if you would like to save the visuals containing both predictions and ground truths
 - **--save-bboxes** if you would like to save the bounding boxes as npy files
 - **--save-labels** if you would like to save the labels as npy files
-- **--max-samples N** if you would like to visualize only a subset of the dataset
-- **--bbox-score N** if you would like to visualize only the bounding boxes with a score higher than N, example:  0.1
+- **--max-samples N** if you would like to visualize only a subset of the dataset, example 100
+- **--bbox-score N** if you would like to visualize only the bounding boxes with a score higher than N, example: 0.1
 
 ## Benchmarking
 
