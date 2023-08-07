@@ -1,6 +1,8 @@
 import argparse
+import json
 import os
 import time
+
 import torch
 from mmcv import Config
 from mmcv.parallel import MMDataParallel
@@ -9,7 +11,6 @@ from torchpack.utils.config import configs
 
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_fusion_model
-from torchpack.utils.config import configs
 from mmdet3d.utils import recursive_eval
 
 
@@ -20,6 +21,7 @@ def parse_args():
     parser.add_argument("--samples", default=2000, help="samples to benchmark")
     parser.add_argument("--log-interval", default=50, help="interval of logging")
     parser.add_argument("--fp16", action="store_true")
+    parser.add_argument("--out", help="output path")
     args = parser.parse_args()
     return args
 
@@ -62,10 +64,11 @@ def main():
     pure_inf_time = 0
 
     samples_count = len(data_loader)
+    memory_allocated = 0
+    fps = 0
 
     # benchmark with several samples and take the average
     for i, data in enumerate(data_loader):
-
         torch.cuda.synchronize()
         start_time = time.perf_counter()
 
@@ -84,8 +87,19 @@ def main():
         if (i + 1) == samples_count:
             pure_inf_time += elapsed
             fps = (i + 1 - num_warmup) / pure_inf_time
+            free_mem, total_mem = torch.cuda.mem_get_info()
+            memory_allocated = (total_mem - free_mem) / 1024 / 1024
             print(f"Overall fps: {fps:.1f} img / s")
             break
+
+    # save the benchmarks as json
+    if args.out is not None:
+        os.makedirs(os.path.dirname(args.out), exist_ok=True)
+        with open(args.out, "w") as f:
+            json.dump(
+                {"samples_count": samples_count, "memory_allocated": memory_allocated, "fps": fps},
+                f,
+            )
 
 
 if __name__ == "__main__":
