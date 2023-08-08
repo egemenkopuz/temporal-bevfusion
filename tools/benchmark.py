@@ -13,6 +13,8 @@ from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_fusion_model
 from mmdet3d.utils import recursive_eval
 
+DEVICE_IDS = [0]
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="MMDet benchmark a model")
@@ -55,7 +57,7 @@ def main():
         wrap_fp16_model(model)
     load_checkpoint(model, args.checkpoint, map_location="cpu")
 
-    model = MMDataParallel(model, device_ids=[0])
+    model = MMDataParallel(model, device_ids=DEVICE_IDS)
 
     model.eval()
 
