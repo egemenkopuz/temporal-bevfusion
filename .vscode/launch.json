@@ -5,6 +5,73 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: debug compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/compile.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "tumtraf-i",
+                "-c",
+                "checkpoints/tumtraf-i",
+                "-i",
+                "tumtraf-i",
+                "-t",
+                "results",
+                "--include-bboxes",
+                "--include-labels",
+                "--images-include-combined",
+                "--images-cam-bbox-score",
+                "0.15",
+                "--loglevel",
+                "INFO"
+            ]
+        },
+        {
+            "name": "Python: debug train temporal lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/a9-80s10s10-t3-1600g-0p1/det/transfusion/secfpn/lidar/voxelnet.yaml",
+                "--max_epochs",
+                "1"
+            ]
+        },
+        {
+            "name": "Python: debug train temporal fusion",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/tumtraf-i-temporal-conv-ql3-qr2-1600g-0p1/det/transfusion/secfpn/camera+lidar/320x704/swint/convfuser.yaml",
+                "--model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth",
+                "pretrained/swint-nuimages-pretrained.pth",
+                "--load_from",
+                "checkpoints/tumtraf-i/lid-tumtraf-i-temporal-conv-ql3-qr2-1600g-0p1/latest.pth",
+                "--max_epochs",
+                "1"
+            ]
+        },
+        {
+            "name": "Python: debug test temporal lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "checkpoints/test/l-temporal/configs.yaml",
+                "checkpoints/test/l-temporal/latest.pth",
+                "--eval=bbox"
+            ]
+        },
+        {
             "name": "Python: create_temporal",
             "type": "python",
             "request": "launch",
@@ -12,20 +79,37 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--root-path", "./data/a9_temporal_no_split",
-                "--out-path", "./data/a9_temporal_debug",
-                "--segment-size", "30",
-                "--perm-limit", "10",
-                "-p", "1",
+                "--root-path",
+                "./data/a9_temporal_no_split",
+                "--out-path",
+                "./data/a9_temporal_debug",
+                "--segment-size",
+                "30",
+                "--perm-limit",
+                "10",
+                "-p",
+                "1",
                 // "--include-all-classes",
                 // "--include-all-sequences",
                 // "--include-same_classes-in-difficulty", "--difficulty-th", "1.0",
-                "--include-same_classes-in-distance", "--distance-th", "1.0",
+                "--include-same_classes-in-distance",
+                "--distance-th",
+                "1.0",
                 // "--include-same_classes-in-num-points", "--num-points-th", "1.0",
                 // "--include-same_classes-in-occlusion", "--occlusion-th", "1.0",
-                "--point-cloud-range", "-25.0", "-64.0", "-10.0", "64.0", "64.0", "0.0",
-                "--splits", "train", "val",
-                "--split-ratios", "0.8", "0.2",
+                "--point-cloud-range",
+                "-25.0",
+                "-64.0",
+                "-10.0",
+                "64.0",
+                "64.0",
+                "0.0",
+                "--splits",
+                "train",
+                "val",
+                "--split-ratios",
+                "0.8",
+                "0.2",
             ]
         }
     ]
