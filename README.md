@@ -131,3 +131,17 @@ You can also use the following optional arguments:
 ```bash
 python tools/benchmark.py <config_path> <checkpoint_path>
 ```
+
+## Compilation
+
+---
+
+```bash
+python tools/compile.py <dataset> -c <checkpoints_folder_path> -i <compilation_id> -t <target_path> --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
+```
+
+Example:
+
+```bash
+python tools/compile.py tumtraf-i -c checkpoints/tumtraf-i -i tumtraf-i -t results --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
+```
