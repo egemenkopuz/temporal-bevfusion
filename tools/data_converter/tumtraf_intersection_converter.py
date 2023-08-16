@@ -110,17 +110,15 @@ class TUMTrafIntersection2KITTI:
         splits: List[str],
         load_dir: str,
         save_dir: str,
-        name_format: str = "name",
         labels_path: Optional[str] = None,
-        num_workers: int = 2,
+        num_workers: int = 4,
     ):
         """
         Args:
             splits list[(str)]: Contains the different splits
             version (str): Specify the modality
-            load_dir (str): Directory to load waymo raw data.
+            load_dir (str): Directory to load TUMTraf-I raw data.
             save_dir (str): Directory to save data in KITTI format.
-            name_format (str): Specify the output name of the converted file mmdetection3d expects names to but numbers.
             labels_path (str): Path of labels.
         """
 
@@ -128,8 +126,6 @@ class TUMTrafIntersection2KITTI:
         self.load_dir = load_dir
         self.save_dir = save_dir
         self.labels_path = labels_path
-        self.name_format = name_format
-        self.label_save_dir = "label_2"
         self.point_cloud_save_dir = "point_clouds"
         self.num_workers = num_workers
 
@@ -167,7 +163,7 @@ class TUMTrafIntersection2KITTI:
                 )
             )
 
-            with mpp.Pool(processes=4) as pool:
+            with mpp.Pool(processes=self.num_workers) as pool:
                 pool.starmap_async(
                     self.convert_pcd_to_bin,
                     [
