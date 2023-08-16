@@ -27,12 +27,16 @@ Installing (inside the docker container)
 ```bash
 cd mmdet3d && make
 ```
-
-## TUMTraf-Intersection Dataset
+## Dataset Preparation
 
 ---
 
-### Preparing the temporal dataset
+### TUMTraf-Intersection Dataset
+
+<details>
+  <summary>Click to expand</summary>
+
+#### Preparing the temporal dataset
 
 To run the converter scripts, pypcd package must be installed first. To install pypcd, run the following commands:
 
@@ -56,7 +60,7 @@ python tools/preprocessing/a9_tokenize.py --root-path ./data/tumtraf-i-no-split 
 python tools/preprocessing/tumtraf_add_difficulty_labels.py --root-path ./data/tumtraf-i-no-split --out-path ./data/tumtraf-i-no-split --loglevel INFO
 ```
 
-3 - You can then run the following command to find the optimal balanced split and split the dataset into training, validation and test sets (reduce the perm-limit if it is taking too long to run):
+3 - You can then run the following command to find the optimally balanced split and split the dataset into training, validation and test sets (reduce the 'perm-limit' or increase the 'p' if it is taking too long to finish):
 
 ```bash
 python tools/preprocessing/create_a9_temporal_split.py --root-path ./data/tumtraf-i-no-split --out-path ./data/tumtraf-i --seed 42 --segment-size 30 --perm-limit 60000 --loglevel INFO -p 6 --include-all-classes --include-all-sequences  --include-same-classes-in-difficulty --difficulty-th 1.0 --include-same-classes-in-distance --distance-th 1.0 --include-same-classes-in-num-points --num-points-th 1.0 --include-same-classes-in-occlusion --occlusion-th 0.75 --point-cloud-range -25.0 -64.0 -10.0 64.0 64.0 0.0 --splits train val test --split-ratios 0.8 0.1 0.1 --exclude-classes OTHER
@@ -73,6 +77,46 @@ python tools/preprocessing/tumtraf_tokenize.py --root-path ./data/tumtraf-i --ou
 ```bash
 python tools/create_data.py tumtraf-i --root-path ./data/tumtraf-i --out-dir ./data/tumtraf-i-bevfusion --loglevel INFO
 ```
+
+</details>
+
+### OSDAR23 Dataset
+
+<details>
+  <summary>Click to expand</summary>
+
+#### Preparing the temporal dataset
+
+To run the converter scripts, pypcd package must be installed first. To install pypcd, run the following commands:
+
+```bash
+git clone https://github.com/DanielPollithy/pypcd
+cd pypcd && pip install .
+```
+
+> [!WARNING]
+> **If you have dataset fully ready, you can skip to the 3rd step.**
+
+1 - Put all the sequences into one folder, then create seperate lidar labels folder with additional fields by running the following command:
+
+```bash
+python tools/preprocessing/osdar23_prepare.py --root-path ./data/osdar23_original --add-num-points --add-distance --loglevel INFO
+```
+
+2 - You can then run the following command to find the optimally balanced split and split the dataset into training, validation and test sets (reduce the 'perm-limit' or increase the 'p' if it is taking too long to finish):
+
+```bash
+python tools/preprocessing/osdar23_create_temporal_split.py --root-path ./data/osdar23_original --out-path ./data/osdar23 --seed 1337 --segment-size 20 --perm-limit 60000 --loglevel INFO -p 6 --include-all-classes --include-same-classes-in-distance --distance-th 0.9 --include-same-classes-in-num-points --num-points-th 0.9 --include-same-classes-in-occlusion --occlusion-th 0.85 --point-cloud-range -6.0 -156.0 -3.0 306.0 156.0 13.0 --splits train val --split-ratios 0.8 0.2 --exclude-classes lidar__cuboid__crowd lidar__cuboid__wagons lidar__cuboid__signal_bridge
+```
+
+3 - Finally, you can then run the following command to create the ready-to-go version of the dataset:
+
+```bash
+python tools/create_data.py osdar23 --root-path ./data/osdar23 --out-dir ./data/osdar23-bevfusion --use-highres --loglevel INFO
+```
+
+</details>
+
 
 ## Training
 
