@@ -12,17 +12,21 @@ class OSDAR23Meta:
     rgb_highres_height: int = 2504
 
     class_colors = [
-        ("person", [0, 0.8, 0.964705882]),
+        ("person", [0.91372549, 0.462745098, 0.976470588]),
+        ("bicycle", [0.694117647, 0.549019608, 1]),
+        ("signal", [0, 0.8, 0.964705882]),
         ("catenary_pole", [0.337254902, 1, 0.71372549]),
-        ("signal", [0.352941176, 1, 0.494117647]),
-        ("signal_pole", [0.921568627, 0.811764706, 0.211764706]),
-        ("train", [0.725490196, 0.643137255, 0.329411765]),
+        ("buffer_stop", [0.352941176, 1, 0.494117647]),
+        ("train", [0.921568627, 0.811764706, 0.211764706]),
+        ("road_vehicle", [0.4, 0.419607843, 0.980392157]),
+        ("signal_pole", [0.725490196, 0.643137255, 0.329411765]),
+        ("animal", [0.780392157, 0.780392157, 0.780392157]),
         ("switch", [0.850980392, 0.541176471, 0.525490196]),
-        ("buffer_stop", [0.91372549, 0.462745098, 0.976470588]),
-        ("flame", [0.91372549, 0.462745098, 0.976470588]),  # CHANGE COLOR
-        ("drag_shoe", [0.91372549, 0.462745098, 0.976470588]),  # CHANGE COLOR
-        ("road_vehicle", [0.91372549, 0.462745098, 0.976470588]),  # CHANGE COLOR
-        ("bicycle", [0.91372549, 0.462745098, 0.976470588]),  # CHANGE COLOR
+        ("crowd", [0.97647059, 0.43529412, 0.36470588]),
+        ("wagons", [0.98431373, 0.94901961, 0.75294118]),
+        ("signal_bridge", [0.42745098, 0.27058824, 0.29803922]),
+        ("flame", [0.0, 0.0, 0.0]),  # BBOX ONLY
+        ("drag_shoe", [0.0, 0.0, 0.0]),  # BBOX ONLY
     ]
 
     sensor_ids = [
@@ -45,7 +49,7 @@ class OSDAR23Meta:
         ],
         dtype=np.float32,
     )
-    lidar_highres2rgb_center = np.asarray(
+    lidar2rgb_highres_center = np.asarray(
         [
             [2.11443983e03, -7.18523532e03, -1.89987995e02, -1.89435698e03],
             [4.14791337e02, -3.75379653e01, -7.29679085e03, 2.55646787e04],
@@ -61,7 +65,7 @@ class OSDAR23Meta:
         ],
         dtype=np.float32,
     )
-    lidar_highres2rgb_left = np.asarray(
+    lidar2rgb_highres_left = np.asarray(
         [
             [4.60709278e03, -5.91552604e03, -2.53021286e02, -1.99736624e02],
             [2.98383823e02, 1.12462909e02, -7.29581083e03, 2.56435774e04],
@@ -77,7 +81,7 @@ class OSDAR23Meta:
         ],
         dtype=np.float32,
     )
-    lidar_highres2rgb_right = np.asarray(
+    lidar2rgb_highres_right = np.asarray(
         [
             [-6.60454783e02, -7.46284041e03, -4.18444286e02, -2.41693304e03],
             [2.89901993e02, 3.94107215e01, -7.30206100e03, 2.56819982e04],
@@ -95,8 +99,8 @@ class OSDAR23Meta:
         elif id == "rgb_right":
             return OSDAR23Meta.lidar2rgb_right
         elif id == "rgb_highres_center":
-            return OSDAR23Meta.lidar_highres2rgb_center
+            return OSDAR23Meta.lidar2rgb_highres_center
         elif id == "rgb_highres_left":
-            return OSDAR23Meta.lidar_highres2rgb_left
+            return OSDAR23Meta.lidar2rgb_highres_left
         elif id == "rgb_highres_right":
-            return OSDAR23Meta.lidar_highres2rgb_right
+            return OSDAR23Meta.lidar2rgb_highres_right
