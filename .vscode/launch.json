@@ -1,11 +1,92 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: debug compile",
+            "name": "Python: OSDAR23 create_data",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/create_data.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "osdar23",
+                "--root-path",
+                "./data/osdar23",
+                "--out-dir",
+                "./data/osdar23-bevfusion",
+                "--use-highres",
+                "--loglevel",
+                "INFO"
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 prepare",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/preprocessing/osdar23_prepare.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--root-path",
+                "data/osdar23_original",
+                "--add-num-points",
+                "--add-distance",
+                "--loglevel",
+                "INFO",
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 create_temporal",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/preprocessing/osdar23_create_temporal_split.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--root-path",
+                "./data/osdar23_original",
+                "--out-path",
+                "./data/osdar23",
+                "--segment-size",
+                "20",
+                "--perm-limit",
+                "100",
+                "-p",
+                "1",
+                "--include-all-classes",
+                // "--include-all-sequences",
+                "--include-same-classes-in-distance",
+                "--distance-th",
+                "0.0",
+                "--include-same-classes-in-num-points",
+                "--num-points-th",
+                "0.0",
+                "--include-same-classes-in-occlusion",
+                "--occlusion-th",
+                "0.0",
+                "--point-cloud-range",
+                "-6.0",
+                "-156.0",
+                "-3.0",
+                "306.0",
+                "156.0",
+                "13.0",
+                "--splits",
+                "train",
+                "val",
+                // "test",
+                "--split-ratios",
+                "0.8",
+                "0.2",
+                // "0.1",
+                "--exclude-classes",
+                "lidar__cuboid__crowd",
+                "lidar__cuboid__wagons",
+                "lidar__cuboid__signal_bridge",
+            ]
+        },
+        {
+            "name": "Python: TUMTRAF-I compile",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/tools/compile.py",
@@ -29,7 +110,7 @@
             ]
         },
         {
-            "name": "Python: debug train temporal lidar",
+            "name": "Python: TUMTRAF-I DEBUG-TRAIN temporal lidar",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/tools/debug_train.py",
@@ -42,7 +123,7 @@
             ]
         },
         {
-            "name": "Python: debug train temporal fusion",
+            "name": "Python: TUMTRAF-I DEBUG-TRAI temporal fusion",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/tools/debug_train.py",
@@ -59,7 +140,7 @@
             ]
         },
         {
-            "name": "Python: debug test temporal lidar",
+            "name": "Python: TUMTRAF-I DEBUG-TEST temporal lidar",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/tools/debug_test.py",
@@ -72,10 +153,10 @@
             ]
         },
         {
-            "name": "Python: create_temporal",
+            "name": "Python: TUMTRAF-I create_temporal",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/tools/preprocessing/create_a9_temporal_split.py",
+            "program": "${workspaceFolder}/tools/preprocessing/tumtraf_create_temporal_split.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
@@ -92,7 +173,7 @@
                 // "--include-all-classes",
                 // "--include-all-sequences",
                 // "--include-same_classes-in-difficulty", "--difficulty-th", "1.0",
-                "--include-same_classes-in-distance",
+                "--include-same-classes-in-distance",
                 "--distance-th",
                 "1.0",
                 // "--include-same_classes-in-num-points", "--num-points-th", "1.0",
@@ -111,6 +192,6 @@
                 "0.8",
                 "0.2",
             ]
-        }
+        },
     ]
 }
