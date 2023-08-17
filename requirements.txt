@@ -8,3 +8,4 @@ mmdet==2.20.0
 nuscenes-devkit
 mpi4py==3.0.3
 numba==0.48.0
+git+https://github.com/DanielPollithy/pypcd.git
