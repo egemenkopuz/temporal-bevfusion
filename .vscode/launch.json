@@ -86,6 +86,35 @@
             ]
         },
         {
+            "name": "Python: OSDAR23 DEBUG-TRAIN lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/osdar23-baseline/det/transfusion/secfpn/lidar/voxelnet.yaml",
+                "--max_epochs",
+                "1"
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 DEBUG-TEST lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/osdar23-baseline/det/transfusion/secfpn/lidar/voxelnet.yaml",
+                "runs/run-2f3704b0-de06151a/latest.pth",
+                "--eval=bbox",
+                "--eval-options",
+                "extensive_report=True",
+                "save_summary_path=results/test"
+            ]
+        },
+        {
             "name": "Python: TUMTRAF-I compile",
             "type": "python",
             "request": "launch",
@@ -123,7 +152,7 @@
             ]
         },
         {
-            "name": "Python: TUMTRAF-I DEBUG-TRAI temporal fusion",
+            "name": "Python: TUMTRAF-I DEBUG-TRAIN temporal fusion",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/tools/debug_train.py",
