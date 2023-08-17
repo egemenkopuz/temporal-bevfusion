@@ -763,7 +763,9 @@ def search_task(position_, lock_, queue_, perms_, *args):
 def copy_task(
     position_, lock_, split_source_paths_: List[Tuple], target_paths_, splits_, split_idx_ranges_
 ):
-    total_iterations = len(split_source_paths_) * len(split_source_paths_[0][1].values())
+    total_iterations = (
+        len(split_source_paths_) * len(split_source_paths_[0][2].values()) * (len(img_types) + 2)
+    )
 
     with lock_:
         bar = tqdm(
@@ -774,7 +776,8 @@ def copy_task(
             mininterval=1,
         )
 
-    for idx, source_paths in split_source_paths_:
+    for idx, seq_name, source_paths in split_source_paths_:
+        seq_id = seq_name.split("_")[-1]
         if split_idx_ranges_[0] <= idx < split_idx_ranges_[1]:
             split = splits_[0]
         elif split_idx_ranges_[1] <= idx < split_idx_ranges_[2]:
@@ -784,9 +787,11 @@ def copy_task(
         for source_name, paths in source_paths.items():
             target_root_path = target_paths_[split][source_name]
             for path in paths:
-                shutil.copy2(path, target_root_path)
-            with lock_:
-                bar.update(1)
+                new_name = seq_id + "_" + os.path.basename(path)
+                target_path = os.path.join(target_root_path, new_name)
+                shutil.copy2(path, target_path)
+                with lock_:
+                    bar.update(1)
     with lock_:
         bar.close()
 
@@ -817,7 +822,13 @@ def create_and_copy_split(
         token = x[0]
         start_idx = x[1][0]
         end_idx = x[1][1]
-        split_source_paths.append((i, data[token].get_path_list_in_range(start_idx, end_idx)))
+        split_source_paths.append(
+            (
+                i,
+                data[token].sequence_name,
+                data[token].get_path_list_in_range(start_idx, end_idx),
+            )
+        )
 
     target_paths = defaultdict(dict)
     for split in splits:
@@ -843,7 +854,7 @@ def create_and_copy_split(
         # print total in
         total_frame = 0
         for x in split_source_paths:
-            total_frame += len(x[1]["frame_img_rgb_center_paths"])
+            total_frame += len(x[2]["frame_img_rgb_center_paths"])
 
         if len(ssp) > no_process:
             ssp[-2].extend(ssp[-1])
