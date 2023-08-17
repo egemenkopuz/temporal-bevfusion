@@ -126,7 +126,7 @@ def main() -> None:
                 indices = np.isin(labels, args.bbox_classes)
                 bboxes = bboxes[indices]
                 labels = labels[indices]
-            if not cfg.data.train.dataset.type == "TUMTrafIntersectionDataset":
+            if cfg.data.train.dataset.type not in ["TUMTrafIntersectionDataset", "OSDAR23Dataset"]:
                 bboxes[..., 2] -= bboxes[..., 5] / 2
                 bboxes = LiDARInstance3DBoxes(bboxes, box_dim=9)
             else:
@@ -147,7 +147,7 @@ def main() -> None:
                 bboxes = bboxes[indices]
                 scores = scores[indices]
                 labels = labels[indices]
-            if not cfg.data.train.dataset.type == "TUMTrafIntersectionDataset":
+            if cfg.data.train.dataset.type not in ["TUMTrafIntersectionDataset", "OSDAR23Dataset"]:
                 bboxes[..., 2] -= bboxes[..., 5] / 2
                 bboxes = LiDARInstance3DBoxes(bboxes, box_dim=9)
             else:
@@ -161,7 +161,10 @@ def main() -> None:
                     gt_indices = np.isin(gt_labels, args.bbox_classes)
                     gt_bboxes = bboxes[gt_indices]
                     gt_labels = labels[gt_indices]
-                if not cfg.data.train.dataset.type == "TUMTrafIntersectionDataset":
+                if cfg.data.train.dataset.type not in [
+                    "TUMTrafIntersectionDataset",
+                    "OSDAR23Dataset",
+                ]:
                     gt_bboxes[..., 2] -= gt_bboxes[..., 5] / 2
                     gt_bboxes = LiDARInstance3DBoxes(gt_bboxes, box_dim=9)
                 else:

@@ -99,10 +99,10 @@ south22lidar = np.asarray(
 )[:-1, :]
 
 
-class TUMTrafIntersection2KITTI:
-    """TUMTraf-I dataset to KITTI converter.
+class TUMTrafIntersectionConverter:
+    """TUMTraf-I dataset converter.
 
-    This class serves as the converter to change the TUMTraf-I data to KITTI format.
+    This class serves as the converter to change the TUMTraf-I data to custom format.
     """
 
     def __init__(
@@ -118,7 +118,7 @@ class TUMTrafIntersection2KITTI:
             splits list[(str)]: Contains the different splits
             version (str): Specify the modality
             load_dir (str): Directory to load TUMTraf-I raw data.
-            save_dir (str): Directory to save data in KITTI format.
+            save_dir (str): Directory to save data.
             labels_path (str): Path of labels.
         """
 

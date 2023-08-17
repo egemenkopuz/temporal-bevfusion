@@ -48,7 +48,7 @@ def tumtraf_intersection_data_prep(
 
     os.makedirs(save_dir, exist_ok=True, mode=0o777)
 
-    tumtraf.TUMTrafIntersection2KITTI(splits, load_dir, save_dir, labels_path=labels_path).convert(
+    tumtraf.TUMTrafIntersectionConverter(splits, load_dir, save_dir, labels_path=labels_path).convert(
         info_prefix
     )
 
@@ -103,7 +103,7 @@ def osdar23_data_prep(
 
     os.makedirs(save_dir, exist_ok=True, mode=0o777)
 
-    osdar23.OSDAR2KITTI(splits, load_dir, save_dir, labels_path=labels_path).convert(
+    osdar23.OSDAR23Converter(splits, load_dir, save_dir, labels_path=labels_path).convert(
         info_prefix, use_highres
     )
 

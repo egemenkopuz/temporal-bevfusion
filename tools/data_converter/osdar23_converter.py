@@ -176,10 +176,10 @@ rgb_left2lidar = rgb_left2ego.copy()
 rgb_right2lidar = rgb_right2ego.copy()
 
 
-class OSDAR2KITTI:
-    """OSDAR23 dataset to KITTI converter.
+class OSDAR23Converter:
+    """OSDAR23 dataset converter.
 
-    This class serves as the converter to change the OSDAR23 data to KITTI format.
+    This class serves as the converter to change the OSDAR23 data to custom format.
     """
 
     def __init__(
@@ -195,7 +195,7 @@ class OSDAR2KITTI:
             splits list[(str)]: Contains the different splits
             version (str): Specify the modality
             load_dir (str): Directory to load OSDAR23 raw data.
-            save_dir (str): Directory to save data in KITTI format.
+            save_dir (str): Directory to save data.
             labels_path (str): Path of labels.
         """
 
@@ -283,7 +283,7 @@ class OSDAR2KITTI:
                 )
 
             infos_list = self._fill_infos(pcd_list, img_lists, pcd_labels_list, False)
-            metadata = {}
+            metadata = dict(version="1.0.0")
 
             if test:
                 logging.info(f"No. test samples: {len(infos_list)}")
@@ -420,22 +420,11 @@ class OSDAR2KITTI:
         np_y = np.array(point_cloud.pc_data["y"], dtype=np.float32)
         np_z = np.array(point_cloud.pc_data["z"], dtype=np.float32)
         np_i = np.array(point_cloud.pc_data["intensity"], dtype=np.float32) / 256
-        np_ts = np.zeros((np_x.shape[0],), dtype=np.float32)
+        np_ts = np.array(point_cloud.pc_data["timestamp"], dtype=np.float32)
+        np_sensor_index = np.array(point_cloud.pc_data["sensor_index"], dtype=np.float32)
 
-        bin_format = np.column_stack((np_x, np_y, np_z, np_i, np_ts)).flatten()
+        bin_format = np.column_stack((np_x, np_y, np_z, np_i, np_ts, np_sensor_index)).flatten()
         bin_format.tofile(os.path.join(f"{out_file}.bin"))
-
-    @staticmethod
-    def cp_img(file: str, out_file: str) -> None:
-        """
-        Copy image to new location
-
-        Args:
-            file: Path to image
-            out_file: Path to new location
-        """
-        img_path = f"{out_file}.jpg"
-        shutil.copyfile(file, img_path)
 
     def _create_folder(self, split: str) -> None:
         """
