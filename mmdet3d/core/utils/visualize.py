@@ -39,6 +39,23 @@ TUMTRAF_OBJECT_PALETTE = {
     "OTHER": (199, 199, 199),
 }
 
+OSDAR23_OBJECT_PALETTE = [
+    ("lidar__cuboid__person", [0.91372549, 0.462745098, 0.976470588]),
+    ("lidar__cuboid__bicycle", [0.694117647, 0.549019608, 1]),
+    ("lidar__cuboid__signal", [0, 0.8, 0.964705882]),
+    ("lidar__cuboid__catenary_pole", [0.337254902, 1, 0.71372549]),
+    ("lidar__cuboid__buffer_stop", [0.352941176, 1, 0.494117647]),
+    ("lidar__cuboid__train", [0.921568627, 0.811764706, 0.211764706]),
+    ("lidar__cuboid__road_vehicle", [0.4, 0.419607843, 0.980392157]),
+    ("lidar__cuboid__signal_pole", [0.725490196, 0.643137255, 0.329411765]),
+    ("lidar__cuboid__animal", [0.780392157, 0.780392157, 0.780392157]),
+    ("lidar__cuboid__switch", [0.850980392, 0.541176471, 0.525490196]),
+    ("lidar__cuboid__crowd", [0.97647059, 0.43529412, 0.36470588]),
+    ("lidar__cuboid__wagons", [0.98431373, 0.94901961, 0.75294118]),
+    ("lidar__cuboid__signal_bridge", [0.42745098, 0.27058824, 0.29803922]),
+]
+OSDAR23_OBJECT_PALETTE = {x[0]: np.asarray(x[1]) * 255 for x in OSDAR23_OBJECT_PALETTE}
+
 MAP_PALETTE = {
     "drivable_area": (166, 206, 227),
     "road_segment": (31, 120, 180),
@@ -73,6 +90,8 @@ def visualize_camera(
 
     if dataset == "TUMTrafIntersectionDataset":
         object_palette = TUMTRAF_OBJECT_PALETTE
+    elif dataset == "OSDAR23Dataset":
+        object_palette = OSDAR23_OBJECT_PALETTE
     else:
         object_palette = OBJECT_PALETTE
 
@@ -82,7 +101,7 @@ def visualize_camera(
 
         coords = np.concatenate([corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1)
 
-        if dataset == "TUMTrafIntersectionDataset":
+        if dataset in ["TUMTrafIntersectionDataset", "OSDAR23Dataset"]:
             transform = np.vstack([transform, np.asarray([0, 0, 0, 1])])
         else:
             transform = copy.deepcopy(transform).reshape(4, 4)
@@ -242,6 +261,8 @@ def visualize_lidar(
 
     if dataset == "TUMTrafIntersectionDataset":
         object_palette = TUMTRAF_OBJECT_PALETTE
+    elif dataset == "OSDAR23Dataset":
+        object_palette = OSDAR23_OBJECT_PALETTE
     else:
         object_palette = OBJECT_PALETTE
 
