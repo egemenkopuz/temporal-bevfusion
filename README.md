@@ -1,35 +1,87 @@
-# multi-modal-3d-object-detection
+<h1 align="center">Temporal BEVFusion</h1>
 
-## Docker Container Installation
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.8-blue.svg" alt="Python 3.8"></a>
+  <img src="https://img.shields.io/badge/pytorch-1.10.1-blue.svg" alt="PyTorch 1.10.1"></a>
+  <img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Black"></a>
+</p>
 
-Building
+Built on the repository of [BEVFusion: Multi-Task Multi-Sensor Fusion with
+Unified Bird's-Eye View Representation](https://arxiv.org/abs/2205.13542).
+
+## Table of Contents
+
+- [Installation](#installation)
+  - [Docker Container Installation](#docker-container-installation)
+- [Dataset Preparation](#dataset-preparation)
+  - [TUMTraf-Intersection Dataset](#tumtraf-intersection-dataset)
+  - [OSDAR23 Dataset](#osdar23-dataset)
+- [Training](#training)
+  - [Lidar-only](#lidar-only)
+  - [Camera-only](#camera-only)
+  - [Multi-modal](#multi-modal)
+- [Testing](#testing)
+- [Visualization](#visualization)
+- [Benchmarking](#benchmarking)
+- [Compilation](#compilation)
+
+## Installation
+
+
+> [!WARNING]
+> **You may need to add/remove/change the arguments in docker.sh for your use-case, For example, to create a custom volume.**
+
+
+If you would like to use the docker container, you can build it by running the following command:
+
+> [!INFO]
+> **dev is for development and prod is for production.**
 
 ```bash
-bash docker.sh build
+bash docker.sh build <dev/prod>
 ```
 
-Running
+You can then run the container by running the following command:
 
 ```bash
-bash docker.sh run-local # on local machine (modify the docker.sh accordingly)
-bash docker.sh run-tum # on TUM server
-bash docker.sh run-setlabs # on Setlabs server
+bash docker.sh run <dev/prod>
 ```
 
-Accessing the terminal
+You can access the container by running the following command:
 
 ```bash
-bash docker.sh exec
+bash docker.sh access <dev/prod>
 ```
 
-Installing (inside the docker container)
+If you build the dev image, you can use the following command to install the dependencies, otherwise you can skip this step:
 
 ```bash
-cd mmdet3d && make
+make
 ```
+
+<details>
+  <summary>Click to see additional built-in commands</summary>
+
+```bash
+bash docker.sh stop <dev/prod>
+```
+
+```bash
+bash docker.sh remove-container <dev/prod>
+```
+
+```bash
+bash docker.sh remove-image <dev/prod>
+```
+
+```bash
+bash docker.sh remove-all <dev/prod>
+```
+
+</details>
+
+
 ## Dataset Preparation
-
----
 
 ### TUMTraf-Intersection Dataset
 
@@ -37,13 +89,6 @@ cd mmdet3d && make
   <summary>Click to expand</summary>
 
 #### Preparing the temporal dataset
-
-To run the converter scripts, pypcd package must be installed first. To install pypcd, run the following commands:
-
-```bash
-git clone https://github.com/DanielPollithy/pypcd
-cd pypcd && pip install .
-```
 
 > [!WARNING]
 > **If you have dataset fully ready, you can skip to the 5th step.**
@@ -87,13 +132,6 @@ python tools/create_data.py tumtraf-i --root-path ./data/tumtraf-i --out-dir ./d
 
 #### Preparing the temporal dataset
 
-To run the converter scripts, pypcd package must be installed first. To install pypcd, run the following commands:
-
-```bash
-git clone https://github.com/DanielPollithy/pypcd
-cd pypcd && pip install .
-```
-
 > [!WARNING]
 > **If you have dataset fully ready, you can skip to the 3rd step.**
 
@@ -120,29 +158,79 @@ python tools/create_data.py osdar23 --root-path ./data/osdar23 --out-dir ./data/
 
 ## Training
 
----
-
-Lidar-only
+### Lidar-only
 
 ```bash
 torchpack dist-run -np <number_of_gpus> python tools/train.py <config_path>
 ```
 
-Camera-only
+<details>
+  <summary>Click to see examples</summary>
+
+TUMTraf-Intersection
+
+```bash
+torchpack dist-run -np 1 python tools/train.py configs/tumtraf-i-baseline/det/transfusion/secfpn/lidar/voxelnet.yaml
+```
+
+OSDAR23
+
+```bash
+torchpack dist-run -np 1 python tools/train.py configs/osdar23-baseline/det/transfusion/secfpn/lidar/voxelnet.yaml
+```
+
+</details>
+
+### Camera-only
 
 ```bash
 torchpack dist-run -np <number_of_gpus> python tools/train.py <config_path> --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth
 ```
 
-Multi-modal
+<details>
+  <summary>Click to see examples</summary>
+
+TUMTraf-Intersection
+
+```bash
+torchpack dist-run -np 1 python tools/train.py configs/tumtraf-i-baseline/det/centerhead/lssfpn/camera/256x704/swint/default.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth
+
+```
+
+OSDAR23
+
+```bash
+torchpack dist-run -np 1 python tools/train.py configs/osdar23-baseline/det/centerhead/lssfpn/camera/256x704/swint/default.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth
+```
+
+</details>
+
+### Multi-modal
 
 ```bash
 torchpack dist-run -np <number_of_gpus> python tools/train.py <config_path> --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from <lidar_checkpoint_path>
 ```
 
+<details>
+  <summary>Click to see examples</summary>
+
+TUMTraf-Intersection
+
+```bash
+torchpack dist-run -np 2 python tools/train.py configs/tumtraf-i-baseline/det/transfusion/secfpn/camera+lidar/256x704/swint/convfuser.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from checkpoints/lidar-run/latest.pth
+```
+
+OSDAR23
+
+```bash
+torchpack dist-run -np 2 python tools/train.py configs/osdar23-baseline/det/transfusion/secfpn/camera+lidar/256x704/swint/convfuser.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from checkpoints/lidar-run/latest.pth
+```
+
+</details>
+
 ## Testing
 
----
+Following command will evaluate the model on the test set and save the results in the designated folder. In addition, if specific arguments provided, it will also save the evaluation summary and/or an extensive report of the evaluation.
 
 ```bash
 torchpack dist-run -np 1 python tools/test.py <config_path> <checkpoint_path> --eval bbox
@@ -153,9 +241,18 @@ You can also use the following optional arguments by putting first:
   - **extensive_report=True** if you would like to have an extensive report of the evaluation
   - **save_summary_path=<save_summary_path>** if you would like to save the evaluation summary
 
+<details>
+  <summary>Click to see an example</summary>
+
+```bash
+torchpack dist-run -np 1 python tools/test.py checkpoints/run/configs.yaml checkpoints/run/latest.pth --eval bbox --eval-options extensive_report=True save_summary_path=results/run/summary.json
+```
+
+</details>
+
 ## Visualization
 
----
+Following command will visualize the predictions of the model on the test set and save the results in the designated folder. In addition, if specific arguments provided, it will also save the bounding boxes and/or the labels as npy files, as well as the visuals containing both predictions and ground truths.
 
 ```bash
 torchpack dist-run -np 1 python tools/visualize.py <config_path> --checkpoint <checkpoint_path> --mode pred --split test --out-dir <save_path>
@@ -168,24 +265,74 @@ You can also use the following optional arguments:
 - **--max-samples N** if you would like to visualize only a subset of the dataset, example 100
 - **--bbox-score N** if you would like to visualize only the bounding boxes with a score higher than N, example: 0.1
 
+<details>
+  <summary>Click to see an example</summary>
+
+```bash
+torchpack dist-run -np 1 python tools/visualize.py checkpoints/run/configs.yaml --checkpoint checkpoints/run/latest.pth --mode pred --split test --out-dir results/run/visuals --include-combined --save-bboxes --save-labels --max-samples 100 --bbox-score 0.1
+```
+
+</details>
+
 ## Benchmarking
 
----
+Following command will benchmark the model on the test set. In addition, if specific arguments provided, it will also save the benchmark results in a file.
 
 ```bash
 python tools/benchmark.py <config_path> <checkpoint_path>
 ```
 
+You can also use the following optional arguments:
+- **--out** if you would like to save the benchmark results in a file
+
+<details>
+  <summary>Click to see an example</summary>
+
+```bash
+python tools/benchmark.py checkpoints/run/configs.yaml checkpoints/run/latest.pth --out results/run/benchmark.json
+```
+
+</details>
+
 ## Compilation
 
----
+Following command will compile every other scripts such as evaluation, visualization and benchmarking scripts into one script. In addition, if specific arguments provided, it will also include the bounding boxes and/or the labels in the compilation.
 
 ```bash
 python tools/compile.py <dataset> -c <checkpoints_folder_path> -i <compilation_id> -t <target_path> --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
 ```
 
-Example:
+You can also use the following optional arguments:
+- **--summary-foldername** if you would like to change the name of the folder containing the evaluation summary, Default: summary
+- **--images-foldername** if you would like to change the name of the folder containing the images, Default: images
+- **--videos-foldername** if you would like to change the name of the folder containing the videos, Default: videos
+- **--override-testing** if you would like to override the testing results, Default: False
+- **--override-images** if you would like to override the images, Default: False
+- **--override-videos** if you would like to override the videos, Default: False
+- **--override-benchmark** if you would like to override the benchmark results, Default: False
+- **--images-include-combined** if you would like to include the visuals containing both predictions and ground truths, Default: False
+- **--images-cam-bbox-score N** if you would like to visualize only the bounding boxes with a score higher than N, example: 0.1, Default: 0.0
+- **--images-max-samples N** if you would like to visualize only a subset of the dataset, example 100, Default: None
+- **--include-bboxes** if you would like to save the bounding boxes as npy files, Default: False
+- **--include-labels** if you would like to save the labels as npy files, Default: False
+- **--skip-test** if you would like to skip the testing, Default: False
+- **--skip-images** if you would like to skip the images, Default: False
+- **--skip-videos** if you would like to skip the videos, Default: False
+- **--skip-benchmark** if you would like to skip the benchmarking, Default: False
+
+<details>
+  <summary>Click to see examples</summary>
+
+TUMTraf-Intersection
 
 ```bash
-python tools/compile.py tumtraf-i -c checkpoints/tumtraf-i -i tumtraf-i -t results --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
+python tools/compile.py tumtraf-i -c checkpoints/run -i run -t results --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
 ```
+
+OSDAR23
+
+```bash
+python tools/compile.py osdar23 -c checkpoints/run -i run -t results --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
+```
+
+</details>
