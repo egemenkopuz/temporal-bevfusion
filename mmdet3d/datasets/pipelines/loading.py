@@ -3,14 +3,13 @@ from typing import Any, Dict, Tuple
 
 import mmcv
 import numpy as np
+from mmdet.datasets.builder import PIPELINES
+from mmdet.datasets.pipelines import LoadAnnotations
 from nuscenes.map_expansion.map_api import NuScenesMap
 from nuscenes.map_expansion.map_api import locations as LOCATIONS
 from PIL import Image
 
-
 from mmdet3d.core.points import BasePoints, get_points_type
-from mmdet.datasets.builder import PIPELINES
-from mmdet.datasets.pipelines import LoadAnnotations
 
 from .loading_utils import load_augmented_point_cloud, reduce_LiDAR_beams
 
@@ -27,9 +26,12 @@ class LoadMultiViewImageFromFiles:
         color_type (str): Color type of the file. Defaults to 'unchanged'.
     """
 
-    def __init__(self, to_float32=False, color_type="unchanged"):
+    def __init__(
+        self, to_float32=False, color_type="unchanged", discard_alpha_channel: bool = False
+    ):
         self.to_float32 = to_float32
         self.color_type = color_type
+        self.discard_alpha_channel = discard_alpha_channel
 
     def __call__(self, results):
         """Call function to load multi-view image from files.
@@ -55,9 +57,12 @@ class LoadMultiViewImageFromFiles:
         images = []
         h, w = 0, 0
         for name in filename:
-            images.append(Image.open(name))
-        
-        #TODO: consider image padding in waymo
+            img = Image.open(name)
+            if self.discard_alpha_channel:
+                img = img.convert("RGB")
+            images.append(img)
+
+        # TODO: consider image padding in waymo
 
         results["filename"] = filename
         # unravel to list, see `DefaultFormatBundle` in formating.py
@@ -69,7 +74,7 @@ class LoadMultiViewImageFromFiles:
         # Set initial values for default meta_keys
         results["pad_shape"] = images[0].size
         results["scale_factor"] = 1.0
-        
+
         return results
 
     def __repr__(self):
@@ -217,9 +222,7 @@ class LoadPointsFromMultiSweeps:
                 if self.remove_close:
                     points_sweep = self._remove_close(points_sweep)
                 sweep_ts = sweep["timestamp"] / 1e6
-                points_sweep[:, :3] = (
-                    points_sweep[:, :3] @ sweep["sensor2lidar_rotation"].T
-                )
+                points_sweep[:, :3] = points_sweep[:, :3] @ sweep["sensor2lidar_rotation"].T
                 points_sweep[:, :3] += sweep["sensor2lidar_translation"]
                 points_sweep[:, 4] = ts - sweep_ts
                 points_sweep = points.new_point(points_sweep)
@@ -343,9 +346,7 @@ class LoadPointsFromFile:
         self.use_color = use_color
         if isinstance(use_dim, int):
             use_dim = list(range(use_dim))
-        assert (
-            max(use_dim) < load_dim
-        ), f"Expect all used dimensions < {load_dim}, got {use_dim}"
+        assert max(use_dim) < load_dim, f"Expect all used dimensions < {load_dim}, got {use_dim}"
         assert coord_type in ["CAMERA", "LIDAR", "DEPTH"]
 
         self.coord_type = coord_type
@@ -401,9 +402,7 @@ class LoadPointsFromFile:
         if self.shift_height:
             floor_height = np.percentile(points[:, 2], 0.99)
             height = points[:, 2] - floor_height
-            points = np.concatenate(
-                [points[:, :3], np.expand_dims(height, 1), points[:, 3:]], 1
-            )
+            points = np.concatenate([points[:, :3], np.expand_dims(height, 1), points[:, 3:]], 1)
             attribute_dims = dict(height=3)
 
         if self.use_color:
@@ -421,9 +420,7 @@ class LoadPointsFromFile:
             )
 
         points_class = get_points_type(self.coord_type)
-        points = points_class(
-            points, points_dim=points.shape[-1], attribute_dims=attribute_dims
-        )
+        points = points_class(points, points_dim=points.shape[-1], attribute_dims=attribute_dims)
         results["points"] = points
 
         return results
