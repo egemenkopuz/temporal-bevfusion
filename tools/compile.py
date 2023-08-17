@@ -29,18 +29,36 @@ TUMTRAF_CLASSES = (
     # "OTHER",
 )
 
+OSDAR23_CLASSES = (
+    "lidar__cuboid__person",
+    "lidar__cuboid__signal",
+    "lidar__cuboid__catenary_pole",
+    "lidar__cuboid__signal_pole",
+    "lidar__cuboid__train",
+    "lidar__cuboid__road_vehicle",
+    "lidar__cuboid__buffer_stop",
+    "lidar__cuboid__animal",
+    "lidar__cuboid__switch",
+    "lidar__cuboid__bicycle",
+    # "lidar__cuboid__crowd",
+    # "lidar__cuboid__wagons",
+    # "lidar__cuboid__signal_bridge",
+)
+
 HEADERS = [
     "id",
     "eval_type",
     "sensors",
     "test_fps",
     "test_mem",
+    "pcd_dim",
     "voxel_size",
     "ql",
     "qrt",
     "image_size",
     "grid_size",
     "gt_paste",
+    "gridmask_p",
     "decoder_backbone",
     "decoder_neck",
     "encoder_cam_backbone",
@@ -89,7 +107,7 @@ def get_args() -> Namespace:
     parser.add_argument("--skip-images", action="store_true", required=False)
     parser.add_argument("--skip-videos", action="store_true", required=False)
     parser.add_argument("--skip-benchmark", action="store_true", required=False)
-    parser.add_argument("-log", "--loglevel", default="warning", help="provide logging level. Example --loglevel debug, default=warning",)
+    parser.add_argument("-log", "--loglevel", default="info", help="provide logging level. Example --loglevel debug, default=warning",)
     # fmt: on
 
     return parser.parse_args()
@@ -314,6 +332,7 @@ def create_images(
 
         if images_include_combined:
             command += " --include-combined"
+        print("loglevel", loglevel)
 
         if not loglevel == "debug":
             command += " > /dev/null 2>&1"
@@ -513,6 +532,8 @@ def create_meta(dataset: str) -> Tuple[List[str], List[str]]:
     headers = copy.deepcopy(HEADERS)
     if dataset.lower() == "tumtraf-i":
         classes = TUMTRAF_CLASSES
+    elif dataset.lower() == "osdar23":
+        classes = OSDAR23_CLASSES
     else:
         raise NotImplementedError
 
@@ -541,6 +562,7 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
         data = yaml.load(f, Loader=yaml.FullLoader)
 
     meta = {
+        "pcd_dim": data["use_dim"],
         "voxel_size": data["voxel_size"][0],
         "ql": data["queue_length"],
         "qrt": data["queue_range_threshold"],
@@ -585,6 +607,12 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
     for x in data["train_pipeline"]:
         if x["type"] == "ObjectPaste":
             gt_paste = True
+
+    gridmask_p = 0
+    if "augment2d" in data and "gridmask" in data["augment2d"]:
+        gridmask_p = data["augment2d"]["gridmask"]["prob"]
+        meta.update({"gridmask_p": gridmask_p})
+
     grid_size = (
         data.get("model", {})
         .get("heads", {})
@@ -608,5 +636,5 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
 
 if __name__ == "__main__":
     args = get_args()
-    logging.basicConfig(level=args.loglevel.upper())
+    logging.basicConfig(level=args.loglevel.lower())
     compile_results(**vars(args))
