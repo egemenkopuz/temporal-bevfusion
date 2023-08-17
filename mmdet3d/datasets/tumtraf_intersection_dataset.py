@@ -439,7 +439,7 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         }
 
         mmcv.mkdir_or_exist(jsonfile_prefix)
-        res_path = osp.join(jsonfile_prefix, "results_nusc.json")
+        res_path = osp.join(jsonfile_prefix, "results_tumtraf.json")
         print("Results writes to", res_path)
         mmcv.dump(nusc_submissions, res_path)
         return res_path
