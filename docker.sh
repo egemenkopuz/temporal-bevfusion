@@ -13,6 +13,7 @@ if [ $2 = "dev" ]; then
 	fi
 	IMAGE_NAME="bevfusion:dev"
 	DOCKERFILE="Dockerfile.dev"
+	DOCKER_COMMAND="docker"
 
 	# add or remove arguments according to your needs
 	RUN_COMMAND_ARGS="--name $CONTAINER_NAME \
@@ -26,6 +27,7 @@ if [ $2 = "dev" ]; then
 		# add additional volumes for TUM
 		RUN_COMMAND_ARGS+=" -v /mnt/ssd_4tb_samsung/datasets/:/mnt/ssd_4tb_samsung/datasets/ \
                 -v /mnt/ssd_4tb_samsung/egemen/:/mnt/ssd_4tb_samsung/egemen/"
+		DOCKER_COMMAND="nvidia-docker"
 	elif [ $1 = "run-setlabs" ]; then
 		# add additional volumes for SetLabs
 		RUN_COMMAND_ARGS+=" -v /mnt/Drive/datasets/:/mnt/Drive/datasets/ \
@@ -58,43 +60,43 @@ fi
 if [ $1 == "run" ] || [ $1 == "run-tum" ] || [ $1 == "run-setlabs" ]; then
 	echo "Running docker container with the following arguments:"
 	echo $RUN_COMMAND_ARGS
-	docker run $RUN_COMMAND_ARGS
+	$DOCKER_COMMAND run $RUN_COMMAND_ARGS
 elif [ $1 = "build" ]; then
-	docker build -f $DOCKERFILE -t $IMAGE_NAME .
+	$DOCKER_COMMAND build -f $DOCKERFILE -t $IMAGE_NAME .
 elif [ $1 = "access" ] || [ $1 == "exec" ]; then
-	docker exec -it $CONTAINER_NAME bash
+	$DOCKER_COMMAND exec -it $CONTAINER_NAME bash
 elif [ $1 = "start" ]; then
-	docker start $CONTAINER_NAME
+	$DOCKER_COMMAND start $CONTAINER_NAME
 elif [ $1 = "stop" ]; then
-	docker container stop $CONTAINER_NAME
+	$DOCKER_COMMAND container stop $CONTAINER_NAME
 elif [ $1 = "remove-container" ]; then
-	if [ "$(docker container inspect -f '{{.State.Running}}' $CONTAINER_NAME)" = "true" ]; then
+	if [ "$($DOCKER_COMMAND container inspect -f '{{.State.Running}}' $CONTAINER_NAME)" = "true" ]; then
 		read -p "Container '$CONTAINER_NAME' is running, would you like to stop it first (y/n)? " -n 1 -r
 		echo
 		if [[ $REPLY =~ ^[Yy]$ ]]; then
-			docker container stop $CONTAINER_NAME
+			$DOCKER_COMMAND container stop $CONTAINER_NAME
 		else
 			exit 1
 		fi
 	fi
 
-	docker container rm $CONTAINER_NAME
+	$DOCKER_COMMAND container rm $CONTAINER_NAME
 elif [ $1 = "remove-image" ]; then
 
-	docker image rm $IMAGE_NAME
+	$DOCKER_COMMAND image rm $IMAGE_NAME
 elif [ $1 = "remove-all" ]; then
-	if [ "$(docker container inspect -f '{{.State.Status}}' $CONTAINER_NAME)" = "running" ]; then
+	if [ "$($DOCKER_COMMAND container inspect -f '{{.State.Status}}' $CONTAINER_NAME)" = "running" ]; then
 		read -p "Container '$CONTAINER_NAME' is running, would you like to stop it first (y/n)? " -n 1 -r
 		echo
 		if [[ $REPLY =~ ^[Yy]$ ]]; then
-			docker container stop $CONTAINER_NAME
+			$DOCKER_COMMAND container stop $CONTAINER_NAME
 		else
 			exit 1
 		fi
 	fi
 
-	docker container rm $CONTAINER_NAME
-	docker image rm $IMAGE_NAME
+	$DOCKER_COMMAND container rm $CONTAINER_NAME
+	$DOCKER_COMMAND image rm $IMAGE_NAME
 else
 	echo "Invalid argument for first argument (build, run, run-tum, run-setlabs, access, exec, start, stop, remove-container, remove-image, remove-all)"
 fi
