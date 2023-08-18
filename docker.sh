@@ -21,7 +21,7 @@ if [ $2 = "dev" ]; then
                 -v $(pwd)/data:/dataset \
                 --env=DISPLAY \
                 --gpus all \
-                --shm-size 8g"
+		--shm-size 16g"
 
 	if [ $1 = "run-tum" ]; then
 		# add additional volumes for TUM
