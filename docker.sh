@@ -28,6 +28,8 @@ if [ $2 = "dev" ]; then
 		RUN_COMMAND_ARGS+=" -v /mnt/ssd_4tb_samsung/datasets/:/mnt/ssd_4tb_samsung/datasets/ \
                 -v /mnt/ssd_4tb_samsung/egemen/:/mnt/ssd_4tb_samsung/egemen/"
 		DOCKER_COMMAND="nvidia-docker"
+	elif [ $1 = "build-tum" ]; then
+		DOCKER_COMMAND="nvidia-docker"
 	elif [ $1 = "run-setlabs" ]; then
 		# add additional volumes for SetLabs
 		RUN_COMMAND_ARGS+=" -v /mnt/Drive/datasets/:/mnt/Drive/datasets/ \
@@ -61,7 +63,7 @@ if [ $1 == "run" ] || [ $1 == "run-tum" ] || [ $1 == "run-setlabs" ]; then
 	echo "Running docker container with the following arguments:"
 	echo $RUN_COMMAND_ARGS
 	$DOCKER_COMMAND run $RUN_COMMAND_ARGS
-elif [ $1 = "build" ]; then
+elif [ $1 = "build" ] || [ $1 = "build-tum" ]; then
 	$DOCKER_COMMAND build -f $DOCKERFILE -t $IMAGE_NAME .
 elif [ $1 = "access" ] || [ $1 == "exec" ]; then
 	$DOCKER_COMMAND exec -it $CONTAINER_NAME bash
@@ -98,5 +100,5 @@ elif [ $1 = "remove-all" ]; then
 	$DOCKER_COMMAND container rm $CONTAINER_NAME
 	$DOCKER_COMMAND image rm $IMAGE_NAME
 else
-	echo "Invalid argument for first argument (build, run, run-tum, run-setlabs, access, exec, start, stop, remove-container, remove-image, remove-all)"
+	echo "Invalid argument for first argument (build, build-tum, run, run-tum, run-setlabs, access, exec, start, stop, remove-container, remove-image, remove-all)"
 fi
