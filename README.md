@@ -9,10 +9,9 @@
 Built on the repository of [BEVFusion: Multi-Task Multi-Sensor Fusion with
 Unified Bird's-Eye View Representation](https://arxiv.org/abs/2205.13542).
 
-## Table of Contents
+<!-- mdformat-toc start --slug=github --maxlevel=6 --minlevel=1 -->
 
 - [Installation](#installation)
-  - [Docker Container Installation](#docker-container-installation)
 - [Dataset Preparation](#dataset-preparation)
   - [TUMTraf-Intersection Dataset](#tumtraf-intersection-dataset)
   - [OSDAR23 Dataset](#osdar23-dataset)
@@ -25,16 +24,14 @@ Unified Bird's-Eye View Representation](https://arxiv.org/abs/2205.13542).
 - [Benchmarking](#benchmarking)
 - [Compilation](#compilation)
 
-## Installation
+<!-- mdformat-toc end -->
 
+## Installation<a name="installation"></a>
 
-> [!WARNING]
 > **You may need to add/remove/change the arguments in docker.sh for your use-case, For example, to create a custom volume.**
-
 
 If you would like to use the docker container, you can build it by running the following command:
 
-> [!INFO]
 > **dev is for development and prod is for production.**
 
 ```bash
@@ -80,17 +77,13 @@ bash docker.sh remove-all <dev/prod>
 
 </details>
 
+## Dataset Preparation<a name="dataset-preparation"></a>
 
-## Dataset Preparation
-
-### TUMTraf-Intersection Dataset
+### TUMTraf-Intersection Dataset<a name="tumtraf-intersection-dataset"></a>
 
 <details>
   <summary>Click to expand</summary>
 
-#### Preparing the temporal dataset
-
-> [!WARNING]
 > **If you have dataset fully ready, you can skip to the 5th step.**
 
 1 - Merge all the files into one folder, then tokenize them by running the following command (if not tokenized already):
@@ -125,14 +118,11 @@ python tools/create_data.py tumtraf-i --root-path ./data/tumtraf-i --out-dir ./d
 
 </details>
 
-### OSDAR23 Dataset
+### OSDAR23 Dataset<a name="osdar23-dataset"></a>
 
 <details>
   <summary>Click to expand</summary>
 
-#### Preparing the temporal dataset
-
-> [!WARNING]
 > **If you have dataset fully ready, you can skip to the 3rd step.**
 
 1 - Put all the sequences into one folder, then create seperate lidar labels folder with additional fields by running the following command:
@@ -155,10 +145,9 @@ python tools/create_data.py osdar23 --root-path ./data/osdar23 --out-dir ./data/
 
 </details>
 
+## Training<a name="training"></a>
 
-## Training
-
-### Lidar-only
+### Lidar-only<a name="lidar-only"></a>
 
 ```bash
 torchpack dist-run -np <number_of_gpus> python tools/train.py <config_path>
@@ -181,7 +170,7 @@ torchpack dist-run -np 1 python tools/train.py configs/osdar23-baseline/det/tran
 
 </details>
 
-### Camera-only
+### Camera-only<a name="camera-only"></a>
 
 ```bash
 torchpack dist-run -np <number_of_gpus> python tools/train.py <config_path> --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth
@@ -205,7 +194,7 @@ torchpack dist-run -np 1 python tools/train.py configs/osdar23-baseline/det/cent
 
 </details>
 
-### Multi-modal
+### Multi-modal<a name="multi-modal"></a>
 
 ```bash
 torchpack dist-run -np <number_of_gpus> python tools/train.py <config_path> --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from <lidar_checkpoint_path>
@@ -228,7 +217,7 @@ torchpack dist-run -np 2 python tools/train.py configs/osdar23-baseline/det/tran
 
 </details>
 
-## Testing
+## Testing<a name="testing"></a>
 
 Following command will evaluate the model on the test set and save the results in the designated folder. In addition, if specific arguments provided, it will also save the evaluation summary and/or an extensive report of the evaluation.
 
@@ -237,9 +226,10 @@ torchpack dist-run -np 1 python tools/test.py <config_path> <checkpoint_path> --
 ```
 
 You can also use the following optional arguments by putting first:
+
 - **--eval-options**  and then putting the following arguments
   - **extensive_report=True** if you would like to have an extensive report of the evaluation
-  - **save_summary_path=<save_summary_path>** if you would like to save the evaluation summary
+  - **save_summary_path=\<save_summary_path>** if you would like to save the evaluation summary
 
 <details>
   <summary>Click to see an example</summary>
@@ -250,7 +240,7 @@ torchpack dist-run -np 1 python tools/test.py checkpoints/run/configs.yaml check
 
 </details>
 
-## Visualization
+## Visualization<a name="visualization"></a>
 
 Following command will visualize the predictions of the model on the test set and save the results in the designated folder. In addition, if specific arguments provided, it will also save the bounding boxes and/or the labels as npy files, as well as the visuals containing both predictions and ground truths.
 
@@ -259,6 +249,7 @@ torchpack dist-run -np 1 python tools/visualize.py <config_path> --checkpoint <c
 ```
 
 You can also use the following optional arguments:
+
 - **--include-combined** if you would like to save the visuals containing both predictions and ground truths
 - **--save-bboxes** if you would like to save the bounding boxes as npy files
 - **--save-labels** if you would like to save the labels as npy files
@@ -274,7 +265,7 @@ torchpack dist-run -np 1 python tools/visualize.py checkpoints/run/configs.yaml 
 
 </details>
 
-## Benchmarking
+## Benchmarking<a name="benchmarking"></a>
 
 Following command will benchmark the model on the test set. In addition, if specific arguments provided, it will also save the benchmark results in a file.
 
@@ -283,6 +274,7 @@ python tools/benchmark.py <config_path> <checkpoint_path>
 ```
 
 You can also use the following optional arguments:
+
 - **--out** if you would like to save the benchmark results in a file
 
 <details>
@@ -294,7 +286,7 @@ python tools/benchmark.py checkpoints/run/configs.yaml checkpoints/run/latest.pt
 
 </details>
 
-## Compilation
+## Compilation<a name="compilation"></a>
 
 Following command will compile every other scripts such as evaluation, visualization and benchmarking scripts into one script. In addition, if specific arguments provided, it will also include the bounding boxes and/or the labels in the compilation.
 
@@ -303,6 +295,7 @@ python tools/compile.py <dataset> -c <checkpoints_folder_path> -i <compilation_i
 ```
 
 You can also use the following optional arguments:
+
 - **--summary-foldername** if you would like to change the name of the folder containing the evaluation summary, Default: summary
 - **--images-foldername** if you would like to change the name of the folder containing the images, Default: images
 - **--videos-foldername** if you would like to change the name of the folder containing the videos, Default: videos
