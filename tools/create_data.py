@@ -12,6 +12,7 @@ def tumtraf_intersection_data_prep(
     info_prefix: str,
     out_dir: str,
     labels_path: Optional[str] = None,
+    workers: int = 4,
 ) -> None:
     """Prepare data related to TUMTraf-I dataset.
 
@@ -23,6 +24,7 @@ def tumtraf_intersection_data_prep(
         info_prefix (str): The prefix of info filenames.
         out_dir (str): Output directory of the groundtruth database info.
         labels_path (str): Path of labels.
+        workers (int): Number of workers to use. Default: 4
     """
 
     from data_converter import tumtraf_intersection_converter as tumtraf
@@ -48,9 +50,9 @@ def tumtraf_intersection_data_prep(
 
     os.makedirs(save_dir, exist_ok=True, mode=0o777)
 
-    tumtraf.TUMTrafIntersectionConverter(splits, load_dir, save_dir, labels_path=labels_path).convert(
-        info_prefix
-    )
+    tumtraf.TUMTrafIntersectionConverter(
+        splits, load_dir, save_dir, labels_path=labels_path, num_workers=workers
+    ).convert(info_prefix)
 
     create_groundtruth_database(
         "TUMTrafIntersectionDataset",
@@ -66,6 +68,7 @@ def osdar23_data_prep(
     out_dir: str,
     labels_path: Optional[str] = None,
     use_highres: bool = False,
+    workers: int = 4,
 ) -> None:
     """Prepare data related to OSDAR23 dataset.
 
@@ -78,6 +81,7 @@ def osdar23_data_prep(
         out_dir (str): Output directory of the groundtruth database info.
         labels_path (str): Path of labels.
         use_highres (bool): Whether to use high resolution images. Default: False
+        workers (int): Number of workers to use. Default: 4
     """
 
     from data_converter import osdar23_converter as osdar23
@@ -103,9 +107,9 @@ def osdar23_data_prep(
 
     os.makedirs(save_dir, exist_ok=True, mode=0o777)
 
-    osdar23.OSDAR23Converter(splits, load_dir, save_dir, labels_path=labels_path).convert(
-        info_prefix, use_highres
-    )
+    osdar23.OSDAR23Converter(
+        splits, load_dir, save_dir, labels_path=labels_path, num_workers=workers
+    ).convert(info_prefix, use_highres)
 
     create_groundtruth_database(
         "OSDAR23Dataset",
@@ -263,6 +267,7 @@ if __name__ == "__main__":
             info_prefix="tumtraf",
             out_dir=args.out_dir,
             labels_path=args.labels_path,
+            workers=args.workers,
         )
     elif str(args.dataset).lower() == "osdar23":
         osdar23_data_prep(
@@ -271,4 +276,5 @@ if __name__ == "__main__":
             out_dir=args.out_dir,
             labels_path=args.labels_path,
             use_highres=args.use_highres,
+            workers=args.workers,
         )

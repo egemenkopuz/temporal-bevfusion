@@ -37,6 +37,22 @@ class OSDAR23Dataset(Custom3DDataset):
         "lidar__cuboid__signal_bridge",
     ]
 
+    CLASS_IDS = {
+        "lidar__cuboid__person": 0,
+        "lidar__cuboid__signal": 1,
+        "lidar__cuboid__catenary_pole": 2,
+        "lidar__cuboid__signal_pole": 3,
+        "lidar__cuboid__train": 4,
+        "lidar__cuboid__road_vehicle": 5,
+        "lidar__cuboid__buffer_stop": 6,
+        "lidar__cuboid__animal": 7,
+        "lidar__cuboid__switch": 8,
+        "lidar__cuboid__bicycle": 9,
+        "lidar__cuboid__crowd": 10,
+        "lidar__cuboid__wagons": 11,
+        "lidar__cuboid__signal_bridge": 12,
+    }
+
     ErrNameMapping = {
         "trans_err": "mATE",
         "scale_err": "mASE",
@@ -1078,7 +1094,7 @@ class OSDAR23Dataset(Custom3DDataset):
         assert osp.exists(result_path), "Error: The result file does not exist!"
 
         if verbose:
-            print("Initializing TUMTraf-I detection evaluation")
+            print("Initializing OSDAR23 detection evaluation")
         self.pred_boxes, self.meta = self.load_prediction(
             result_path, self.max_boxes_per_sample, verbose=verbose
         )

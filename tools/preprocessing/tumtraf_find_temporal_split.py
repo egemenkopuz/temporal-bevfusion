@@ -82,6 +82,7 @@ def get_args() -> Namespace:
     parser.add_argument("--segment-size", type=int, default=30, required=False)
     parser.add_argument("--perm-limit", type=int, default=2e4, required=False)
     parser.add_argument("-p", type=int, default=4, required=False)
+    parser.add_argument("--create", default=False, action="store_true")
     parser.add_argument("--include-all-classes", default=False, action="store_true")
     parser.add_argument("--include-all-sequences", default=False, action="store_true")
     parser.add_argument("--include-same-classes-in-difficulty", default=False, action="store_true")
@@ -1651,13 +1652,7 @@ if __name__ == "__main__":
         exit()
 
     logging.info(f"Found total: {total_found} out of {perm_limit}")
-
     log_summary(best_segment_loss_details, splits, classes)
-
-    logging.info("Creating split folders and copying split files...")
-    create_and_copy_split(
-        target_path, data, best_perm, best_segment_loss_details["split_idx_ranges"], splits
-    )
 
     logging.info("Saving original split details...")
     save_original_split_details(
@@ -1668,3 +1663,9 @@ if __name__ == "__main__":
         splits,
         split_ratios,
     )
+
+    if args.create:
+        logging.info("Creating split folders and copying split files...")
+        create_and_copy_split(
+            target_path, data, best_perm, best_segment_loss_details["split_idx_ranges"], splits
+        )

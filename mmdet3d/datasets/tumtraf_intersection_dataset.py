@@ -34,6 +34,19 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         "OTHER",
     )
 
+    CLASS_IDS = {
+        "CAR": 0,
+        "TRAILER": 1,
+        "TRUCK": 2,
+        "VAN": 3,
+        "PEDESTRIAN": 4,
+        "BUS": 5,
+        "MOTORCYCLE": 6,
+        "BICYCLE": 7,
+        "EMERGENCY_VEHICLE": 8,
+        "OTHER": 9,
+    }
+
     ErrNameMapping = {
         "trans_err": "mATE",
         "scale_err": "mASE",

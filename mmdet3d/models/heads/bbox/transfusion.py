@@ -264,6 +264,14 @@ class TransFusionHead(nn.Module):
             ] = F.max_pool2d(
                 heatmap[:, 4], kernel_size=1, stride=1, padding=0
             )  # Pedestrian
+        elif self.test_cfg["dataset"] == "OSDAR23":
+            local_max[
+                :,
+                0,
+            ] = F.max_pool2d(
+                heatmap[:, 0], kernel_size=1, stride=1, padding=0
+            )  # Person
+
         heatmap = heatmap * (heatmap == local_max)
         heatmap = heatmap.view(batch_size, heatmap.shape[1], -1)
 
@@ -760,6 +768,27 @@ class TransFusionHead(nn.Module):
                         num_class=1,
                         class_names=["BICYCLE"],
                         indices=[7],
+                        radius=0.7,
+                    ),
+                ]
+            elif self.test_cfg["dataset"] == "OSDAR23":
+                self.tasks = [
+                    dict(
+                        num_class=1,
+                        class_names=["lidar__cuboid__person"],
+                        indices=[0],
+                        radius=0.4,
+                    ),
+                    dict(
+                        num_class=1,
+                        class_names=["lidar__cuboid__catenary_pole"],
+                        indices=[1],
+                        radius=0.7,
+                    ),
+                    dict(
+                        num_class=1,
+                        class_names=["lidar__cuboid__signal_pole"],
+                        indices=[2],
                         radius=0.7,
                     ),
                 ]

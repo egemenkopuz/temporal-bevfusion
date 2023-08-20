@@ -2,6 +2,20 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: OSDAR23 tokenize",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/preprocessing/osdar23_tokenize.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--root-path",
+                "./data/osdar23",
+                "--loglevel",
+                "INFO"
+            ]
+        },
+        {
             "name": "Python: OSDAR23 create_data",
             "type": "python",
             "request": "launch",
@@ -15,6 +29,8 @@
                 "--out-dir",
                 "./data/osdar23-bevfusion",
                 "--use-highres",
+                "--workers",
+                "1",
                 "--loglevel",
                 "INFO"
             ]
@@ -94,6 +110,21 @@
             "justMyCode": true,
             "args": [
                 "configs/osdar23-baseline/det/transfusion/secfpn/lidar/voxelnet.yaml",
+                "--max_epochs",
+                "1"
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 DEBUG-TRAIN camera",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/osdar23-baseline/det/centerhead/lssfpn/camera/320x704/swint/default.yaml",
+                "--model.encoders.camera.backbone.init_cfg.checkpoint",
+                "pretrained/swint-nuimages-pretrained.pth",
                 "--max_epochs",
                 "1"
             ]

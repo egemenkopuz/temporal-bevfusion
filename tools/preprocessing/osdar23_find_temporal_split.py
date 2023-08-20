@@ -38,7 +38,7 @@ CLASSES = [
     "lidar__cuboid__signal_bridge",
 ]
 
-CLASS_WEIGHTS = np.asarray([10, 5, 5, 5, 2, 5, 5, 10, 5, 2, 0, 0, 0]) * 30
+CLASS_WEIGHTS = np.asarray([10, 5, 5, 5, 2, 5, 5, 10, 5, 2, 0, 0, 0]) * 50
 NUM_POINTS_WEIGHTS = np.asarray([10, 5, 5, 5, 2, 5, 5, 10, 5, 2, 0, 0, 0]) * 1
 OCCLUSION_WEIGHTS = np.asarray([10, 5, 5, 5, 2, 5, 5, 10, 5, 2, 0, 0, 0]) * 5
 DISTANCE_WEIGHTS = np.asarray([10, 5, 5, 5, 2, 5, 5, 10, 5, 2, 0, 0, 0]) * 3
@@ -93,6 +93,7 @@ def get_args() -> Namespace:
     parser.add_argument("--segment-size", type=int, default=10, required=False)
     parser.add_argument("--perm-limit", type=int, default=2e4, required=False)
     parser.add_argument("-p", type=int, default=4, required=False)
+    parser.add_argument("--create", default=False, action="store_true")
     parser.add_argument("--include-all-classes", default=False, action="store_true")
     parser.add_argument("--include-all-sequences", default=False, action="store_true")
     parser.add_argument("--include-same-classes-in-distance", default=False, action="store_true")
@@ -342,10 +343,15 @@ def create_sequence_details(
             data[scene_token].frame_pcd_paths.append(pcds[i])
             data[scene_token].frame_pcd_labels_paths.append(pcds_labels[i])
 
+    title = f"{'Token':<35} {'Sequence':<40} {'Frames':<10} {'Total Objects':<20} {'Filtered Objects':<20} {'Remaining Objects':<20}"
+    logging.info(title)
+    logging.info(create_header_line(len(title), "="))
     for x, y in data.items():
         tot = y.total_bboxes + y.total_bboxes_filtered
+        filtered = f"{str(y.total_bboxes_filtered):<5}  ({y.total_bboxes_filtered / tot:.3f})"
+        remaining = f"{str(y.total_bboxes):<5} ({y.total_bboxes / tot:.3f})"
         logging.info(
-            f"Sequence {x} - {str(y.no_total_frames).zfill(3)}f {y.sequence_name:<35} : filtered {y.total_bboxes_filtered:<5} ({y.total_bboxes_filtered/tot:.3f}) - remained {y.total_bboxes:<5} ({y.total_bboxes/tot:.3f}) - total {tot}"
+            f"{x:<35} {y.sequence_name:<40} {y.no_total_frames:<10} {tot:<20} {filtered:<20} {remaining:<20}"
         )
 
     return data
@@ -878,42 +884,44 @@ def create_and_copy_split(
         pool.join()
 
 
-def save_original_split_details(
+def save_split_details_and_config(
     target_path: str,
     bucket_details: Dict[str, int],
+    data: Dict[str, TemporalSequenceDetails],
     perm: List[Tuple[str, Tuple[int]]],
     best_segment_loss_details,
     splits: List[str] = ["train", "val", "test"],
     split_ratio: List[int] = [0.8, 0.1, 0.1],
 ) -> None:
     """
-    Save the original split details.
+    Save the split details and config to the target path.
 
     Args:
         target_path: target path to copy the split
         bucket_details: bucket details
+        data: dictionary of sequence details
         perm: selected permutation of segments
         best_segment_loss_details: best segment loss details
         splits: list of splits
         split_ratio: ratio of splits
     """
-    orig_split_details = {}
+    split_details = {}
     split_idx_ranges = best_segment_loss_details["split_idx_ranges"]
 
     for i, split in enumerate(splits):
-        orig_split_details[split] = {}
-        orig_split_details[split]["segment_size"] = segment_size
-        orig_split_details[split]["no_frames"] = segment_size * len(
+        split_details[split] = {}
+        split_details[split]["segment_size"] = segment_size
+        split_details[split]["no_frames"] = segment_size * len(
             perm[int(split_idx_ranges[i]) : int(split_idx_ranges[i + 1])]
         )
-        orig_split_details[split]["original_sequences"] = {}
+        split_details[split]["original_sequences"] = {}
         for j, seq in enumerate(data.keys()):
-            orig_split_details[split]["original_sequences"][seq] = (
+            split_details[split]["original_sequences"][seq] = (
                 np.asarray(perm)[int(split_idx_ranges[i]) : int(split_idx_ranges[i + 1])] == seq
             ).sum()
 
         for x in ["class", "distance", "num_points", "occlusion"]:
-            orig_split_details[split][x] = {
+            split_details[split][x] = {
                 "split_counts": best_segment_loss_details[x]["split_counts"][i],
                 "split_ratios": best_segment_loss_details[x]["split_ratios"][i],
             }
@@ -938,17 +946,25 @@ def save_original_split_details(
     seq_assigned_split.extend([1] * (split_idx_ranges[2] - split_idx_ranges[1]))
     if len(splits) == 3:  # train, val, test
         seq_assigned_split.extend([2] * (split_idx_ranges[3] - split_idx_ranges[2]))
-    orig_split_details["perm_details"] = [
+    split_details["perm_details"] = [
         {x[0]: {"start": x[1][0], "end": x[1][1], "split": seq_assigned_split[i]}}
         for i, x in enumerate(perm)
     ]
 
-    orig_split_details["losses"] = {"total": best_segment_loss_details["loss"]}
+    split_details["losses"] = {"total": best_segment_loss_details["loss"]}
     for x in ["class", "distance", "num_points", "occlusion"]:
-        orig_split_details["losses"][x] = best_segment_loss_details[x]["loss"]
+        split_details["losses"][x] = best_segment_loss_details[x]["loss"]
 
-    orig_split_details["perm"] = best_segment_loss_details["perm"]
-    orig_split_details["bucket_details"] = bucket_details
+    split_details["bucket_details"] = bucket_details
+    split_details["perm"] = best_segment_loss_details["perm"]
+
+    split_config = {
+        "perm": best_segment_loss_details["perm"],
+        "split_idx_ranges": split_idx_ranges,
+        "splits": splits,
+        "split_ratio": split_ratio,
+        "data": data,
+    }
 
     class NpEncoder(json.JSONEncoder):
         def default(self, obj):
@@ -958,10 +974,15 @@ def save_original_split_details(
                 return float(obj)
             if isinstance(obj, np.ndarray):
                 return obj.tolist()
+            if isinstance(obj, TemporalSequenceDetails):
+                return obj.__dict__
             return super(NpEncoder, self).default(obj)
 
-    with open(os.path.join(target_path, "orig_split_details.json"), "w") as f:
-        json.dump(orig_split_details, f, indent=4, cls=NpEncoder)
+    with open(os.path.join(target_path, "split_details.json"), "w") as f:
+        json.dump(split_details, f, indent=4, cls=NpEncoder)
+
+    with open(os.path.join(target_path, "split_config.json"), "w") as f:
+        json.dump(split_config, f, indent=4, cls=NpEncoder)
 
 
 def log_summary(
@@ -1092,6 +1113,11 @@ if __name__ == "__main__":
     for x in data.values():
         assert len(x) != 0, "No frames found in sequence"
 
+    logging.info("Creating bucket details...")
+    title = f"{'Token':<35} {'Sequence':<40} {'Frames':<10} {'No. Segment':<15} {'Segments'}"
+    logging.info(title)
+    logging.info(create_header_line(len(title), "="))
+
     bucket_details = {}
     for x, y in data.items():
         bucket_no_frames = data[x].no_total_frames
@@ -1104,36 +1130,52 @@ if __name__ == "__main__":
             }
         else:
             rem = bucket_no_frames % segment_size
-            if rem > segment_size // 2:
+            if rem >= segment_size // 3:
+                count = (bucket_no_frames // segment_size) + 1
                 bucket_details[x] = {
-                    "count": bucket_no_frames // segment_size,
+                    "count": count,
                     "segment_size": segment_size,
                     "last_segment_size": rem,
                 }
             else:
                 # alternative first increasing then decreasing search
-                tmp_segment_size = segment_size + 1
-                search_add_offset = 1  # increasing
-                while bucket_no_frames % tmp_segment_size != 0:
-                    tmp_segment_size += search_add_offset
-                    if tmp_segment_size > bucket_no_frames // len(split_ratios):
-                        tmp_segment_size = segment_size
-                        search_add_offset = -1  # decreasing
-                    continue
+                found = False
+                for change_offset in [-1, 1]:
+                    tmp_segment_size = segment_size + change_offset
+                    for _ in range(20):
+                        if bucket_no_frames % tmp_segment_size == 0:
+                            found = True
+                            break
+                        tmp_segment_size += change_offset
+
+                if not found:
+                    raise ValueError(
+                        f"Could not find a segment size for {x} with {bucket_no_frames} frames"
+                    )
+
                 bucket_details[x] = {
                     "count": bucket_no_frames // tmp_segment_size,
                     "segment_size": tmp_segment_size,
                 }
 
+        # fmt: off
+        if "last_segment_size" in bucket_details[x]:
+            segment_list = [bucket_details[x]["segment_size"]] * (bucket_details[x]["count"] - 1) + [bucket_details[x]["last_segment_size"]]
+        else:
+            segment_list = [bucket_details[x]["segment_size"]] * bucket_details[x]["count"]
+
+        logging.info(f"{x:<35} {data[x].sequence_name:<40} {data[x].no_total_frames:<10} {bucket_details[x]['count']:<15} {segment_list}")
+        # fmt: on
+
     segment_list = []
     for x, y in bucket_details.items():
         if "last_segment_size" in y:
-            for count in range(y["count"]):
+            for count in range(y["count"] - 1):
                 start_idx = count * y["segment_size"]
                 end_idx = count * y["segment_size"] + y["segment_size"]
                 segment_list.append((x, (start_idx, end_idx)))
-            start_idx = (y["count"]) * y["segment_size"]
-            end_idx = (y["count"]) * y["segment_size"] + y["last_segment_size"]
+            start_idx = (y["count"] - 1) * y["segment_size"]
+            end_idx = (y["count"] - 1) * y["segment_size"] + y["last_segment_size"]
             segment_list.append((x, (start_idx, end_idx)))
         else:
             for count in range(y["count"]):
@@ -1229,21 +1271,23 @@ if __name__ == "__main__":
     log_summary(best_segment_loss_details, splits, classes)
 
     logging.info("Saving original split details...")
-    save_original_split_details(
+    save_split_details_and_config(
         target_path,
         bucket_details,
+        data,
         best_perm,
         best_segment_loss_details,
         splits,
         split_ratios,
     )
 
-    logging.info("Creating split folders and copying split files...")
-    create_and_copy_split(
-        target_path,
-        data,
-        best_perm,
-        best_segment_loss_details["split_idx_ranges"],
-        splits,
-        args.p,
-    )
+    if args.create:
+        logging.info("Creating split folders and copying split files...")
+        create_and_copy_split(
+            target_path,
+            data,
+            best_perm,
+            best_segment_loss_details["split_idx_ranges"],
+            splits,
+            args.p,
+        )

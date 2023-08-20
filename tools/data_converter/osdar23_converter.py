@@ -3,13 +3,13 @@ import logging
 import multiprocessing.pool as mpp
 import os
 import re
-import shutil
 from collections import defaultdict
 from glob import glob
 from typing import Any, Dict, List, Optional
 
 import mmcv
 import numpy as np
+from PIL import Image
 from pypcd import pypcd
 from scipy.spatial.transform import Rotation
 from tqdm import tqdm
@@ -70,46 +70,52 @@ rgb_highres_center_intrinsic = np.array(
         [7267.95450880415, 0.0, 2056.049238502414],
         [0.0, 7267.95450880415, 1232.862908875167],
         [0.0, 0.0, 1.0],
-    ]
+    ],
+    dtype=np.float32,
 )
 rgb_highres_left_intrinsic = np.array(
     [
         [7265.09513308939, 0.0, 2099.699693520321],
         [0.0, 7265.09513308939, 1217.709330768128],
         [0.0, 0.0, 1.0],
-    ]
+    ],
+    dtype=np.float32,
 )
 rgb_highres_right_intrinsic = np.array(
     [
         [7265.854580654392, 0.0, 2093.506452810741],
         [0.0, 7265.854580654392, 1228.255759518024],
         [0.0, 0.0, 1.0],
-    ]
+    ],
+    dtype=np.float32,
 )
 rgb_center_intrinsic = np.array(
     [
         [4609.471892628096, 0.0, 1257.158605934],
         [0.0, 4609.471892628096, 820.0498076210201],
         [0.0, 0.0, 1.0],
-    ]
+    ],
+    dtype=np.float32,
 )
 rgb_left_intrinsic = np.array(
     [
         [4622.041473915607, 0.0, 1233.380196060109],
         [0.0, 4622.041473915607, 843.3909933480334],
         [0.0, 0.0, 1.0],
-    ]
+    ],
+    dtype=np.float32,
 )
 rgb_right_intrinsic = np.array(
     [
         [4613.465257442901, 0.0, 1230.818284106724],
         [0.0, 4613.465257442901, 783.2495217495479],
         [0.0, 0.0, 1.0],
-    ]
+    ],
+    dtype=np.float32,
 )
 
 # lidar to ego
-lidar2ego = np.identity(3)
+lidar2ego = np.identity(4)[:-1, :]
 
 # cameras to ego
 rgb_highres_center2ego = np.array(
@@ -120,7 +126,7 @@ rgb_highres_center2ego = np.array(
         [0.0, 0.0, 0.0, 1.0],
     ],
     dtype=np.float32,
-)
+)[:-1, :]
 rgb_highres_left2ego = np.array(
     [
         [3.71020361e-01, -9.28624333e-01, 8.59490503e-04, -1.52546231e-01],
@@ -129,7 +135,7 @@ rgb_highres_left2ego = np.array(
         [0.00000000e00, 0.00000000e00, 0.00000000e00, 1.00000000e00],
     ],
     dtype=np.float32,
-)
+)[:-1, :]
 rgb_highres_right2ego = np.array(
     [
         [-0.36046879, -0.93257067, -0.01934439, -0.40367531],
@@ -138,7 +144,7 @@ rgb_highres_right2ego = np.array(
         [0.0, 0.0, 0.0, 1.0],
     ],
     dtype=np.float32,
-)
+)[:-1, :]
 rgb_center2ego = np.array(
     [
         [0.00543294, -0.99997782, -0.00385153, 0.00663742],
@@ -147,7 +153,7 @@ rgb_center2ego = np.array(
         [0.0, 0.0, 0.0, 1.0],
     ],
     dtype=np.float32,
-)
+)[:-1, :]
 rgb_left2ego = np.array(
     [
         [3.42535973e-01, -9.39504322e-01, -8.58207043e-04, 1.66848315e-01],
@@ -156,7 +162,7 @@ rgb_left2ego = np.array(
         [0.00000000e00, 0.00000000e00, 0.00000000e00, 1.00000000e00],
     ],
     dtype=np.float32,
-)
+)[:-1, :]
 rgb_right2ego = np.array(
     [
         [-0.36161439, -0.93213946, -0.01873648, -0.12648422],
@@ -165,7 +171,7 @@ rgb_right2ego = np.array(
         [0.0, 0.0, 0.0, 1.0],
     ],
     dtype=np.float32,
-)
+)[:-1, :]
 
 # cameras to lidar
 rgb_highres_center2lidar = rgb_highres_center2ego.copy()
@@ -188,6 +194,7 @@ class OSDAR23Converter:
         load_dir: str,
         save_dir: str,
         labels_path: Optional[str] = None,
+        images_path: Optional[str] = None,
         num_workers: int = 4,
     ):
         """
@@ -197,13 +204,17 @@ class OSDAR23Converter:
             load_dir (str): Directory to load OSDAR23 raw data.
             save_dir (str): Directory to save data.
             labels_path (str): Path of labels.
+            images_path (str): Path of images.
+            num_workers (int): Number of workers to process data.
         """
 
         self.splits = splits
         self.load_dir = load_dir
         self.save_dir = save_dir
-        self.labels_path = labels_path
-        self.point_cloud_save_dir = "point_clouds"
+        self.labels_path = labels_path if labels_path else os.path.join(self.load_dir, "lidar")
+        self.images_path = images_path if images_path else os.path.join(self.load_dir, "images")
+        self.point_cloud_foldername = "lidar"
+        self.images_foldername = "images"
         self.num_workers = num_workers
 
         self.imagesets: Dict[str, list] = {x: [] for x in splits}
@@ -243,44 +254,93 @@ class OSDAR23Converter:
             logging.info(f"OSDAR23 Conversion - split: {split}")
 
             split_source_path = os.path.join(self.load_dir, self.map_version_to_dir[split])
-            self._create_folder(split)
+            splt_target_path = os.path.join(self.save_dir, self.map_version_to_dir[split])
+            os.makedirs(splt_target_path, exist_ok=True, mode=0o777)
 
             test = True if split == "testing" else False
 
-            pcd_list = sorted(glob(os.path.join(split_source_path, "lidar", "*")), key=natural_key)
-
-            with mpp.Pool(processes=self.num_workers) as pool:
-                pool.starmap_async(
-                    self.convert_pcd_to_bin,
-                    [
-                        (x, os.path.join(self.point_cloud_save_dir, x.split("/")[-1][:-4]))
-                        for x in pcd_list
-                    ],
-                )
-                pool.close()
-                pool.join()
-
-            pcd_list = [
-                os.path.join(self.point_cloud_save_dir, x.split("/")[-1][:-4]) + ".bin"
-                for x in pcd_list
-            ]
-            pcd_labels_list = sorted(
-                glob(os.path.join(split_source_path, "labels_point_clouds", "*")), key=natural_key
+            pcd_list = sorted(
+                glob(os.path.join(split_source_path, self.point_cloud_foldername, "*")),
+                key=natural_key,
             )
-            img_lists = defaultdict(list)
+
+            os.makedirs(
+                os.path.join(splt_target_path, self.point_cloud_foldername),
+                exist_ok=True,
+                mode=0o777,
+            )
 
             if use_highres:
                 img_types = ["rgb_highres_center", "rgb_highres_left", "rgb_highres_right"]
             else:
                 img_types = ["rgb_center", "rgb_left", "rgb_right"]
 
+            img_lists = defaultdict(list)
             for img_type in img_types:
                 img_lists[img_type].extend(
                     sorted(
-                        glob(os.path.join(split_source_path, "images", img_type, "*")),
+                        glob(
+                            os.path.join(split_source_path, self.images_foldername, img_type, "*")
+                        ),
                         key=natural_key,
                     )
                 )
+                os.makedirs(
+                    os.path.join(splt_target_path, self.images_foldername, img_type),
+                    exist_ok=True,
+                    mode=0o777,
+                )
+
+            # convert pcd to bin and transfer them
+            logging.info("Converting pcd files to bin files")
+            with mpp.Pool(processes=self.num_workers) as pool:
+                pool.starmap_async(
+                    self.convert_pcd_to_bin,
+                    [
+                        (
+                            x,
+                            os.path.join(
+                                splt_target_path, self.point_cloud_foldername, x.split("/")[-1][:-4]
+                            ),
+                        )
+                        for x in pcd_list
+                    ],
+                )
+                pool.close()
+                pool.join()
+
+            # convert images to jpg and transfer them
+            for img_type, img_details in img_lists.items():
+                logging.info(f"Converting {img_type} files to jpg files")
+                for img in tqdm(img_details, total=len(img_details), desc=f"{img_type} files"):
+                    self.convert_png_to_jpg(
+                        img,
+                        os.path.join(
+                            splt_target_path,
+                            self.images_foldername,
+                            img_type,
+                            img.split("/")[-1][:-4],
+                        ),
+                    )
+
+            for img_type, img_details in img_lists.items():
+                img_lists[img_type] = [
+                    os.path.join(
+                        splt_target_path, self.images_foldername, img_type, x.split("/")[-1][:-4]
+                    )
+                    + ".jpg"
+                    for x in img_details
+                ]
+            pcd_list = [
+                os.path.join(splt_target_path, self.point_cloud_foldername, x.split("/")[-1][:-4])
+                + ".bin"
+                for x in pcd_list
+            ]
+
+            pcd_labels_list = sorted(
+                glob(os.path.join(split_source_path, "labels_point_clouds", "*")),
+                key=natural_key,
+            )
 
             infos_list = self._fill_infos(pcd_list, img_lists, pcd_labels_list, False)
             metadata = dict(version="1.0.0")
@@ -344,7 +404,7 @@ class OSDAR23Converter:
                     "type": img_type,
                     "lidar2image": eval(f"lidar2{img_type}"),
                     "sensor2ego": eval(f"{img_type}2ego"),
-                    "sensor2lidar": eval(f"lidar2{img_type}"),
+                    "sensor2lidar": eval(f"{img_type}2lidar"),
                     "camera_intrinsics": eval(f"{img_type}_intrinsic"),
                     "timestamp": None,
                 }
@@ -426,14 +486,18 @@ class OSDAR23Converter:
         bin_format = np.column_stack((np_x, np_y, np_z, np_i, np_ts, np_sensor_index)).flatten()
         bin_format.tofile(os.path.join(f"{out_file}.bin"))
 
-    def _create_folder(self, split: str) -> None:
+    @staticmethod
+    def convert_png_to_jpg(file: str, out_file: str) -> None:
         """
-        Create folder for data preprocessing.
+        Convert file from .png to .jpg
+
+        Args:
+            file: Filepath to .png
+            out_file: Filepath of .jpg
         """
-        split_path = self.map_version_to_dir[split]
-        logging.info(f"Creating folder - split_path: {split_path}")
-        self.point_cloud_save_dir = os.path.join(self.save_dir, split_path)
-        os.makedirs(self.point_cloud_save_dir, exist_ok=True, mode=0o777)
+        img = Image.open(file).convert("RGB")
+        with open(out_file + ".jpg", "w") as f:
+            img.save(f, "JPEG")
 
 
 def natural_key(string_):

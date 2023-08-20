@@ -173,7 +173,7 @@ def visualize_camera_combined(
         and gt_bboxes is not None
         and len(gt_bboxes) > 0
     ):
-        if dataset == "TUMTrafIntersectionDataset":
+        if dataset in ["TUMTrafIntersectionDataset", "OSDAR23Dataset"]:
             transform = np.vstack([transform, np.asarray([0, 0, 0, 1])])
         else:
             transform = copy.deepcopy(transform).reshape(4, 4)

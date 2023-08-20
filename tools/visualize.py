@@ -22,7 +22,7 @@ from mmdet3d.core.utils.visualize import (
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_model
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def recursive_eval(obj, globals=None):
@@ -76,9 +76,6 @@ def main() -> None:
     torch.backends.cudnn.benchmark = cfg.cudnn_benchmark
     torch.cuda.set_device(dist.local_rank())
 
-    # build the dataloader
-    # if args.split != "train" and cfg.data[args.split].type == "TUMTrafIntersectionDataset":
-    #     cfg.data[args.split].online = False
     dataset = build_dataset(cfg.data[args.split])
     dataflow = build_dataloader(
         dataset,
@@ -157,10 +154,18 @@ def main() -> None:
                 gt_bboxes = data["gt_bboxes_3d"].data[0][0].tensor.numpy()
                 gt_labels = data["gt_labels_3d"].data[0][0].numpy()
 
-                if args.bbox_classes is not None:
-                    gt_indices = np.isin(gt_labels, args.bbox_classes)
-                    gt_bboxes = bboxes[gt_indices]
-                    gt_labels = labels[gt_indices]
+                gt_indices = np.isin(gt_labels, [dataset.CLASS_IDS[x] for x in dataset.CLASSES])
+
+                gt_bboxes_l = []
+                gt_labels_l = []
+                for i, b in enumerate(gt_indices):
+                    if b:
+                        gt_bboxes_l.append(gt_bboxes[i])
+                        gt_labels_l.append(gt_labels[i])
+
+                gt_bboxes = np.array(gt_bboxes_l)
+                gt_labels = np.array(gt_labels_l)
+
                 if cfg.data.train.dataset.type not in [
                     "TUMTrafIntersectionDataset",
                     "OSDAR23Dataset",
@@ -191,8 +196,13 @@ def main() -> None:
         if "img" in data:
             for k, image_path in enumerate(metas["filename"]):
                 image = mmcv.imread(image_path)
+
+                filenames = metas["filename"]
+                img_type = filenames[k].split("/")[-2]
+                basename = filenames[k].split("/")[-1][:-4]
+
                 visualize_camera(
-                    os.path.join(args.out_dir, f"camera-{k}-pred", f"{name}.jpg"),
+                    os.path.join(args.out_dir, f"camera-{img_type}-pred", f"{basename}.jpg"),
                     image,
                     bboxes=bboxes,
                     labels=labels,
@@ -202,7 +212,9 @@ def main() -> None:
                 )
                 if args.include_combined:
                     visualize_camera_combined(
-                        os.path.join(args.out_dir, f"camera-{k}-combined", f"{name}.jpg"),
+                        os.path.join(
+                            args.out_dir, f"camera-{img_type}-combined", f"{basename}.jpg"
+                        ),
                         image,
                         pred_bboxes=bboxes,
                         gt_bboxes=gt_bboxes,
@@ -210,9 +222,10 @@ def main() -> None:
                         dataset=cfg.data.train.dataset.type,
                     )
 
+        basename = metas["lidar_path"].split("/")[-1][:-4]
         if "points" in data:
             visualize_lidar(
-                os.path.join(args.out_dir, "bev-pred", f"{name}.jpg"),
+                os.path.join(args.out_dir, "bev-pred", f"{basename}.jpg"),
                 lidar,
                 bboxes=bboxes,
                 labels=labels,
@@ -223,7 +236,7 @@ def main() -> None:
             )
             if args.include_combined:
                 visualize_lidar_combined(
-                    os.path.join(args.out_dir, "bev-combined", f"{name}.jpg"),
+                    os.path.join(args.out_dir, "bev-combined", f"{basename}.jpg"),
                     lidar,
                     pred_bboxes=bboxes,
                     gt_bboxes=gt_bboxes,
@@ -237,19 +250,19 @@ def main() -> None:
             bboxes = bboxes.tensor.numpy()
             if args.save_bboxes_dir:
                 os.makedirs(args.save_bboxes_dir, exist_ok=True)
-                np.save(os.path.join(args.save_bboxes_dir, f"{name}.npy"), bboxes)
+                np.save(os.path.join(args.save_bboxes_dir, f"{basename}.npy"), bboxes)
             else:
                 os.makedirs(os.path.join(args.out_dir, "bbox-pred"), exist_ok=True)
-                np.save(os.path.join(args.out_dir, "bbox-pred", f"{name}.npy"), bboxes)
+                np.save(os.path.join(args.out_dir, "bbox-pred", f"{basename}.npy"), bboxes)
 
         # save labels
         if args.save_labels and labels is not None:
             if args.save_labels_dir:
                 os.makedirs(args.save_labels_dir, exist_ok=True)
-                np.save(os.path.join(args.save_labels_dir, f"{name}.npy"), labels)
+                np.save(os.path.join(args.save_labels_dir, f"{basename}.npy"), labels)
             else:
                 os.makedirs(os.path.join(args.out_dir, "labels-pred"), exist_ok=True)
-                np.save(os.path.join(args.out_dir, "labels-pred", f"{name}.npy"), labels)
+                np.save(os.path.join(args.out_dir, "labels-pred", f"{basename}.npy"), labels)
 
         if masks is not None:
             visualize_map(

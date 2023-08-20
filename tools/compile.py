@@ -3,6 +3,7 @@ import csv
 import json
 import logging
 import os
+import re
 import subprocess
 from argparse import ArgumentParser, Namespace
 from glob import glob
@@ -34,12 +35,12 @@ OSDAR23_CLASSES = (
     "lidar__cuboid__signal",
     "lidar__cuboid__catenary_pole",
     "lidar__cuboid__signal_pole",
-    "lidar__cuboid__train",
+    # "lidar__cuboid__train",
     "lidar__cuboid__road_vehicle",
-    "lidar__cuboid__buffer_stop",
-    "lidar__cuboid__animal",
-    "lidar__cuboid__switch",
-    "lidar__cuboid__bicycle",
+    # "lidar__cuboid__buffer_stop",
+    # "lidar__cuboid__animal",
+    # "lidar__cuboid__switch",
+    # "lidar__cuboid__bicycle",
     # "lidar__cuboid__crowd",
     # "lidar__cuboid__wagons",
     # "lidar__cuboid__signal_bridge",
@@ -113,6 +114,10 @@ def get_args() -> Namespace:
     return parser.parse_args()
 
 
+def natural_key(string_):
+    return [int(s) if s.isdigit() else s for s in re.split(r"(\d+)", string_) if s]
+
+
 def compile_results(
     dataset: str,
     checkpoints: str,
@@ -171,7 +176,7 @@ def compile_results(
         loglevel (str, optional): logging level. Defaults to "info".
     """
 
-    # meta data
+    loglevel = loglevel.lower()
 
     chkpts = glob(os.path.join(checkpoints, "*"))
     results_w_category_dir = os.path.join(target_path, id)
@@ -192,6 +197,18 @@ def compile_results(
     if not skip_benchmark:
         logging.info("Benchmarking")
         benchmark(chkpts, results_w_category_dir, benchmark_filename, override_benchmark, loglevel)
+
+    if not skip_compile:
+        logging.info("Compiling results")
+        compile(
+            {os.path.basename(x): os.path.join(x, configs_filename) for x in chkpts},
+            test_results_compiled_path,
+            results_w_category_dir,
+            test_results_filename,
+            test_results_csv_filename,
+            benchmark_filename,
+            dataset,
+        )
 
     if not skip_images:
         logging.info("Creating images")
@@ -216,18 +233,6 @@ def compile_results(
             videos_foldername,
             override_videos,
             loglevel,
-        )
-
-    if not skip_compile:
-        logging.info("Compiling results")
-        compile(
-            {os.path.basename(x): os.path.join(x, configs_filename) for x in chkpts},
-            test_results_compiled_path,
-            results_w_category_dir,
-            test_results_filename,
-            test_results_csv_filename,
-            benchmark_filename,
-            dataset,
         )
 
 
@@ -332,7 +337,6 @@ def create_images(
 
         if images_include_combined:
             command += " --include-combined"
-        print("loglevel", loglevel)
 
         if not loglevel == "debug":
             command += " > /dev/null 2>&1"
@@ -409,7 +413,9 @@ def create_videos(
             continue
 
         logging.info(f"Creating videos for {x}")
-        for source_folder_dir in glob(os.path.join(x, images_foldername, "*")):
+        for source_folder_dir in sorted(
+            glob(os.path.join(x, images_foldername, "*")), key=natural_key
+        ):
             folder_name = os.path.basename(source_folder_dir)
             if not os.path.isdir(source_folder_dir):
                 continue
@@ -420,7 +426,7 @@ def create_videos(
             if not loglevel == "debug":
                 command += " > /dev/null 2>&1"
 
-            logging.info(f"Creating {folder_name} videos for {x}")
+            logging.info(f"Creating {folder_name} video for {x}")
             os.system(command)
 
 
@@ -636,5 +642,5 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
 
 if __name__ == "__main__":
     args = get_args()
-    logging.basicConfig(level=args.loglevel.lower())
+    logging.basicConfig(level=args.loglevel.upper())
     compile_results(**vars(args))
