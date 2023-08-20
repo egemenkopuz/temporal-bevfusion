@@ -1,4 +1,4 @@
-<h1 align="center">Temporal BEVFusion</h1>
+<h1 align="center">Multi-Modal 3D Object Detection in Long Range and Low-Resolution Conditions of Sensors</h1>
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.8-blue.svg" alt="Python 3.8"></a>
@@ -101,7 +101,7 @@ python tools/preprocessing/tumtraf_add_difficulty_labels.py --root-path ./data/t
 3 - You can then run the following command to find the optimally balanced split and split the dataset into training, validation and test sets (reduce the 'perm-limit' or increase the 'p' if it is taking too long to finish):
 
 ```bash
-python tools/preprocessing/create_a9_temporal_split.py --root-path ./data/tumtraf-i-no-split --out-path ./data/tumtraf-i --seed 42 --segment-size 30 --perm-limit 60000 --loglevel INFO -p 6 --include-all-classes --include-all-sequences  --include-same-classes-in-difficulty --difficulty-th 1.0 --include-same-classes-in-distance --distance-th 1.0 --include-same-classes-in-num-points --num-points-th 1.0 --include-same-classes-in-occlusion --occlusion-th 0.75 --point-cloud-range -25.0 -64.0 -10.0 64.0 64.0 0.0 --splits train val test --split-ratios 0.8 0.1 0.1 --exclude-classes OTHER
+python tools/preprocessing/tumtraf_find_temporal_split.py --create --root-path ./data/tumtraf-i-no-split --out-path ./data/tumtraf-i --seed 42 --segment-size 30 --perm-limit 60000 --loglevel INFO -p 6 --include-all-classes --include-all-sequences  --include-same-classes-in-difficulty --difficulty-th 1.0 --include-same-classes-in-distance --distance-th 1.0 --include-same-classes-in-num-points --num-points-th 1.0 --include-same-classes-in-occlusion --occlusion-th 0.75 --point-cloud-range -25.0 -64.0 -10.0 64.0 64.0 0.0 --splits train val test --split-ratios 0.8 0.1 0.1 --exclude-classes OTHER
 ```
 
 4 - In order to make new seperate sequence segments into to their own pseudo sequences, run the following command to tokenize the dataset again:
@@ -134,10 +134,16 @@ python tools/preprocessing/osdar23_prepare.py --root-path ./data/osdar23_origina
 2 - You can then run the following command to find the optimally balanced split and split the dataset into training, validation and test sets (reduce the 'perm-limit' or increase the 'p' if it is taking too long to finish):
 
 ```bash
-python tools/preprocessing/osdar23_create_temporal_split.py --root-path ./data/osdar23_original --out-path ./data/osdar23 --seed 1337 --segment-size 20 --perm-limit 60000 --loglevel INFO -p 6 --include-all-classes --include-same-classes-in-distance --distance-th 0.9 --include-same-classes-in-num-points --num-points-th 0.9 --include-same-classes-in-occlusion --occlusion-th 0.85 --point-cloud-range -6.0 -156.0 -3.0 306.0 156.0 13.0 --splits train val --split-ratios 0.8 0.2 --exclude-classes lidar__cuboid__crowd lidar__cuboid__wagons lidar__cuboid__signal_bridge
+python tools/preprocessing/osdar23_find_temporal_split.py --create --root-path ./data/osdar23_original --out-path ./data/osdar23 --seed 1337 --segment-size 30 --perm-limit 60000 --loglevel INFO -p 6 --include-all-classes --include-same-classes-in-distance --distance-th 0.95 --include-same-classes-in-num-points --num-points-th 0.95 --include-same-classes-in-occlusion --occlusion-th 0.85 --point-cloud-range -6.0 -128.0 -3.0 250.0 128.0 13.0 --splits train val --split-ratios 0.8 0.2 --exclude-classes lidar__cuboid__train lidar__cuboid__buffer_stop lidar__cuboid__animal lidar__cuboid__switch lidar__cuboid__bicycle lidar__cuboid__crowd lidar__cuboid__wagons lidar__cuboid__signal_bridge
 ```
 
-3 - Finally, you can then run the following command to create the ready-to-go version of the dataset:
+4 - In order to make new seperate sequence segments into to their own pseudo sequences, run the following command to tokenize the dataset again:
+
+```bash
+python tools/preprocessing/osdar23_tokenize.py --root-path data/osdar23 --log INFO
+```
+
+5 - Finally, you can then run the following command to create the ready-to-go version of the dataset:
 
 ```bash
 python tools/create_data.py osdar23 --root-path ./data/osdar23 --out-dir ./data/osdar23-bevfusion --use-highres --loglevel INFO
