@@ -1064,7 +1064,7 @@ def log_summary(
     split_occlusion_ratios = best_segment_loss_details["occlusion"]["split_ratios"]
     occlusion_levels = OCCLUSION_LEVELS
     out.append(log_table(header, classes, splits, split_occlusion_counts, split_occlusion_ratios, occlusion_levels, 15, True, "", "Class"))
-    # fmt: off
+    # fmt: on
 
     logging.info("\n".join(out))
 

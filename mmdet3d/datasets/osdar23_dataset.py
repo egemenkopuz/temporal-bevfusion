@@ -578,16 +578,14 @@ class OSDAR23Dataset(Custom3DDataset):
         all_annotations = {}
 
         for i, info in enumerate(self.data_infos):
-            json1_file = open(info["lidar_anno_path"])
-            json1_str = json1_file.read()
-            lidar_annotation = json.loads(json1_str)
+            with open(info["lidar_anno_path"], "rb") as f:
+                lidar_annotation = json.load(f)
 
-            lidar_anno_frame = {}
+            frame_idx = list(lidar_annotation["openlabel"]["frames"].keys())[0]
+            lidar_anno_frame = lidar_annotation["openlabel"]["frames"][frame_idx]
+            lidar_stream = lidar_anno_frame["frame_properties"]["streams"]["lidar"]
 
-            for j in lidar_annotation["openlabel"]["frames"]:
-                lidar_anno_frame = lidar_annotation["openlabel"]["frames"][j]
-
-            timestamp = str(lidar_anno_frame["frame_properties"]["timestamp"])
+            timestamp = lidar_stream["stream_properties"]["sync"]["timestamp"]
 
             sample_boxes = []
 
