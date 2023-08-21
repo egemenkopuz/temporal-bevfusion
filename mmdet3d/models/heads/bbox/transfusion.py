@@ -279,7 +279,7 @@ class TransFusionHead(nn.Module):
         top_proposals = heatmap.view(batch_size, -1).argsort(dim=-1, descending=True)[
             ..., : self.num_proposals
         ]
-        top_proposals_class = top_proposals // heatmap.shape[-1]
+        top_proposals_class = torch.div(top_proposals, heatmap.shape[-1], rounding_mode="trunc")
         top_proposals_index = top_proposals % heatmap.shape[-1]
         query_feat = lidar_feat_flatten.gather(
             index=top_proposals_index[:, None, :].expand(-1, lidar_feat_flatten.shape[1], -1),
@@ -528,7 +528,9 @@ class TransFusionHead(nn.Module):
         grid_size = torch.tensor(self.train_cfg["grid_size"])
         pc_range = torch.tensor(self.train_cfg["point_cloud_range"])
         voxel_size = torch.tensor(self.train_cfg["voxel_size"])
-        feature_map_size = grid_size[:2] // self.train_cfg["out_size_factor"]  # [x_len, y_len]
+        feature_map_size = torch.div(
+            grid_size[:2], self.train_cfg["out_size_factor"], rounding_mode="trunc"
+        )
         heatmap = gt_bboxes_3d.new_zeros(
             self.num_classes, int(feature_map_size[1]), int(feature_map_size[0])
         )
@@ -774,22 +776,29 @@ class TransFusionHead(nn.Module):
             elif self.test_cfg["dataset"] == "OSDAR23":
                 self.tasks = [
                     dict(
-                        num_class=1,
-                        class_names=["lidar__cuboid__person"],
-                        indices=[0],
-                        radius=0.4,
+                        num_class=1, class_names=["lidar__cuboid__person"], indices=[0], radius=0.4
+                    ),
+                    dict(
+                        num_class=1, class_names=["lidar__cuboid__signal"], indices=[1], radius=0.5
                     ),
                     dict(
                         num_class=1,
                         class_names=["lidar__cuboid__catenary_pole"],
-                        indices=[1],
+                        indices=[2],
                         radius=0.7,
                     ),
                     dict(
                         num_class=1,
                         class_names=["lidar__cuboid__signal_pole"],
-                        indices=[2],
+                        indices=[3],
                         radius=0.7,
+                    ),
+                    dict(num_class=2, class_names=[], indices=[4, 5], radius=1),
+                    dict(
+                        num_class=1,
+                        class_names=["lidar__cuboid__animal"],
+                        indices=[6],
+                        radius=0.4,
                     ),
                 ]
 
