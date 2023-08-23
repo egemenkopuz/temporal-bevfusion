@@ -291,46 +291,62 @@ class OSDAR23Converter:
                     mode=0o777,
                 )
 
+            os.makedirs(
+                os.path.join(splt_target_path, "labels_point_clouds"),
+                exist_ok=True,
+                mode=0o777,
+            )
+
             # convert pcd to bin and transfer them
-            logging.info("Converting pcd files to bin files")
-            with mpp.Pool(processes=self.num_workers) as pool:
-                pool.starmap_async(
-                    self.convert_pcd_to_bin,
-                    [
-                        (
-                            x,
-                            os.path.join(
-                                splt_target_path, self.point_cloud_foldername, x.split("/")[-1][:-4]
-                            ),
-                        )
-                        for x in pcd_list
-                    ],
-                )
-                pool.close()
-                pool.join()
+            # logging.info("Converting pcd files to bin files")
+            # with mpp.Pool(processes=self.num_workers) as pool:
+            #     pool.starmap_async(
+            #         self.convert_pcd_to_bin,
+            #         [
+            #             (
+            #                 x,
+            #                 os.path.join(
+            #                     splt_target_path, self.point_cloud_foldername, x.split("/")[-1][:-4]
+            #                 ),
+            #             )
+            #             for x in pcd_list
+            #         ],
+            #     )
+            #     pool.close()
+            #     pool.join()
 
-            # convert images to jpg and transfer them
-            for img_type, img_details in img_lists.items():
-                logging.info(f"Converting {img_type} files to jpg files")
-                for img in tqdm(img_details, total=len(img_details), desc=f"{img_type} files"):
-                    self.convert_png_to_jpg(
-                        img,
-                        os.path.join(
-                            splt_target_path,
-                            self.images_foldername,
-                            img_type,
-                            img.split("/")[-1][:-4],
-                        ),
-                    )
+            # # convert images to jpg and transfer them
+            # for img_type, img_details in img_lists.items():
+            #     logging.info(f"Converting {img_type} files to jpg files")
+            #     for img in tqdm(img_details, total=len(img_details), desc=f"{img_type} files"):
+            #         self.convert_png_to_jpg(
+            #             img,
+            #             os.path.join(
+            #                 splt_target_path,
+            #                 self.images_foldername,
+            #                 img_type,
+            #                 img.split("/")[-1][:-4],
+            #             ),
+            #         )
 
-            for img_type, img_details in img_lists.items():
-                img_lists[img_type] = [
-                    os.path.join(
-                        splt_target_path, self.images_foldername, img_type, x.split("/")[-1][:-4]
-                    )
-                    + ".jpg"
-                    for x in img_details
-                ]
+            # for img_type, img_details in img_lists.items():
+            #     img_lists[img_type] = [
+            #         os.path.join(
+            #             splt_target_path, self.images_foldername, img_type, x.split("/")[-1][:-4]
+            #         )
+            #         + ".jpg"
+            #         for x in img_details
+            #     ]
+
+            # transfer pcd labels
+            logging.info("Transferring pcd labels")
+            pcd_labels_list = sorted(
+                glob(os.path.join(split_source_path, "labels_point_clouds", "*")),
+                key=natural_key,
+            )
+            for pcd_label in tqdm(pcd_labels_list, total=len(pcd_labels_list), desc="pcd labels"):
+                os.system(f"cp {pcd_label} {os.path.join(splt_target_path, 'labels_point_clouds')}")
+
             pcd_list = [
                 os.path.join(splt_target_path, self.point_cloud_foldername, x.split("/")[-1][:-4])
                 + ".bin"
@@ -338,7 +354,7 @@ class OSDAR23Converter:
             ]
 
             pcd_labels_list = sorted(
-                glob(os.path.join(split_source_path, "labels_point_clouds", "*")),
+                glob(os.path.join(splt_target_path, "labels_point_clouds", "*")),
                 key=natural_key,
             )
 
