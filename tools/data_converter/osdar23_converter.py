@@ -298,45 +298,45 @@ class OSDAR23Converter:
             )
 
             # convert pcd to bin and transfer them
-            # logging.info("Converting pcd files to bin files")
-            # with mpp.Pool(processes=self.num_workers) as pool:
-            #     pool.starmap_async(
-            #         self.convert_pcd_to_bin,
-            #         [
-            #             (
-            #                 x,
-            #                 os.path.join(
-            #                     splt_target_path, self.point_cloud_foldername, x.split("/")[-1][:-4]
-            #                 ),
-            #             )
-            #             for x in pcd_list
-            #         ],
-            #     )
-            #     pool.close()
-            #     pool.join()
+            logging.info("Converting pcd files to bin files")
+            with mpp.Pool(processes=self.num_workers) as pool:
+                pool.starmap_async(
+                    self.convert_pcd_to_bin,
+                    [
+                        (
+                            x,
+                            os.path.join(
+                                splt_target_path, self.point_cloud_foldername, x.split("/")[-1][:-4]
+                            ),
+                        )
+                        for x in pcd_list
+                    ],
+                )
+                pool.close()
+                pool.join()
 
-            # # convert images to jpg and transfer them
-            # for img_type, img_details in img_lists.items():
-            #     logging.info(f"Converting {img_type} files to jpg files")
-            #     for img in tqdm(img_details, total=len(img_details), desc=f"{img_type} files"):
-            #         self.convert_png_to_jpg(
-            #             img,
-            #             os.path.join(
-            #                 splt_target_path,
-            #                 self.images_foldername,
-            #                 img_type,
-            #                 img.split("/")[-1][:-4],
-            #             ),
-            #         )
+            # convert images to jpg and transfer them
+            for img_type, img_details in img_lists.items():
+                logging.info(f"Converting {img_type} files to jpg files")
+                for img in tqdm(img_details, total=len(img_details), desc=f"{img_type} files"):
+                    self.convert_png_to_jpg(
+                        img,
+                        os.path.join(
+                            splt_target_path,
+                            self.images_foldername,
+                            img_type,
+                            img.split("/")[-1][:-4],
+                        ),
+                    )
 
-            # for img_type, img_details in img_lists.items():
-            #     img_lists[img_type] = [
-            #         os.path.join(
-            #             splt_target_path, self.images_foldername, img_type, x.split("/")[-1][:-4]
-            #         )
-            #         + ".jpg"
-            #         for x in img_details
-            #     ]
+            for img_type, img_details in img_lists.items():
+                img_lists[img_type] = [
+                    os.path.join(
+                        splt_target_path, self.images_foldername, img_type, x.split("/")[-1][:-4]
+                    )
+                    + ".jpg"
+                    for x in img_details
+                ]
 
             # transfer pcd labels
             logging.info("Transferring pcd labels")
