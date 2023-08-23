@@ -1132,6 +1132,10 @@ class OSDAR23Dataset(Custom3DDataset):
                 curr_gt_boxes, verbose=verbose
             )
             curr_gt_classes = [i for i in self.CLASSES if i in curr_gt_classes]
+            curr_gt_class_counts = {
+                k: v for k, v in curr_gt_class_counts.items() if k in curr_gt_classes
+            }
+            total_curr_gt_class_counts = sum(curr_gt_class_counts.values())
 
             start_time = time.time()
 
@@ -1227,8 +1231,7 @@ class OSDAR23Dataset(Custom3DDataset):
                 print(f"{eval_name} - {err_name_mapping[tp_name]}: {tp_val:.4f}")
             print(f"{eval_name} - NDS: {metrics_summary['nd_score']:.4f}")
             print("Eval time: %.1fs" % metrics_summary["eval_time"])
-            total_gt_bboxes = sum([len(x) for x in curr_gt_boxes.values()])
-            print(f"Total number of gt bboxes: {total_gt_bboxes}")
+            print(f"Total number of gt bboxes: {total_curr_gt_class_counts}")
             print(f"GT class counts: {curr_gt_class_counts}")
 
             # Print per-class metrics.
@@ -1248,7 +1251,7 @@ class OSDAR23Dataset(Custom3DDataset):
                     )
                 )
 
-            metrics_summary["total_gt_bboxes"] = total_gt_bboxes
+            metrics_summary["total_gt_bboxes"] = total_curr_gt_class_counts
             metrics_summary["class_counts"] = {}
             for x in self.CLASSES:
                 if x in curr_gt_class_counts:
