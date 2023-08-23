@@ -248,16 +248,17 @@ class BEVFusion(Base3DFusionModel):
 
             if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
                 # assuming batch size = 1
+                basename = metas[0]["lidar_path"].split("/")[-1][:-4]
                 visualize_bev_feature(
                     os.path.join(
                         self.save_bev_features["out_dir"],
                         f"bev-feat-{sensor}",
-                        f"{metas[0]['timestamp']}.png",
+                        f"{basename}.png",
                     ),
                     feature.clone().detach().cpu().numpy().squeeze(),
                     self.save_bev_features["xlim"],
                     self.save_bev_features["ylim"],
-                    True,
+                    self.save_bev_features["dataset"],
                 )
 
             features.append(feature)
@@ -273,16 +274,17 @@ class BEVFusion(Base3DFusionModel):
             x = features[0]
 
         if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
+            basename = metas[0]["lidar_path"].split("/")[-1][:-4]
             visualize_bev_feature(
                 os.path.join(
                     self.save_bev_features["out_dir"],
                     "bev-feat-fused",
-                    f"{metas[0]['timestamp']}.png",
+                    f"{basename}.png",
                 ),
                 x.clone().detach().cpu().numpy().squeeze(),
                 self.save_bev_features["xlim"],
                 self.save_bev_features["ylim"],
-                True,
+                self.save_bev_features["dataset"],
             )
 
         batch_size = x.shape[0]
