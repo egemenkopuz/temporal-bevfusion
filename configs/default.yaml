@@ -8,10 +8,8 @@ checkpoint_config:
 log_config:
   interval: 50
   hooks:
-    -
-      type: TextLoggerHook
-    -
-      type: TensorboardLoggerHook
+    - type: TextLoggerHook
+    - type: TensorboardLoggerHook
 
 load_from: null
 resume_from: null
@@ -20,6 +18,10 @@ cudnn_benchmark: false
 fp16:
   loss_scale:
     growth_interval: 2000
+
+data:
+  samples_per_gpu: ${samples_per_gpu}
+  workers_per_gpu: ${workers_per_gpu}
 
 max_epochs: 20
 runner:

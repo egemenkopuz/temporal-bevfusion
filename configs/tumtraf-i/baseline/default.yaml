@@ -1,0 +1,53 @@
+queue_length: 0 # non-temporal
+queue_range_threshold: 0 # non-temporal
+
+model:
+  type: BEVFusion
+  encoders: null
+  fuser: null
+  heads:
+    map: null
+
+data:
+  train:
+    type: CBGSDataset
+    temporal: false
+    dataset:
+      type: ${dataset_type}
+      dataset_root: ${dataset_root}
+      ann_file: ${dataset_root + "tumtraf_infos_train.pkl"}
+      pipeline: ${train_pipeline}
+      object_classes: ${object_classes}
+      modality: ${input_modality}
+      test_mode: false
+      online: false
+      queue_length: ${queue_length}
+      queue_range_threshold: ${queue_range_threshold}
+      use_valid_flag: true
+      box_type_3d: LiDAR
+  val:
+    type: ${dataset_type}
+    dataset_root: ${dataset_root}
+    ann_file: ${dataset_root + "tumtraf_infos_val.pkl"}
+    pipeline: ${test_pipeline}
+    object_classes: ${object_classes}
+    modality: ${input_modality}
+    test_mode: true
+    online: false
+    queue_length: ${queue_length}
+    queue_range_threshold: ${queue_range_threshold}
+    box_type_3d: LiDAR
+    eval_point_cloud_range: ${point_cloud_range}
+  test:
+    type: ${dataset_type}
+    dataset_root: ${dataset_root}
+    ann_file: ${dataset_root + "tumtraf_infos_test.pkl"}
+    pipeline: ${test_pipeline}
+    object_classes: ${object_classes}
+    modality: ${input_modality}
+    test_mode: true
+    online: false
+    queue_length: ${queue_length}
+    queue_range_threshold: ${queue_range_threshold}
+    box_type_3d: LiDAR
+    eval_point_cloud_range: ${point_cloud_range}
