@@ -214,14 +214,17 @@ def visualize_bev_feature(
     bev_feature: np.ndarray,
     xlim: Tuple[float, float] = (-50, 50),
     ylim: Tuple[float, float] = (-50, 50),
-    rotate: bool = False,
+    dataset: str = None,
 ) -> None:
     if bev_feature.ndim == 4:
         bev_feature = bev_feature[0]
     bev_feature = bev_feature / np.linalg.norm(bev_feature)
     bev_feature = np.sum(bev_feature, axis=0)
-    if rotate:
+
+    if dataset == "TUMTrafIntersectionDataset":
         bev_feature = np.rot90(bev_feature)
+    elif dataset == "OSDAR23Dataset":
+        bev_feature = np.rot90(np.rot90(bev_feature))
 
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
