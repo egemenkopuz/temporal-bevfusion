@@ -32,13 +32,13 @@ TUMTRAF_CLASSES = (
 
 OSDAR23_CLASSES = (
     "lidar__cuboid__person",
-    "lidar__cuboid__signal",
+    # "lidar__cuboid__signal",
     "lidar__cuboid__catenary_pole",
     "lidar__cuboid__signal_pole",
     # "lidar__cuboid__train",
     "lidar__cuboid__road_vehicle",
-    # "lidar__cuboid__buffer_stop",
-    # "lidar__cuboid__animal",
+    "lidar__cuboid__buffer_stop",
+    "lidar__cuboid__animal",
     # "lidar__cuboid__switch",
     # "lidar__cuboid__bicycle",
     # "lidar__cuboid__crowd",
