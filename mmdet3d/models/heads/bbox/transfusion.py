@@ -779,25 +779,22 @@ class TransFusionHead(nn.Module):
                         num_class=1, class_names=["lidar__cuboid__person"], indices=[0], radius=0.4
                     ),
                     dict(
-                        num_class=1, class_names=["lidar__cuboid__signal"], indices=[1], radius=0.5
-                    ),
-                    dict(
                         num_class=1,
                         class_names=["lidar__cuboid__catenary_pole"],
-                        indices=[2],
-                        radius=0.7,
+                        indices=[1],
+                        radius=1.0,
                     ),
                     dict(
                         num_class=1,
                         class_names=["lidar__cuboid__signal_pole"],
-                        indices=[3],
-                        radius=0.7,
+                        indices=[2],
+                        radius=1.0,
                     ),
-                    dict(num_class=2, class_names=[], indices=[4, 5], radius=1),
+                    dict(num_class=2, class_names=[], indices=[3, 4], radius=1),
                     dict(
                         num_class=1,
                         class_names=["lidar__cuboid__animal"],
-                        indices=[6],
+                        indices=[5],
                         radius=0.4,
                     ),
                 ]
