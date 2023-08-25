@@ -38,7 +38,7 @@ OSDAR23_CLASSES = (
     # "lidar__cuboid__train",
     "lidar__cuboid__road_vehicle",
     "lidar__cuboid__buffer_stop",
-    "lidar__cuboid__animal",
+    # "lidar__cuboid__animal",
     # "lidar__cuboid__switch",
     # "lidar__cuboid__bicycle",
     # "lidar__cuboid__crowd",
@@ -466,14 +466,6 @@ def compile(
                 writer = csv.DictWriter(f, fieldnames=headers)
                 writer.writeheader()
 
-                sensors = ""
-                if "lid" in id.lower():
-                    sensors += "L"
-                elif "cam" in id.lower():
-                    sensors += "C"
-                else:
-                    sensors += "LC"
-
                 # read benchmark data
                 benchmark_path = os.path.join(x, benchmark_filename)
                 benchmark_data = None
@@ -483,7 +475,6 @@ def compile(
                 for eval_type, eval_data in data.items():
                     row = {
                         "id": id,
-                        "sensors": sensors,
                         "test_fps": round(benchmark_data["fps"], 2),
                         "test_mem": round(benchmark_data["memory_allocated"], 2),
                         "eval_type": eval_type,
@@ -567,11 +558,18 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
     with open(config_path, "rb") as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
 
+    sensors = ""
+    if data["model"]["encoders"]["lidar"] is not None:
+        sensors += "L"
+    if data["model"]["encoders"]["camera"] is not None:
+        sensors += "C"
+
     meta = {
         "pcd_dim": data["use_dim"],
         "voxel_size": data["voxel_size"][0],
         "ql": data["queue_length"],
         "qrt": data["queue_range_threshold"],
+        "sensors": sensors,
     }
 
     decoder = data["model"]["decoder"]

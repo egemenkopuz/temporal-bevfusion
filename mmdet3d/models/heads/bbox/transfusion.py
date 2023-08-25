@@ -791,12 +791,6 @@ class TransFusionHead(nn.Module):
                         radius=1.0,
                     ),
                     dict(num_class=2, class_names=[], indices=[3, 4], radius=1),
-                    dict(
-                        num_class=1,
-                        class_names=["lidar__cuboid__animal"],
-                        indices=[5],
-                        radius=0.4,
-                    ),
                 ]
 
             ret_layer = []

@@ -21,14 +21,13 @@ augment3d: # default
   rotate: [-0.78539816, 0.78539816]
   translate: 0.5
 
-no_classes: 6
+no_classes: 5
 object_classes:
   - lidar__cuboid__person
   - lidar__cuboid__catenary_pole
   - lidar__cuboid__signal_pole
   - lidar__cuboid__road_vehicle
   - lidar__cuboid__buffer_stop
-  - lidar__cuboid__animal
 
 input_modality:
   use_lidar: true
@@ -64,15 +63,13 @@ train_pipeline:
           lidar__cuboid__signal_pole: 5
           lidar__cuboid__road_vehicle: 5
           lidar__cuboid__buffer_stop: 5
-          lidar__cuboid__animal: 5
       classes: ${object_classes}
       sample_groups:
-        lidar__cuboid__person: 2
-        lidar__cuboid__catenary_pole: 3
-        lidar__cuboid__signal_pole: 3
+        lidar__cuboid__person: 7
+        lidar__cuboid__catenary_pole: 5
+        lidar__cuboid__signal_pole: 5
         lidar__cuboid__road_vehicle: 5
-        lidar__cuboid__buffer_stop: 5
-        lidar__cuboid__animal: 7
+        lidar__cuboid__buffer_stop: 3
       points_loader:
         type: LoadPointsFromFile
         coord_type: LIDAR

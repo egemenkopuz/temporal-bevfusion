@@ -44,21 +44,18 @@ model:
           - circle # lidar__cuboid__signal_pole
           - circle # lidar__cuboid__road_vehicle
           - rotate # lidar__cuboid__buffer_stop
-          - rotate # lidar__cuboid__animal
         nms_scale:
           - [0.4] # lidar__cuboid__person
           - [1.0] # lidar__cuboid__catenary_pole
           - [1.0] # lidar__cuboid__signal_pole
           - [1.0] # lidar__cuboid__road_vehicle
           - [1.0] # lidar__cuboid__buffer_stop
-          - [0.4] # lidar__cuboid__animal
       tasks:
         - ["lidar__cuboid__person"]
         - ["lidar__cuboid__catenary_pole"]
         - ["lidar__cuboid__signal_pole"]
         - ["lidar__cuboid__road_vehicle"]
         - ["lidar__cuboid__buffer_stop"]
-        - ["lidar__cuboid__animal"]
       common_heads:
         reg: [2, 2]
         height: [1, 2]
