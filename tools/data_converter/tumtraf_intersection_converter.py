@@ -194,6 +194,12 @@ class TUMTrafIntersectionConverter:
                     mode=0o777,
                 )
 
+            os.makedirs(
+                os.path.join(splt_target_path, "labels_point_clouds", "s110_lidar_ouster_south"),
+                exist_ok=True,
+                mode=0o777,
+            )
+
             # convert pcd to bin and transfer them
             logging.info("Converting pcd files to bin files")
             with mpp.Pool(processes=self.num_workers) as pool:
@@ -238,6 +244,20 @@ class TUMTrafIntersectionConverter:
                     for x in img_details
                 ]
 
+            # transfer pcd labels
+            logging.info("Transferring pcd labels")
+            pcd_labels_list = sorted(
+                glob(
+                    os.path.join(
+                        split_source_path, "labels_point_clouds", "s110_lidar_ouster_south", "*"
+                    )
+                )
+            )
+            for pcd_label in tqdm(pcd_labels_list, total=len(pcd_labels_list), desc="pcd labels"):
+                os.system(
+                    f"cp {pcd_label} {os.path.join(splt_target_path,'labels_point_clouds', 's110_lidar_ouster_south')}"
+                )
+
             pcd_list = [
                 os.path.join(
                     splt_target_path,
@@ -252,7 +272,7 @@ class TUMTrafIntersectionConverter:
             pcd_labels_list = sorted(
                 glob(
                     os.path.join(
-                        split_source_path, "labels_point_clouds", "s110_lidar_ouster_south", "*"
+                        splt_target_path, "labels_point_clouds", "s110_lidar_ouster_south", "*"
                     )
                 )
             )

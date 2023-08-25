@@ -13,8 +13,8 @@ def get_args() -> Namespace:
     """
     parser = ArgumentParser()
 
-    parser.add_argument("-s", "--source_folder_dir", type=str, required=True)
-    parser.add_argument("-t", "--target_path", type=str, required=True)
+    parser.add_argument("-s", "--source-folder-dir", type=str, required=True)
+    parser.add_argument("-t", "--target-path", type=str, required=True)
 
     return parser.parse_args()
 

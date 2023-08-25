@@ -65,6 +65,7 @@ def main():
     num_warmup = 5
     pure_inf_time = 0
 
+    device_name = torch.cuda.get_device_name(device=None)
     samples_count = len(data_loader)
     memory_allocated = 0
     fps = 0
@@ -99,7 +100,12 @@ def main():
         os.makedirs(os.path.dirname(args.out), exist_ok=True)
         with open(args.out, "w") as f:
             json.dump(
-                {"samples_count": samples_count, "memory_allocated": memory_allocated, "fps": fps},
+                {
+                    "samples_count": samples_count,
+                    "device_name": device_name,
+                    "memory_allocated": memory_allocated,
+                    "fps": fps,
+                },
                 f,
             )
 

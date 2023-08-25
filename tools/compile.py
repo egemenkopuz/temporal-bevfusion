@@ -11,6 +11,20 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+DEFAULT_BEV_PRED_FOLDERNAME = "bev-pred"
+DEFAULT_BBOXES_PRED_FOLDERNAME = "bboxes-pred"
+DEFAULT_LABELS_PRED_FOLDERNAME = "labels-pred"
+
+DEFAULT_OSDAR23_IMAGE_PRED_FOLDERNAMES = [
+    "camera-rgb_highres_left-pred",
+    "camera-rgb_highres_center-pred",
+    "camera-rgb_highres_right-pred",
+]
+DEFAULT_TUMTRAF_IMAGE_PRED_FOLDERNAMES = [
+    "camera-1-pred",
+    "camera-0-pred",
+]
+
 ERR_NAME_MAPPING = {
     "trans_err": "mATE",
     "scale_err": "mASE",
@@ -53,13 +67,20 @@ HEADERS = [
     "test_fps",
     "test_mem",
     "pcd_dim",
-    "voxel_size",
     "ql",
     "qrt",
     "image_size",
+    "voxel_size",
     "grid_size",
-    "gt_paste",
-    "gridmask_p",
+    "x_pcd_range",
+    "y_pcd_range",
+    "z_pcd_range",
+    "x_pcd_post_range",
+    "y_pcd_post_range",
+    "z_pcd_post_range",
+    "gt_paste_stop_epoch",
+    "gridmask_prob",
+    "gridmask_stop_epoch",
     "decoder_backbone",
     "decoder_neck",
     "encoder_cam_backbone",
@@ -100,6 +121,7 @@ def get_args() -> Namespace:
     parser.add_argument("--override-videos", action="store_true", required=False)
     parser.add_argument("--override-benchmark", action="store_true", required=False)
     parser.add_argument("--images-include-combined", action="store_true", required=False)
+    parser.add_argument("--videos-include-bundled", action="store_true", required=False)
     parser.add_argument("--include-bboxes", action="store_true", required=False)
     parser.add_argument("--include-labels", action="store_true", required=False)
     parser.add_argument("--images-max-samples", type=int, default=None, required=False)
@@ -135,6 +157,7 @@ def compile_results(
     override_videos: bool = False,
     override_benchmark: bool = False,
     images_include_combined: bool = False,
+    videos_include_bundled: bool = False,
     include_bboxes: bool = False,
     include_labels: bool = False,
     images_max_samples: int = None,
@@ -228,9 +251,11 @@ def compile_results(
     if not skip_videos:
         logging.info("Creating videos")
         create_videos(
+            dataset,
             results_w_category_dir,
             images_foldername,
             videos_foldername,
+            videos_include_bundled,
             override_videos,
             loglevel,
         )
@@ -388,9 +413,11 @@ def benchmark(
 
 
 def create_videos(
+    dataset: str,
     results_w_category_dir: str,
     images_foldername: str,
     videos_foldername: str,
+    include_bundled: bool,
     override_videos: bool,
     loglevel: str = "info",
 ) -> None:
@@ -398,10 +425,12 @@ def create_videos(
     Create videos for given checkpoints.
 
     Args:
+        dataset (str): dataset name
         results_w_category_dir (str): path to store results
         images_foldername: str,
-    videos_folder_name (str): filename of images folder
+        videos_folder_name (str): filename of images folder
         videos_foldername (str): filename of videos folder
+        include_bundled (bool): include bundled videos
         override_videos (bool): override videos
         loglevel (str): logging level
     """
@@ -413,6 +442,33 @@ def create_videos(
             continue
 
         logging.info(f"Creating videos for {x}")
+        if include_bundled:
+            source_pred_folder = os.path.join(x, images_foldername, DEFAULT_BEV_PRED_FOLDERNAME)
+            bboxes_folder = os.path.join(x, DEFAULT_BBOXES_PRED_FOLDERNAME)
+            labels_folder = os.path.join(x, DEFAULT_LABELS_PRED_FOLDERNAME)
+            target_path = os.path.join(out_path, "bundled.mp4")
+            command = f"python tools/visualization/create_bundle_video.py {dataset} -s {source_pred_folder} -t {target_path} -b {bboxes_folder} -l {labels_folder}"
+
+            if dataset.lower() == "osdar23":
+                img_foldernames = DEFAULT_OSDAR23_IMAGE_PRED_FOLDERNAMES
+                classes = OSDAR23_CLASSES
+            elif dataset.lower() == "tumtraf-i":
+                img_foldernames = DEFAULT_TUMTRAF_IMAGE_PRED_FOLDERNAMES
+                classes = TUMTRAF_CLASSES
+            else:
+                raise NotImplementedError
+
+            img_folder_paths = [os.path.join(x, images_foldername, y) for y in img_foldernames]
+            command += " --image-folder " + " ".join(img_folder_paths)
+
+            command += " --classes " + " ".join(classes)
+
+            if not loglevel == "debug":
+                command += " > /dev/null 2>&1"
+
+            logging.info(f"Creating bundled video for {x}")
+            os.system(command)
+
         for source_folder_dir in sorted(
             glob(os.path.join(x, images_foldername, "*")), key=natural_key
         ):
@@ -566,7 +622,7 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
 
     meta = {
         "pcd_dim": data["use_dim"],
-        "voxel_size": data["voxel_size"][0],
+        "voxel_size": str(data["voxel_size"]),
         "ql": data["queue_length"],
         "qrt": data["queue_range_threshold"],
         "sensors": sensors,
@@ -607,31 +663,50 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
 
     image_size_x, image_size_y = data["image_size"]
     image_size = f"{image_size_x}x{image_size_y}"
-    gt_paste = False
-    for x in data["train_pipeline"]:
-        if x["type"] == "ObjectPaste":
-            gt_paste = True
+
+    gt_paste_stop_epoch = data.get("gt_paste_stop_epoch", -1)
+
+    pcd_range_x = f"{data['point_cloud_range'][0]}:{data['point_cloud_range'][3]}"
+    pcd_range_y = f"{data['point_cloud_range'][1]}:{data['point_cloud_range'][4]}"
+    pcd_range_z = f"{data['point_cloud_range'][2]}:{data['point_cloud_range'][5]}"
+
+    if "post_center_range" in data:
+        pcd_post_range_x = f"{data['post_center_range'][0]}:{data['post_center_range'][3]}"
+        pcd_post_range_y = f"{data['post_center_range'][1]}:{data['post_center_range'][4]}"
+        pcd_post_range_z = f"{data['post_center_range'][2]}:{data['post_center_range'][5]}"
+    else:
+        pcd_post_range_x = pcd_range_x
+        pcd_post_range_y = pcd_range_y
+        pcd_post_range_z = pcd_range_z
 
     gridmask_p = 0
     if "augment2d" in data and "gridmask" in data["augment2d"]:
-        gridmask_p = data["augment2d"]["gridmask"]["prob"]
-        meta.update({"gridmask_p": gridmask_p})
+        gridmask_p = data["augment2d"]["gridmask"].get("prob", 0.0)
+        gridnmask_stop_epoch = data["augment2d"]["gridmask"].get("max_epoch", -1)
+        meta.update({"gridmask_prob": gridmask_p, "gridmask_stop_epoch": gridnmask_stop_epoch})
 
-    grid_size = (
-        data.get("model", {})
-        .get("heads", {})
-        .get("object", {})
-        .get("train_cfg", {})
-        .get("grid_size", None)
-    )
-    if grid_size is not None:
-        grid_size = grid_size[0]
+    if "grid_size" in data:
+        grid_size = str(data["grid_size"])
+    else:
+        grid_size = (
+            data.get("model", {})
+            .get("heads", {})
+            .get("object", {})
+            .get("train_cfg", {})
+            .get("grid_size", None)
+        )
 
     meta.update(
         {
             "image_size": image_size,
+            "gt_paste_stop_epoch": gt_paste_stop_epoch,
             "grid_size": grid_size,
-            "gt_paste": gt_paste,
+            "x_pcd_range": pcd_range_x,
+            "y_pcd_range": pcd_range_y,
+            "z_pcd_range": pcd_range_z,
+            "x_pcd_post_range": pcd_post_range_x,
+            "y_pcd_post_range": pcd_post_range_y,
+            "z_pcd_post_range": pcd_post_range_z,
         }
     )
 

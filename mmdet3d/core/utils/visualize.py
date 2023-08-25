@@ -74,7 +74,6 @@ MAP_PALETTE = {
 def visualize_camera(
     fpath: str,
     image: np.ndarray,
-    *,
     bboxes: Optional[LiDARInstance3DBoxes] = None,
     labels: Optional[np.ndarray] = None,
     gt_bboxes: Optional[LiDARInstance3DBoxes] = None,
@@ -83,7 +82,7 @@ def visualize_camera(
     classes: Optional[List[str]] = None,
     color: Optional[Tuple[int, int, int]] = None,
     thickness: float = 4,
-    dataset: str,
+    dataset: Optional[str] = None,
 ) -> None:
     canvas = image.copy()
     canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
@@ -157,12 +156,11 @@ def visualize_camera(
 def visualize_camera_combined(
     fpath: str,
     image: np.ndarray,
-    *,
     pred_bboxes: Optional[LiDARInstance3DBoxes] = None,
     gt_bboxes: Optional[LiDARInstance3DBoxes] = None,
     transform: Optional[np.ndarray] = None,
     thickness: float = 4,
-    dataset: str,
+    dataset: Optional[str] = None,
 ) -> None:
     canvas = image.copy()
     canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
@@ -214,7 +212,7 @@ def visualize_bev_feature(
     bev_feature: np.ndarray,
     xlim: Tuple[float, float] = (-50, 50),
     ylim: Tuple[float, float] = (-50, 50),
-    dataset: str = None,
+    dataset: Optional[str] = None,
 ) -> None:
     if bev_feature.ndim == 4:
         bev_feature = bev_feature[0]
@@ -249,7 +247,6 @@ def visualize_bev_feature(
 def visualize_lidar(
     fpath: str,
     lidar: Optional[np.ndarray] = None,
-    *,
     bboxes: Optional[LiDARInstance3DBoxes] = None,
     labels: Optional[np.ndarray] = None,
     classes: Optional[List[str]] = None,
@@ -258,7 +255,7 @@ def visualize_lidar(
     color: Optional[Tuple[int, int, int]] = None,
     radius: float = 15,
     thickness: float = 25,
-    dataset: str,
+    dataset: Optional[str] = None,
 ) -> None:
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
@@ -309,7 +306,6 @@ def visualize_lidar(
 def visualize_lidar_combined(
     fpath: str,
     lidar: Optional[np.ndarray] = None,
-    *,
     pred_bboxes: Optional[LiDARInstance3DBoxes] = None,
     gt_bboxes: Optional[LiDARInstance3DBoxes] = None,
     xlim: Tuple[float, float] = (-50, 50),
@@ -372,7 +368,6 @@ def visualize_lidar_combined(
 def visualize_map(
     fpath: str,
     masks: np.ndarray,
-    *,
     classes: List[str],
     background: Tuple[int, int, int] = (240, 240, 240),
 ) -> None:

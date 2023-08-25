@@ -325,13 +325,13 @@ You can also use the following optional arguments:
 TUMTraf-Intersection
 
 ```bash
-python tools/compile.py tumtraf-i -c checkpoints/run -i run -t results --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
+python tools/compile.py tumtraf-i -c checkpoints/tumtraf-i -i tumtraf-i -t results --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
 ```
 
 OSDAR23
 
 ```bash
-python tools/compile.py osdar23 -c checkpoints/run -i run -t results --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
+python tools/compile.py osdar23 -c checkpoints/osdar23 -i osdar23 -t results --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
 ```
 
 </details>

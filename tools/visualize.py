@@ -107,7 +107,7 @@ def main() -> None:
         if isinstance(metas, list):
             metas = metas[-1]
 
-        if cfg.data.test.type == "OSDAR23Dataset":
+        if cfg.data.test.type in ["TUMTrafIntersectionDataset", "OSDAR23Dataset"]:
             name = metas["lidar_path"].split("/")[-1][:-4]
         elif "token" in metas:
             name = "{}-{}".format(metas["timestamp"], metas["token"])
