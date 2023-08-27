@@ -83,7 +83,7 @@ model:
         type: TransFusionBBoxCoder
         pc_range: ${point_cloud_range[:2]}
         post_center_range: ${post_center_range}
-        score_threshold: 0.05
+        score_threshold: ${score_threshold}
         out_size_factor: ${out_size_factor}
         voxel_size: ${voxel_size[:2]}
         code_size: 8

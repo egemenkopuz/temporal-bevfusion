@@ -1,26 +1,27 @@
 point_cloud_range: [-6.0, -128.0, -3.0, 250.0, 128.0, 13.0]
 post_center_range: [-11.0, -132.0, -5.0, 255.0, 132.0, 15.0]
 
-image_size: [320, 704]
-voxel_size: [0.125, 0.125, 0.4]
-grid_size: [2048, 2048, 1]
+image_size: [256, 704]
+voxel_size: [0.16, 0.16, 0.4]
+grid_size: [1600, 1600, 1]
 
 xbound: ${[point_cloud_range[0], point_cloud_range[3], voxel_size[0] * 4]}
 ybound: ${[point_cloud_range[1], point_cloud_range[4], voxel_size[1] * 4]}
 zbound: ${[point_cloud_range[2], point_cloud_range[5], point_cloud_range[5] - point_cloud_range[2]]}
-dbound: [1.0, 240.0, 2.0]
+dbound: [1.0, 120.0, 1.0]
 
 out_size_factor: 8
+score_threshold: 0.1
+nms_threshold: 0.2
 
-samples_per_gpu: 6
+samples_per_gpu: 4
 workers_per_gpu: 6
 
 max_epochs: 20
-gt_paste_stop_epoch: 15
 
 optimizer:
   type: AdamW
-  lr: 2.0e-4
+  lr: 1.0e-4
   weight_decay: 0.01
   paramwise_cfg:
     custom_keys:
@@ -49,7 +50,7 @@ optimizer_config:
 
 augment2d:
   resize: [[0.38, 0.55], [0.48, 0.48]]
-  bot_pct_lim: [[0.3, 0.5], [0.4, 0.4]]
+  bot_pct_lim: [[0.6, 0.7], [0.65, 0.65]]
   rotate: [-5.4, 5.4]
   gridmask:
     prob: 0.1
@@ -65,54 +66,37 @@ model:
   encoders:
     camera:
       backbone:
-        type: SwinTransformer
-        embed_dims: 96
-        depths: [2, 2, 6, 2]
-        num_heads: [3, 6, 12, 24]
-        window_size: 7
-        mlp_ratio: 4
-        qkv_bias: true
-        qk_scale: null
-        drop_rate: 0.
-        attn_drop_rate: 0.
-        drop_path_rate: 0.2
-        patch_norm: true
-        out_indices: [1, 2, 3]
-        with_cp: false
-        convert_weights: true
-        init_cfg:
-          type: Pretrained
-          checkpoint: https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth
-      neck:
-        type: GeneralizedLSSFPN
-        in_channels: [192, 384, 768]
-        out_channels: 256
-        start_level: 0
-        num_outs: 3
+        type: ResNet
+        depth: 50
+        num_stages: 4
+        out_indices: [0, 1, 2, 3]
         norm_cfg:
           type: BN2d
           requires_grad: true
-        act_cfg:
-          type: ReLU
-          inplace: true
-        upsample_cfg:
-          mode: bilinear
-          align_corners: false
+        norm_eval: false
+        init_cfg:
+          type: Pretrained
+          checkpoint: torchvision://resnet50
+      neck:
+        type: SECONDFPN
+        in_channels: [256, 512, 1024, 2048]
+        out_channels: [128, 128, 128, 128]
+        upsample_strides: [0.25, 0.5, 1, 2]
       vtransform:
         type: LSSTransform
         image_size: ${image_size}
-        in_channels: 256
+        in_channels: 512
         out_channels: 80
-        feature_size: ${[image_size[0] // 8, image_size[1] // 8]}
+        feature_size: ${[image_size[0] // 16, image_size[1] // 16]}
         xbound: ${xbound}
         ybound: ${ybound}
         zbound: ${zbound}
         dbound: ${dbound}
-        downsample: 2
+        downsample: 1
   decoder:
     backbone:
       type: GeneralizedResNet
-      in_channels: 80
+      in_channels: 64
       blocks:
         - [2, 128, 2]
         - [2, 256, 2]

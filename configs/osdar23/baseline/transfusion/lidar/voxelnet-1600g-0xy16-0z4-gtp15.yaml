@@ -1,22 +1,23 @@
 point_cloud_range: [-6.0, -128.0, -3.0, 250.0, 128.0, 13.0]
 post_center_range: [-11.0, -132.0, -5.0, 255.0, 132.0, 15.0]
 
-voxel_size: [0.125, 0.125, 0.4]
-grid_size: [2048, 2048, 41]
+voxel_size: [0.16, 0.16, 0.4]
+grid_size: [1600, 1600, 41]
 
 voxel_max_points: 15
 voxel_max_voxels: [200000, 200000]
 out_size_factor: 8
+score_threshold: 0.1
 
-samples_per_gpu: 6
-workers_per_gpu: 6
+samples_per_gpu: 4
+workers_per_gpu: 8
 
 max_epochs: 20
 gt_paste_stop_epoch: 15
 
 optimizer:
   type: AdamW
-  lr: 2.0e-5
+  lr: 1.0e-4
   weight_decay: 0.01
 
 momentum_config:

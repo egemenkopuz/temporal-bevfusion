@@ -8,9 +8,12 @@ load_augmented: null
 
 image_size: [256, 704] # default
 out_size_factor: 8 # default
+score_threshold: 0.0 # default
+gt_paste_stop_epoch: -1 # default
+
 augment2d: # default
-  resize: [[0.38, 0.55], [0.48, 0.48]]
-  bot_pct_lim: [[0.2, 0.6], [0.4, 0.4]]
+  resize: [[0.36, 0.44], [0.4, 0.4]]
+  bot_pct_lim: [[0.3, 0.5], [0.4, 0.4]]
   rotate: [-5.4, 5.4]
   gridmask:
     prob: 0.1
