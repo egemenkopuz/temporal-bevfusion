@@ -1,5 +1,4 @@
 import os
-from itertools import chain
 from typing import Any, Dict, List, Optional
 
 import torch
@@ -154,22 +153,11 @@ class TBEVFusion(BEVFusion):
                 feature = self.extract_lidar_features(points)
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
-            features.append(feature)
 
-            if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
-                # assuming batch size = 1
-                basename = metas[0]["lidar_path"].split("/")[-1][:-4]
-                visualize_bev_feature(
-                    os.path.join(
-                        self.save_bev_features["out_dir"],
-                        f"bev-feat-{sensor}",
-                        f"{basename}.png",
-                    ),
-                    feature.clone().detach().cpu().numpy().squeeze(),
-                    self.save_bev_features["xlim"],
-                    self.save_bev_features["ylim"],
-                    self.save_bev_features["dataset"],
-                )
+            basename = metas[0]["lidar_path"].split("/")[-1][:-4]
+            self._save_bev_feat(feature, f"feat-bev-{sensor}", basename)
+
+            features.append(feature)
 
         if not self.training:
             # avoid OOM
@@ -181,20 +169,9 @@ class TBEVFusion(BEVFusion):
         elif len(features) == 1:
             features = features[0]
 
-        if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
-            # assuming batch size = 1
+        if len(features) > 1:
             basename = metas[0]["lidar_path"].split("/")[-1][:-4]
-            visualize_bev_feature(
-                os.path.join(
-                    self.save_bev_features["out_dir"],
-                    "bev-feat-fused",
-                    f"{basename}.png",
-                ),
-                features.clone().detach().cpu().numpy().squeeze(),
-                self.save_bev_features["xlim"],
-                self.save_bev_features["ylim"],
-                self.save_bev_features["dataset"],
-            )
+            self._save_bev_feat(features, "feat-bev-fused", basename)
 
         if online:
             self.cache_queue.enqueue(features, metas[0]["frame_idx"])
@@ -205,20 +182,8 @@ class TBEVFusion(BEVFusion):
         else:
             x = features[0]
 
-        if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
-            # assuming batch size = 1
-            basename = metas[0]["lidar_path"].split("/")[-1][:-4]
-            visualize_bev_feature(
-                os.path.join(
-                    self.save_bev_features["out_dir"],
-                    "bev-feat-temporal-fused",
-                    f"{basename}.png",
-                ),
-                x.clone().detach().cpu().numpy().squeeze(),
-                self.save_bev_features["xlim"],
-                self.save_bev_features["ylim"],
-                self.save_bev_features["dataset"],
-            )
+        basename = metas[0]["lidar_path"].split("/")[-1][:-4]
+        self._save_bev_feat(x, "feat-bev-temporal-fused", basename)
 
         # if online:
         #     global _frame_indices_iter
@@ -324,20 +289,8 @@ class TBEVFusion(BEVFusion):
                     else:
                         raise ValueError(f"unsupported sensor: {sensor}")
 
-                    if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
-                        # assuming batch size = 1
-                        basename = prev_metas[i][0]["lidar_path"].split("/")[-1][:-4]
-                        visualize_bev_feature(
-                            os.path.join(
-                                self.save_bev_features["out_dir"],
-                                f"bev-feat-prev{i}-{sensor}",
-                                f"{basename}.png",
-                            ),
-                            prev_feature.clone().detach().cpu().numpy().squeeze(),
-                            self.save_bev_features["xlim"],
-                            self.save_bev_features["ylim"],
-                            self.save_bev_features["dataset"],
-                        )
+                    basename = prev_metas[i][0]["lidar_path"].split("/")[-1][:-4]
+                    self._save_bev_feat(prev_feature, f"feat-bev-prev{i}-{sensor}", basename)
 
                     prev_features.append(prev_feature.detach())
 
@@ -357,3 +310,26 @@ class TBEVFusion(BEVFusion):
             self.train()
 
         return prev_all_features
+
+    def _save_bev_feat(self, x: torch.Tensor, foldername: str, basename: str) -> None:
+        """
+        Save BEV feature as an image only if `save_bev_features` is not None.
+
+        Args:
+            x (torch.Tensor): BEV feature of shape (1, C, H, W).
+            foldername (str): folder name to save the BEV feature.
+            basename (str): base name of the BEV feature.
+        """
+        if self.save_bev_features is not None:
+            assert "out_dir" in self.save_bev_features
+            visualize_bev_feature(
+                os.path.join(
+                    self.save_bev_features["out_dir"],
+                    foldername,
+                    f"{basename}.png",
+                ),
+                x.clone().detach().cpu().numpy().squeeze(),
+                self.save_bev_features["xlim"],
+                self.save_bev_features["ylim"],
+                self.save_bev_features["dataset"],
+            )

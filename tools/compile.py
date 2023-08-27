@@ -11,18 +11,21 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
-DEFAULT_BEV_PRED_FOLDERNAME = "bev-pred"
-DEFAULT_BBOXES_PRED_FOLDERNAME = "bboxes-pred"
-DEFAULT_LABELS_PRED_FOLDERNAME = "labels-pred"
+DEFAULT_BEV_PRED_FOLDERNAME = "pred-bev"
+DEFAULT_BBOXES_PRED_FOLDERNAME = "pred-bboxes"
+DEFAULT_SCORES_PRED_FOLDERNAME = "pred-scores"
+DEFAULT_LABELS_PRED_FOLDERNAME = "pred-labels"
+DEFAULT_BBOXES_GT_FOLDERNAME = "gt-bboxes"
+DEFAULT_LABELS_GT_FOLDERNAME = "gt-labels"
 
 DEFAULT_OSDAR23_IMAGE_PRED_FOLDERNAMES = [
-    "camera-rgb_highres_left-pred",
-    "camera-rgb_highres_center-pred",
-    "camera-rgb_highres_right-pred",
+    "pred-camera-rgb_highres_left",
+    "pred-camera-rgb_highres_center",
+    "pred-camera-rgb_highres_right",
 ]
 DEFAULT_TUMTRAF_IMAGE_PRED_FOLDERNAMES = [
-    "camera-1-pred",
-    "camera-0-pred",
+    "pred-camera-1",
+    "pred-camera-0",
 ]
 
 ERR_NAME_MAPPING = {

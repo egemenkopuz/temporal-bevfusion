@@ -5,7 +5,6 @@ import os
 import mmcv
 import numpy as np
 import torch
-import yaml
 from mmcv import Config
 from mmcv.parallel import MMDistributedDataParallel
 from mmcv.runner import load_checkpoint
@@ -23,6 +22,14 @@ from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_model
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+
+DEFAULT_BEV_PRED_FOLDERNAME = "pred-bev"
+DEFAULT_BBOXES_PRED_FOLDERNAME = "pred-bboxes"
+DEFAULT_SCORES_PRED_FOLDERNAME = "pred-scores"
+DEFAULT_LABELS_PRED_FOLDERNAME = "pred-labels"
+DEFAULT_BBOXES_GT_FOLDERNAME = "gt-bboxes"
+DEFAULT_LABELS_GT_FOLDERNAME = "gt-labels"
 
 
 def recursive_eval(obj, globals=None):
@@ -56,8 +63,10 @@ def main() -> None:
     parser.add_argument("--out-dir", type=str, default="viz")
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--save-bboxes", action="store_true")
+    parser.add_argument("--save-scores", action="store_true")
     parser.add_argument("--save-labels", action="store_true")
     parser.add_argument("--save-bboxes-dir", type=str, default=None)
+    parser.add_argument("--save-scores-dir", type=str, default=None)
     parser.add_argument("--save-labels-dir", type=str, default=None)
     parser.add_argument("--include-combined", action="store_true")
     args, opts = parser.parse_known_args()
@@ -172,6 +181,7 @@ def main() -> None:
                     gt_bboxes = LiDARInstance3DBoxes(gt_bboxes, box_dim=7)
         else:
             bboxes = None
+            scores = None
             labels = None
 
         if args.mode == "gt" and "gt_masks_bev" in data:
@@ -197,7 +207,7 @@ def main() -> None:
                 img_type = filenames[k].split("/")[-2]
 
                 visualize_camera(
-                    os.path.join(args.out_dir, f"camera-{img_type}-pred", f"{name}.jpg"),
+                    os.path.join(args.out_dir, f"pred-camera-{img_type}", f"{name}.jpg"),
                     image,
                     bboxes=bboxes,
                     labels=labels,
@@ -207,7 +217,9 @@ def main() -> None:
                 )
                 if args.include_combined:
                     visualize_camera_combined(
-                        os.path.join(args.out_dir, f"camera-{img_type}-combined", f"{name}.jpg"),
+                        os.path.join(
+                            args.out_dir, f"pred-camera-{img_type}-combined", f"{name}.jpg"
+                        ),
                         image,
                         pred_bboxes=bboxes,
                         gt_bboxes=gt_bboxes,
@@ -217,7 +229,7 @@ def main() -> None:
 
         if "points" in data:
             visualize_lidar(
-                os.path.join(args.out_dir, "bev-pred", f"{name}.jpg"),
+                os.path.join(args.out_dir, "pred-bev", f"{name}.jpg"),
                 lidar,
                 bboxes=bboxes,
                 labels=labels,
@@ -228,7 +240,7 @@ def main() -> None:
             )
             if args.include_combined:
                 visualize_lidar_combined(
-                    os.path.join(args.out_dir, "bev-combined", f"{name}.jpg"),
+                    os.path.join(args.out_dir, "pred-bev-combined", f"{name}.jpg"),
                     lidar,
                     pred_bboxes=bboxes,
                     gt_bboxes=gt_bboxes,
@@ -236,7 +248,21 @@ def main() -> None:
                     ylim=[cfg.point_cloud_range[d] for d in [1, 4]],
                 )
 
-        # save bbox
+        # save scores
+        if args.save_scores and scores is not None:
+            if args.save_scores_dir:
+                os.makedirs(args.save_scores_dir, exist_ok=True)
+                np.save(os.path.join(args.save_scores_dir, f"{name}.npy"), scores)
+            else:
+                os.makedirs(
+                    os.path.join(args.out_dir, DEFAULT_SCORES_PRED_FOLDERNAME), exist_ok=True
+                )
+                np.save(
+                    os.path.join(args.out_dir, DEFAULT_SCORES_PRED_FOLDERNAME, f"{name}.npy"),
+                    scores,
+                )
+
+        # save pred bboxes
         if args.save_bboxes and bboxes is not None:
             bboxes.tensor = bboxes.tensor.cpu()
             bboxes = bboxes.tensor.numpy()
@@ -244,17 +270,62 @@ def main() -> None:
                 os.makedirs(args.save_bboxes_dir, exist_ok=True)
                 np.save(os.path.join(args.save_bboxes_dir, f"{name}.npy"), bboxes)
             else:
-                os.makedirs(os.path.join(args.out_dir, "bbox-pred"), exist_ok=True)
-                np.save(os.path.join(args.out_dir, "bbox-pred", f"{name}.npy"), bboxes)
+                os.makedirs(
+                    os.path.join(args.out_dir, DEFAULT_BBOXES_PRED_FOLDERNAME), exist_ok=True
+                )
+                np.save(
+                    os.path.join(args.out_dir, DEFAULT_BBOXES_PRED_FOLDERNAME, f"{name}.npy"),
+                    bboxes,
+                )
 
-        # save labels
+        # save pred labels
         if args.save_labels and labels is not None:
             if args.save_labels_dir:
                 os.makedirs(args.save_labels_dir, exist_ok=True)
                 np.save(os.path.join(args.save_labels_dir, f"{name}.npy"), labels)
             else:
-                os.makedirs(os.path.join(args.out_dir, "labels-pred"), exist_ok=True)
-                np.save(os.path.join(args.out_dir, "labels-pred", f"{name}.npy"), labels)
+                os.makedirs(
+                    os.path.join(args.out_dir, DEFAULT_LABELS_PRED_FOLDERNAME), exist_ok=True
+                )
+                np.save(
+                    os.path.join(args.out_dir, DEFAULT_LABELS_PRED_FOLDERNAME, f"{name}.npy"),
+                    labels,
+                )
+
+        # save gt bboxes
+        if args.save_bboxes:
+            if args.mode == "gt" or not args.include_combined:
+                gt_bboxes = data["gt_bboxes_3d"].data[0][0].tensor.numpy()
+            else:  # already filtered
+                gt_bboxes.tensor = gt_bboxes.tensor.cpu()
+                gt_bboxes = gt_bboxes.tensor.numpy()
+
+            if args.save_bboxes_dir:
+                os.makedirs(args.save_bboxes_dir, exist_ok=True)
+                np.save(os.path.join(args.save_bboxes_dir, f"{name}.npy"), gt_bboxes)
+            else:
+                os.makedirs(os.path.join(args.out_dir, DEFAULT_BBOXES_GT_FOLDERNAME), exist_ok=True)
+                np.save(
+                    os.path.join(args.out_dir, DEFAULT_BBOXES_GT_FOLDERNAME, f"{name}.npy"),
+                    gt_bboxes,
+                )
+
+        # save gt labels
+        if args.save_labels:
+            if args.mode == "gt" or not args.include_combined:
+                gt_labels = data["gt_labels_3d"].data[0][0].numpy()
+            else:  # already filtered
+                gt_labels = gt_labels
+
+            if args.save_labels_dir:
+                os.makedirs(args.save_labels_dir, exist_ok=True)
+                np.save(os.path.join(args.save_labels_dir, f"{name}.npy"), gt_labels)
+            else:
+                os.makedirs(os.path.join(args.out_dir, DEFAULT_LABELS_GT_FOLDERNAME), exist_ok=True)
+                np.save(
+                    os.path.join(args.out_dir, DEFAULT_LABELS_GT_FOLDERNAME, f"{name}.npy"),
+                    gt_labels,
+                )
 
         if masks is not None:
             visualize_map(
