@@ -23,9 +23,6 @@ def main():
     parser.add_argument("config", help="config file")
     parser.add_argument("--run-dir", required=False, help="run directory")
     parser.add_argument("--auto-run-dir", required=False, help="auto-run directory")
-    parser.add_argument(
-        "--skip-if-exists", required=False, action="store_true", help="skip if exists"
-    )
     args, opts = parser.parse_known_args()
 
     configs.load(args.config, recursive=True)
@@ -37,13 +34,7 @@ def main():
     torch.cuda.set_device(dist.local_rank())
 
     if args.auto_run_dir is not None:
-        auto_run_dir = os.path.join(args.auto_run_dir, create_auto_dir_name(cfg))
-        if os.path.exists(auto_run_dir):
-            if args.skip_if_exists:
-                print(f"Skip {auto_run_dir} as it already exists.")
-                return
-            auto_run_dir = auto_run_dir + "_" + configs.hash()[:8] + "_" + str(int(time.time()))
-        args.run_dir = auto_run_dir
+        args.run_dir = os.path.join(args.auto_run_dir, create_auto_dir_name(cfg))
 
     if args.run_dir is None:
         args.run_dir = auto_set_run_dir()
