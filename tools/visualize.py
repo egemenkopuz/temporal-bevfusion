@@ -21,9 +21,6 @@ from mmdet3d.core.utils.visualize import (
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_model
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-
-
 DEFAULT_BEV_PRED_FOLDERNAME = "pred-bev"
 DEFAULT_BBOXES_PRED_FOLDERNAME = "pred-bboxes"
 DEFAULT_SCORES_PRED_FOLDERNAME = "pred-scores"
@@ -65,9 +62,13 @@ def main() -> None:
     parser.add_argument("--save-bboxes", action="store_true")
     parser.add_argument("--save-scores", action="store_true")
     parser.add_argument("--save-labels", action="store_true")
+    parser.add_argument("--save-gt-bboxes", action="store_true")
+    parser.add_argument("--save-gt-labels", action="store_true")
     parser.add_argument("--save-bboxes-dir", type=str, default=None)
     parser.add_argument("--save-scores-dir", type=str, default=None)
     parser.add_argument("--save-labels-dir", type=str, default=None)
+    parser.add_argument("--save-gt-bboxes-dir", type=str, default=None)
+    parser.add_argument("--save-gt-labels-dir", type=str, default=None)
     parser.add_argument("--include-combined", action="store_true")
     args, opts = parser.parse_known_args()
 
@@ -293,16 +294,16 @@ def main() -> None:
                 )
 
         # save gt bboxes
-        if args.save_bboxes:
+        if args.save_gt_bboxes:
             if args.mode == "gt" or not args.include_combined:
                 gt_bboxes = data["gt_bboxes_3d"].data[0][0].tensor.numpy()
             else:  # already filtered
                 gt_bboxes.tensor = gt_bboxes.tensor.cpu()
                 gt_bboxes = gt_bboxes.tensor.numpy()
 
-            if args.save_bboxes_dir:
-                os.makedirs(args.save_bboxes_dir, exist_ok=True)
-                np.save(os.path.join(args.save_bboxes_dir, f"{name}.npy"), gt_bboxes)
+            if args.save_gt_bboxes_dir:
+                os.makedirs(args.save_gt_bboxes_dir, exist_ok=True)
+                np.save(os.path.join(args.save_gt_bboxes_dir, f"{name}.npy"), gt_bboxes)
             else:
                 os.makedirs(os.path.join(args.out_dir, DEFAULT_BBOXES_GT_FOLDERNAME), exist_ok=True)
                 np.save(
@@ -311,15 +312,15 @@ def main() -> None:
                 )
 
         # save gt labels
-        if args.save_labels:
+        if args.save_gt_labels:
             if args.mode == "gt" or not args.include_combined:
                 gt_labels = data["gt_labels_3d"].data[0][0].numpy()
             else:  # already filtered
                 gt_labels = gt_labels
 
-            if args.save_labels_dir:
-                os.makedirs(args.save_labels_dir, exist_ok=True)
-                np.save(os.path.join(args.save_labels_dir, f"{name}.npy"), gt_labels)
+            if args.save_gt_labels_dir:
+                os.makedirs(args.save_gt_labels_dir, exist_ok=True)
+                np.save(os.path.join(args.save_gt_labels_dir, f"{name}.npy"), gt_labels)
             else:
                 os.makedirs(os.path.join(args.out_dir, DEFAULT_LABELS_GT_FOLDERNAME), exist_ok=True)
                 np.save(

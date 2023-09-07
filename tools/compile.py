@@ -24,8 +24,8 @@ DEFAULT_OSDAR23_IMAGE_PRED_FOLDERNAMES = [
     "pred-camera-rgb_highres_right",
 ]
 DEFAULT_TUMTRAF_IMAGE_PRED_FOLDERNAMES = [
-    "pred-camera-1",
-    "pred-camera-0",
+    "pred-camera-s110_camera_basler_south2_8mm",
+    "pred-camera-s110_camera_basler_south1_8mm",
 ]
 
 ERR_NAME_MAPPING = {
@@ -126,6 +126,7 @@ def get_args() -> Namespace:
     parser.add_argument("--images-include-combined", action="store_true", required=False)
     parser.add_argument("--videos-include-bundled", action="store_true", required=False)
     parser.add_argument("--include-bboxes", action="store_true", required=False)
+    parser.add_argument("--include-scores", action="store_true", required=False)
     parser.add_argument("--include-labels", action="store_true", required=False)
     parser.add_argument("--images-max-samples", type=int, default=None, required=False)
     parser.add_argument("--images-cam-bbox-score", type=float, default=None, required=False)
@@ -162,6 +163,7 @@ def compile_results(
     images_include_combined: bool = False,
     videos_include_bundled: bool = False,
     include_bboxes: bool = False,
+    include_scores: bool = False,
     include_labels: bool = False,
     images_max_samples: int = None,
     images_cam_bbox_score: float = None,
@@ -191,6 +193,7 @@ def compile_results(
         override_benchmark (bool, optional): override benchmark. Defaults to False.
         images_include_combined (bool, optional): include combined images (gt and preds). Defaults to False.
         include_bboxes (bool, optional): save bounding boxes. Defaults to False.
+        include_scores (bool, optional): save scores. Defaults to False.
         include_labels (bool, optional): save labels. Defaults to False.
         images_max_samples (int, optional): maximum number of samples to include in images. Defaults to None.
         images_cam_bbox_score (float, optional): minimum score of bounding boxes to include in images. Defaults to None.
@@ -244,6 +247,7 @@ def compile_results(
             images_foldername,
             override_images,
             include_bboxes,
+            include_scores,
             include_labels,
             images_include_combined,
             images_max_samples,
@@ -302,6 +306,8 @@ def test(
 
         if not loglevel == "debug":
             command += " > /dev/null 2>&1"
+        else:
+            logging.info(f"running command: {command}")
 
         logging.info(f"Testing for {x}")
         os.system(command)
@@ -313,6 +319,7 @@ def create_images(
     images_foldername: str,
     override_visuals: bool,
     include_bboxes: bool,
+    include_scores: bool,
     include_labels: bool,
     images_include_combined: bool,
     images_max_samples: Optional[int] = None,
@@ -326,6 +333,7 @@ def create_images(
         images_foldername (str): filename of images folder
         override_visuals (bool): override images
         include_bboxes (bool): save bounding boxes
+        include_scores (bool): save scores
         include_labels (bool): save labels
         images_include_combined (bool): include combined images (gt and preds)
         images_max_samples (Optional[int], optional): maximum number of samples to include in images. Defaults to None.
@@ -338,8 +346,11 @@ def create_images(
         id = x.split("/")[-1]
 
         out_dir = os.path.join(results_w_category_dir, id, images_foldername)
-        bboxes_dir = os.path.join(results_w_category_dir, id, "bboxes-pred")
-        labels_dir = os.path.join(results_w_category_dir, id, "labels-pred")
+        bboxes_dir = os.path.join(results_w_category_dir, id, DEFAULT_BBOXES_PRED_FOLDERNAME)
+        scores_dir = os.path.join(results_w_category_dir, id, DEFAULT_SCORES_PRED_FOLDERNAME)
+        labels_dir = os.path.join(results_w_category_dir, id, DEFAULT_LABELS_PRED_FOLDERNAME)
+        gt_bboxes_dir = os.path.join(results_w_category_dir, id, DEFAULT_BBOXES_GT_FOLDERNAME)
+        gt_labels_dir = os.path.join(results_w_category_dir, id, DEFAULT_LABELS_GT_FOLDERNAME)
 
         if not override_visuals and os.path.exists(out_dir):
             size = subprocess.check_output(["du", "-sh", out_dir]).split()[0].decode("utf-8")
@@ -353,9 +364,14 @@ def create_images(
 
         if include_bboxes:
             command += f" --save-bboxes  --save-bboxes-dir {bboxes_dir}"
+            command += f" --save-gt-bboxes --save-gt-bboxes-dir {gt_bboxes_dir}"
 
         if include_labels:
             command += f" --save-labels --save-labels-dir {labels_dir}"
+            command += f" --save-gt-labels --save-gt-labels-dir {gt_labels_dir}"
+
+        if include_scores:
+            command += f" --save-scores --save-scores-dir {scores_dir}"
 
         if images_cam_bbox_score is not None and x.split("/")[-1][0] in ["C", "c"]:
             command += f" --bbox-score {images_cam_bbox_score}"
@@ -368,6 +384,8 @@ def create_images(
 
         if not loglevel == "debug":
             command += " > /dev/null 2>&1"
+        else:
+            logging.info(f"running command: {command}")
 
         logging.info(f"Creating images for {x}")
         os.system(command)
@@ -410,6 +428,8 @@ def benchmark(
         command = f"python tools/benchmark.py {cfg_path} {pth_path} --out {target_path}"
         if not loglevel == "debug":
             command += " > /dev/null 2>&1"
+        else:
+            logging.info(f"running command: {command}")
 
         logging.info(f"Benchmarking for {x}")
         os.system(command)
@@ -468,6 +488,8 @@ def create_videos(
 
             if not loglevel == "debug":
                 command += " > /dev/null 2>&1"
+            else:
+                logging.info(f"running command: {command}")
 
             logging.info(f"Creating bundled video for {x}")
             os.system(command)
@@ -484,6 +506,8 @@ def create_videos(
 
             if not loglevel == "debug":
                 command += " > /dev/null 2>&1"
+            else:
+                logging.info(f"running command: {command}")
 
             logging.info(f"Creating {folder_name} video for {x}")
             os.system(command)
