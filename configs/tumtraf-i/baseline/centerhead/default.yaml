@@ -37,7 +37,7 @@ model:
         voxel_size: ${voxel_size[:2]}
         pre_max_size: 1000
         post_max_size: 83
-        nms_thr: 0.075
+        nms_thr: ${nms_threshold}
         nms_type:
           - circle # CAR
           - rotate # TRUCK

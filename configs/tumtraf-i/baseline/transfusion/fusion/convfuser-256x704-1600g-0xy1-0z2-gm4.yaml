@@ -1,5 +1,5 @@
 point_cloud_range: [-20.0, -80.0, -10.0, 140.0, 80.0, 0.0]
-post_center_range: [-25.0, -85.0, -10.0, 145.0, 85.0, 0.0]
+post_center_range: [-25.0, -85.0, -12.0, 145.0, 85.0, 2.0]
 
 voxel_size: [0.1, 0.1, 0.2]
 image_size: [256, 704]
@@ -17,7 +17,6 @@ samples_per_gpu: 6
 workers_per_gpu: 6
 
 max_epochs: 6
-gt_paste_stop_epoch: 4
 
 optimizer:
   type: AdamW
@@ -48,7 +47,7 @@ augment2d:
   gridmask:
     prob: 0.1
     fixed_prob: true
-    max_epoch: 5
+    max_epoch: 4
 
 augment3d:
   scale: [0.9, 1.1]

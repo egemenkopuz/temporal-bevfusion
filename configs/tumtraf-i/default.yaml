@@ -8,7 +8,7 @@ load_augmented: null
 
 image_size: [256, 704] # default
 out_size_factor: 8 # default
-score_threshold: 0.0 # default
+score_threshold: 0.15 # default
 gt_paste_stop_epoch: -1 # default
 
 augment2d: # default
@@ -18,7 +18,7 @@ augment2d: # default
   gridmask:
     prob: 0.1
     fixed_prob: true
-    max_epochs: 20
+    max_epochs: -1
 augment3d: # default
   scale: [0.9, 1.1]
   rotate: [-0.78539816, 0.78539816]
@@ -76,12 +76,12 @@ train_pipeline:
           EMERGENCY_VEHICLE: 5
       classes: ${object_classes}
       sample_groups:
-        CAR: 2
-        TRAILER: 3
-        TRUCK: 3
+        CAR: 3
+        TRAILER: 2
+        TRUCK: 4
         VAN: 5
         PEDESTRIAN: 7
-        BUS: 5
+        BUS: 2
         MOTORCYCLE: 5
         BICYCLE: 5
         EMERGENCY_VEHICLE: 3
