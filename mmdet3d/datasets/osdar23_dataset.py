@@ -13,7 +13,10 @@ import numpy as np
 import torch
 from mmcv.parallel import DataContainer as DC
 from mmdet.datasets import DATASETS
+from pytorch3d.ops import box3d_overlap
 from scipy.spatial.transform import Rotation
+
+from mmdet3d.core.bbox.structures.box_3d_mode import Box3DMode
 
 from ..core.bbox import LiDARInstance3DBoxes
 from .custom_3d import Custom3DDataset
@@ -57,6 +60,7 @@ class OSDAR23Dataset(Custom3DDataset):
         "trans_err": "mATE",
         "scale_err": "mASE",
         "orient_err": "mAOE",
+        "iou": "mIoU",
     }
 
     # below ranges are used only to filter outliers in detections
@@ -459,6 +463,7 @@ class OSDAR23Dataset(Custom3DDataset):
                     rotation=box["orientation"],
                     detection_name=name,
                     detection_score=box["score"],
+                    corners=box["corners"],
                 )
                 annos.append(nusc_anno)
             nusc_annos[ts] = annos
@@ -543,6 +548,7 @@ class OSDAR23Dataset(Custom3DDataset):
                         "detection_score": -1.0
                         if "detection_score" not in box
                         else float(box["detection_score"]),
+                        "corners": box["corners"],
                     }
                 )
             all_results[idx] = box_list
@@ -603,6 +609,15 @@ class OSDAR23Dataset(Custom3DDataset):
 
                 yaw = np.asarray(rot_temp[2], dtype=np.float32)
 
+                gt_box = np.concatenate([loc, dim, -yaw], axis=None)
+                gt_box = np.expand_dims(np.asarray(gt_box, dtype=np.float32), 0)
+                corners = (
+                    LiDARInstance3DBoxes(gt_box, box_dim=gt_box.shape[-1], origin=(0.5, 0.5, 0.5))
+                    .convert_to(Box3DMode.LIDAR)
+                    .corners.numpy()
+                    .tolist()
+                )
+
                 num_lidar_pts = 0
                 difficulty_level = None
                 occlusion_level = None
@@ -635,6 +650,7 @@ class OSDAR23Dataset(Custom3DDataset):
                         "difficulty": difficulty_level,
                         "detection_name": object_data["cuboid"][0]["name"],
                         "detection_score": -1.0,  # GT samples do not have a score.
+                        "corners": corners,
                     }
                 )
 
@@ -774,6 +790,7 @@ class OSDAR23Dataset(Custom3DDataset):
                 "trans_err": np.ones(101),
                 "scale_err": np.ones(101),
                 "orient_err": np.ones(101),
+                "iou": np.zeros(101),
             }
 
         # Organize the predictions in a single list.
@@ -799,7 +816,7 @@ class OSDAR23Dataset(Custom3DDataset):
         conf = []  # Accumulator of confidences.
 
         # match_data holds the extra metrics we calculate for each match.
-        match_data = {"trans_err": [], "scale_err": [], "orient_err": [], "conf": []}
+        match_data = {"trans_err": [], "scale_err": [], "orient_err": [], "iou": [], "conf": []}
 
         # ---------------------------------------------
         # Match and accumulate match data.
@@ -838,6 +855,7 @@ class OSDAR23Dataset(Custom3DDataset):
 
                 match_data["trans_err"].append(self.center_distance(gt_box_match, pred_box))
                 match_data["scale_err"].append(1 - self.scale_iou(gt_box_match, pred_box))
+                match_data["iou"].append(calculate_iou(gt_box_match, pred_box))
 
                 # Barrier orientation is only determined up to 180 degree. (For cones orientation is discarded later)
                 period = np.pi if class_name == "barrier" else 2 * np.pi
@@ -863,6 +881,7 @@ class OSDAR23Dataset(Custom3DDataset):
                 "trans_err": np.ones(101),
                 "scale_err": np.ones(101),
                 "orient_err": np.ones(101),
+                "iou": np.zeros(101),
             }
 
         # ---------------------------------------------
@@ -908,6 +927,7 @@ class OSDAR23Dataset(Custom3DDataset):
             "trans_err": match_data["trans_err"],
             "scale_err": match_data["scale_err"],
             "orient_err": match_data["orient_err"],
+            "iou": match_data["iou"],
         }
 
     def filter_eval_boxes(
@@ -1091,11 +1111,17 @@ class OSDAR23Dataset(Custom3DDataset):
     ):
         assert osp.exists(result_path), "Error: The result file does not exist!"
 
-        if verbose:
-            print("Initializing OSDAR23 detection evaluation")
         self.pred_boxes, self.meta = self.load_prediction(
             result_path, self.max_boxes_per_sample, verbose=verbose
         )
+
+        pred_class_counts = {x: 0 for x in self.CLASSES}
+        total_pred_class_counts = 0
+        for _, boxes in self.pred_boxes.items():
+            for box in boxes:
+                total_pred_class_counts += 1
+                pred_class_counts[box["detection_name"]] += 1
+
         self.gt_boxes = self.load_gt(verbose=verbose)
 
         assert set(self.pred_boxes.keys()) == set(
@@ -1103,13 +1129,10 @@ class OSDAR23Dataset(Custom3DDataset):
         ), "Samples in split doesn't match samples in predictions."
 
         # Filter boxes (distance, points per box, etc.).
-        if verbose:
-            print("Filtering predictions")
+
         self.pred_boxes = self.filter_eval_boxes(
             self.pred_boxes, None, config["point_cloud_range"], verbose=verbose
         )
-        if verbose:
-            print("Filtering ground truth annotations")
         self.gt_boxes = self.filter_eval_boxes(
             self.gt_boxes, None, config["point_cloud_range"], verbose=verbose
         )
@@ -1168,7 +1191,7 @@ class OSDAR23Dataset(Custom3DDataset):
                     metrics["label_aps"][class_name][dist_th] = ap
 
                 # Compute TP metrics.
-                TP_METRICS = ["trans_err", "scale_err", "orient_err"]
+                TP_METRICS = ["trans_err", "scale_err", "orient_err", "iou"]
                 for metric_name in TP_METRICS:
                     metric_data = metric_data_list[(class_name, self.dist_th_tp)]
                     tp = self.calc_tp(metric_data, self.min_recall, metric_name)
@@ -1183,6 +1206,13 @@ class OSDAR23Dataset(Custom3DDataset):
                 for class_name, d in metrics["label_aps"].items()
             }
             mean_ap = float(np.mean(list(mean_dist_aps.values())))
+
+            # compute mean IoU
+            mean_iou = 0
+            for class_name in curr_gt_classes:
+                metric_data = metric_data_list[(class_name, self.dist_th_tp)]
+                mean_iou += np.mean(metric_data["iou"])
+            mean_iou /= len(curr_gt_classes)
 
             tp_errors = {}
             for metric_name in TP_METRICS:
@@ -1215,6 +1245,7 @@ class OSDAR23Dataset(Custom3DDataset):
                 "tp_errors": tp_errors,
                 "tp_scores": tp_scores,
                 "nd_score": nd_score,
+                "mean_iou": mean_iou,
                 "eval_time": metrics["eval_time"],
                 "cfg": self.eval_detection_configs,
             }
@@ -1226,38 +1257,52 @@ class OSDAR23Dataset(Custom3DDataset):
                 "trans_err": "mATE",
                 "scale_err": "mASE",
                 "orient_err": "mAOE",
+                "iou": "mIoU",
             }
             for tp_name, tp_val in metrics_summary["tp_errors"].items():
                 print(f"{eval_name} - {err_name_mapping[tp_name]}: {tp_val:.4f}")
             print(f"{eval_name} - NDS: {metrics_summary['nd_score']:.4f}")
             print("Eval time: %.1fs" % metrics_summary["eval_time"])
-            print(f"Total number of gt bboxes: {total_curr_gt_class_counts}")
+            print(f"Total number of GT bboxes: {total_curr_gt_class_counts}")
+            print(f"Total number of predicted bboxes: {total_pred_class_counts}")
             print(f"GT class counts: {curr_gt_class_counts}")
+            print(f"Predicted class counts: {pred_class_counts}")
 
             # Print per-class metrics.
             print(f"\n{eval_name} - Per-class results:")
-            print("%-20s\t%-6s\t%-6s\t%-6s\t%-6s" % ("Object Class", "AP", "ATE", "ASE", "AOE"))
+            print(
+                "%-20s\t%-6s\t%-6s\t%-6s\t%-6s\t%-6s"
+                % ("Object Class", "AP", "ATE", "ASE", "AOE", "IoU")
+            )
             class_aps = metrics_summary["mean_dist_aps"]
             class_tps = metrics_summary["label_tp_errors"]
             for class_name in class_aps.keys():
                 print(
-                    "%-20s\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f"
+                    "%-20s\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f"
                     % (
                         class_name[15:],
                         class_aps[class_name],
                         class_tps[class_name]["trans_err"],
                         class_tps[class_name]["scale_err"],
                         class_tps[class_name]["orient_err"],
+                        class_tps[class_name]["iou"],
                     )
                 )
 
             metrics_summary["total_gt_bboxes"] = total_curr_gt_class_counts
-            metrics_summary["class_counts"] = {}
+            metrics_summary["total_pred_bboxes"] = total_pred_class_counts
+            metrics_summary["class_gt_counts"] = {}
             for x in self.CLASSES:
                 if x in curr_gt_class_counts:
-                    metrics_summary["class_counts"][x] = curr_gt_class_counts[x]
+                    metrics_summary["class_gt_counts"][x] = curr_gt_class_counts[x]
                 else:
-                    metrics_summary["class_counts"][x] = 0
+                    metrics_summary["class_gt_counts"][x] = 0
+            metrics_summary["class_pred_counts"] = {}
+            for x in self.CLASSES:
+                if x in pred_class_counts:
+                    metrics_summary["class_pred_counts"][x] = pred_class_counts[x]
+                else:
+                    metrics_summary["class_pred_counts"][x] = 0
 
             all_metrics_summary[eval_name] = metrics_summary
             all_metric_data_list[eval_name] = metric_data_list
@@ -1334,6 +1379,7 @@ class OSDAR23Dataset(Custom3DDataset):
                 val = float("{:.4f}".format(v))
                 detail["object/{}".format(self.ErrNameMapping[k])] = val
 
+        detail["object/iou"] = metrics["mean_iou"]
         detail["object/nds"] = metrics["nd_score"]
         detail["object/map"] = metrics["mean_ap"]
         return detail
@@ -1404,6 +1450,7 @@ def output_to_box_dict(detection):
         list[:obj:`dict`]: List of standard box dicts.
     """
     box3d = detection["boxes_3d"]
+    box3d_corners = box3d.corners
     scores = detection["scores_3d"].numpy()
     labels = detection["labels_3d"].numpy()
 
@@ -1422,6 +1469,7 @@ def output_to_box_dict(detection):
             "label": int(labels[i]) if not np.isnan(labels[i]) else labels[i],
             "score": float(scores[i]) if not np.isnan(scores[i]) else scores[i],
             "name": None,
+            "corners": box3d_corners[i].numpy().tolist(),
         }
         box_list.append(box)
     return box_list
@@ -1463,3 +1511,22 @@ def filter_box_in_lidar_cs(boxes, classes, eval_configs):
         #     continue
         # box_list.append(box)
     return box_list
+
+
+def calculate_iou(gt_box, pred_box):
+    mod_gt_box = create_swapped_rows(torch.tensor(gt_box["corners"]))
+    mod_pred_box = create_swapped_rows(torch.tensor(pred_box["corners"]).unsqueeze(0))
+    return box3d_overlap(mod_gt_box, mod_pred_box)[1].item()
+
+
+def create_swapped_rows(x):
+    out = torch.zeros_like(x)
+    out[:, 0] = x[:, 0]
+    out[:, 1] = x[:, 4]
+    out[:, 2] = x[:, 7]
+    out[:, 3] = x[:, 3]
+    out[:, 4] = x[:, 1]
+    out[:, 5] = x[:, 5]
+    out[:, 6] = x[:, 6]
+    out[:, 7] = x[:, 2]
+    return out
