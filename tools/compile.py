@@ -92,6 +92,8 @@ HEADERS = [
     "fuser",
     "temporal_fuser",
     "mAP",
+    "mIoU",
+    "NDS",
     "mAOE",
     "mATE",
     "mASE",
@@ -129,7 +131,7 @@ def get_args() -> Namespace:
     parser.add_argument("--include-scores", action="store_true", required=False)
     parser.add_argument("--include-labels", action="store_true", required=False)
     parser.add_argument("--images-max-samples", type=int, default=None, required=False)
-    parser.add_argument("--images-cam-bbox-score", type=float, default=None, required=False)
+    parser.add_argument("--score-threshold", type=float, default=None, required=False)
     parser.add_argument("--skip-test", action="store_true", required=False)
     parser.add_argument("--skip-images", action="store_true", required=False)
     parser.add_argument("--skip-videos", action="store_true", required=False)
@@ -166,7 +168,7 @@ def compile_results(
     include_scores: bool = False,
     include_labels: bool = False,
     images_max_samples: int = None,
-    images_cam_bbox_score: float = None,
+    score_threshold: float = None,
     skip_test: bool = False,
     skip_images: bool = False,
     skip_videos: bool = False,
@@ -196,7 +198,7 @@ def compile_results(
         include_scores (bool, optional): save scores. Defaults to False.
         include_labels (bool, optional): save labels. Defaults to False.
         images_max_samples (int, optional): maximum number of samples to include in images. Defaults to None.
-        images_cam_bbox_score (float, optional): minimum score of bounding boxes to include in images. Defaults to None.
+        score_threshold (float, optional): minimum score for bounding boxes Defaults to None.
         skip_test (bool, optional): skip testing. Defaults to False.
         skip_images (bool, optional): skip images. Defaults to False.
         skip_videos (bool, optional): skip videos. Defaults to False.
@@ -251,7 +253,7 @@ def compile_results(
             include_labels,
             images_include_combined,
             images_max_samples,
-            images_cam_bbox_score,
+            score_threshold,
             loglevel,
         )
 
@@ -562,15 +564,23 @@ def compile(
                         "test_mem": round(benchmark_data["memory_allocated"], 2),
                         "eval_type": eval_type,
                         "mAP": eval_data["mean_ap"],
+                        "mIoU": eval_data["mean_iou"],
+                        "NDS": eval_data["nd_score"],
                     }
 
                     row.update(model_meta)
 
                     for x in classes:
-                        if x in eval_data["class_counts"]:
-                            row.update({f"num_{x}": eval_data["class_counts"][x]})
+                        if x in eval_data["class_gt_counts"]:
+                            row.update({f"num_gt_{x}": eval_data["class_gt_counts"][x]})
                         else:
-                            row.update({f"num_{x}": ""})
+                            row.update({f"num_gt_{x}": ""})
+
+                    for x in classes:
+                        if x in eval_data["class_pred_counts"]:
+                            row.update({f"num_pred_{x}": eval_data["class_pred_counts"][x]})
+                        else:
+                            row.update({f"num_pred_{x}": ""})
 
                     for tp_name, tp_val in eval_data["tp_errors"].items():
                         if tp_name in ERR_NAME_MAPPING:
@@ -592,6 +602,7 @@ def compile(
                                 )
 
                     row.update({"num_gt_bboxes": eval_data["total_gt_bboxes"]})
+                    row.update({"num_pred_bboxes": eval_data["total_pred_bboxes"]})
                     rows.append(row)
 
                     writer.writerows([row])
@@ -617,13 +628,16 @@ def create_meta(dataset: str) -> Tuple[List[str], List[str]]:
     else:
         raise NotImplementedError
 
-    for m in ["mAP", "mAOE", "mATE", "mASE"]:
+    for m in ["mAP", "mIoU", "mAOE", "mATE", "mASE"]:
         for x in classes:
             headers.append(f"{x}_{m}")
 
     headers.append("num_gt_bboxes")
+    headers.append("num_pred_bboxes")
+
     for x in classes:
-        headers.append(f"num_{x}")
+        headers.append(f"num_gt_{x}")
+        headers.append(f"num_pred_{x}")
 
     return headers, classes
 
@@ -728,6 +742,7 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
             "image_size": image_size,
             "gt_paste_stop_epoch": gt_paste_stop_epoch,
             "grid_size": grid_size,
+            "score_threshold": data.get("score_threshold", None),
             "x_pcd_range": pcd_range_x,
             "y_pcd_range": pcd_range_y,
             "z_pcd_range": pcd_range_z,
