@@ -8,7 +8,7 @@ load_augmented: null
 
 image_size: [256, 704] # default
 out_size_factor: 8 # default
-score_threshold: 0.15 # default
+score_threshold: 0.0 # default
 gt_paste_stop_epoch: -1 # default
 
 augment2d: # default

@@ -18,7 +18,7 @@ augment2d: # default
   gridmask:
     prob: 0.1
     fixed_prob: true
-    max_epochs: 20
+    max_epochs: -1
 augment3d: # default
   scale: [0.9, 1.1]
   rotate: [-0.78539816, 0.78539816]
@@ -69,10 +69,10 @@ train_pipeline:
       classes: ${object_classes}
       sample_groups:
         lidar__cuboid__person: 7
-        lidar__cuboid__catenary_pole: 5
-        lidar__cuboid__signal_pole: 5
-        lidar__cuboid__road_vehicle: 5
-        lidar__cuboid__buffer_stop: 3
+        lidar__cuboid__catenary_pole: 4
+        lidar__cuboid__signal_pole: 4
+        lidar__cuboid__road_vehicle: 3
+        lidar__cuboid__buffer_stop: 2
       points_loader:
         type: LoadPointsFromFile
         coord_type: LIDAR

@@ -7,10 +7,9 @@ grid_size: [1600, 1600, 41]
 voxel_max_points: 15
 voxel_max_voxels: [200000, 200000]
 out_size_factor: 8
-score_threshold: 0.1
 
-samples_per_gpu: 4
-workers_per_gpu: 8
+samples_per_gpu: 6
+workers_per_gpu: 6
 
 max_epochs: 20
 gt_paste_stop_epoch: 15
