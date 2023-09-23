@@ -210,8 +210,8 @@ def visualize_camera_combined(
 def visualize_bev_feature(
     fpath: str,
     bev_feature: np.ndarray,
-    xlim: Tuple[float, float] = (-50, 50),
-    ylim: Tuple[float, float] = (-50, 50),
+    xlim: Tuple[float, float] = None,
+    ylim: Tuple[float, float] = None,
     dataset: Optional[str] = None,
 ) -> None:
     if bev_feature.ndim == 4:
@@ -224,7 +224,10 @@ def visualize_bev_feature(
     elif dataset == "OSDAR23Dataset":
         bev_feature = np.rot90(np.rot90(bev_feature))
 
-    fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
+    if xlim is None and ylim is None:
+        fig = plt.figure()
+    else:
+        fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
     ax = plt.gca()
     ax.set_aspect(1)

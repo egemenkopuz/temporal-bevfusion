@@ -75,6 +75,7 @@ HEADERS = [
     "image_size",
     "voxel_size",
     "grid_size",
+    "score_threshold",
     "x_pcd_range",
     "y_pcd_range",
     "z_pcd_range",

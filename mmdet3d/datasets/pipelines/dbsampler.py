@@ -120,12 +120,12 @@ class DataBaseSampler:
 
         logger = get_root_logger()
         for k, v in db_infos.items():
-            logger.info(f"load {len(v)} {k} database infos")
+            logger.debug(f"load {len(v)} {k} database infos")
         for prep_func, val in prepare.items():
             db_infos = getattr(self, prep_func)(db_infos, val)
-        logger.info("After filter database:")
+        logger.debug("After filter database:")
         for k, v in db_infos.items():
-            logger.info(f"load {len(v)} {k} database infos")
+            logger.debug(f"load {len(v)} {k} database infos")
 
         self.db_infos = db_infos
 

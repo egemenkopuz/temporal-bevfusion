@@ -112,9 +112,9 @@ def create_auto_dir_name(cfg) -> str:
         if fuser is not None:
             models.append(fuser.lower())
 
-    temporal_fuser = cfg["model"].get("temporal_fuser", {}).get("type", None)
+    temporal_fuser = cfg["model"].get("temporal_fuser", None)
     if temporal_fuser is not None:
-        models.append(temporal_fuser.lower())
+        models.append(temporal_fuser["type"].lower())
 
     # lidar info
     if modality.count("l") > 0:
@@ -149,6 +149,12 @@ def create_auto_dir_name(cfg) -> str:
 
     # score threshold
     info.append(str(cfg["score_threshold"]).replace(".", "st"))
+
+    # temporal queue length
+    if cfg.get("queue_length", None) not in [0, None]:
+        info.append(f"ql{cfg['queue_length']}")
+    if cfg.get("queue_range_threshold", None) not in [0, None]:
+        info.append(f"qrt{cfg['queue_range_threshold']}")
 
     # gt mode stop epoch
     if cfg["gt_paste_stop_epoch"] not in [None, -1]:
