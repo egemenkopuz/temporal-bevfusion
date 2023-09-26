@@ -16,14 +16,17 @@ from mmdet3d.models import build_model
 from mmdet3d.utils import convert_sync_batchnorm, get_root_logger, recursive_eval
 
 
-def main():
-    dist.init()
-
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", help="config file")
     parser.add_argument("--run-dir", required=False, help="run directory")
     parser.add_argument("--auto-run-dir", required=False, help="auto-run directory")
     args, opts = parser.parse_known_args()
+    return args, opts
+
+
+def train(args, opts):
+    dist.init()
 
     configs.load(args.config, recursive=True)
     configs.update(opts)
@@ -172,4 +175,5 @@ def create_auto_dir_name(cfg) -> str:
 
 
 if __name__ == "__main__":
-    main()
+    args, opts = parse_args()
+    train(args, opts)
