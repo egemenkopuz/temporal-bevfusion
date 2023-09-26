@@ -22,7 +22,14 @@ class BatchSampler:
         drop_reminder (bool): Drop reminder. Default: False.
     """
 
-    def __init__(self, sampled_list, name=None, epoch=None, shuffle=True, drop_reminder=False):
+    def __init__(
+        self,
+        sampled_list,
+        name=None,
+        epoch=None,
+        shuffle=True,
+        drop_reminder=False,
+    ):
         self._sampled_list = sampled_list
         self._indices = np.arange(len(sampled_list))
         if shuffle:
@@ -102,6 +109,7 @@ class DataBaseSampler:
             load_dim=4,
             use_dim=[0, 1, 2, 3],
         ),
+        temporal_aware: bool = False,
     ):
         super().__init__()
         self.dataset_root = dataset_root
@@ -112,6 +120,7 @@ class DataBaseSampler:
         self.cat2label = {name: i for i, name in enumerate(classes)}
         self.label2cat = {i: name for i, name in enumerate(classes)}
         self.points_loader = mmcv.build_from_cfg(points_loader, PIPELINES)
+        self.temporal_aware = temporal_aware
 
         db_infos = mmcv.load(info_path)
 

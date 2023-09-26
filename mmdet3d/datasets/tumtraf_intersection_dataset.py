@@ -108,7 +108,7 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         test_mode=False,
         use_valid_flag=False,
         eval_point_cloud_range: Optional[List[float]] = None,
-        queue_length: int = 0,
+        queue_length: Optional[int] = None,
         queue_range_threshold: int = 0,
         online: bool = False,
     ) -> None:
@@ -116,7 +116,8 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         self.use_valid_flag = use_valid_flag
 
         assert eval_point_cloud_range is None or len(eval_point_cloud_range) == 6
-        assert isinstance(queue_length, int) and queue_length >= 0
+        if queue_length is not None and not queue_length > 0:
+            raise ValueError("queue_length must be positive")
 
         self.eval_point_cloud_range = eval_point_cloud_range
         self.queue_length = queue_length
@@ -206,18 +207,18 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
             sweeps=info["sweeps"],
             timestamp=info["timestamp"],
             location=info["location"],
+            dataset_index=index,
         )
 
         # lidar to ego transform
         data["lidar2ego"] = info["lidar2ego"]
 
         # temporal
-        if self.queue_length > 0:
-            data["scene_token"] = info["scene_token"]
-            data["token"] = info["token"]
-            data["prev"] = info["prev"]
-            data["next"] = info["next"]
-            data["frame_idx"] = info["frame_idx"]
+        data["scene_token"] = info["scene_token"]
+        data["token"] = info["token"]
+        data["prev"] = info["prev"]
+        data["next"] = info["next"]
+        data["frame_idx"] = info["frame_idx"]
 
         if self.modality["use_camera"]:
             data["image_paths"] = []
@@ -286,7 +287,7 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         Returns:
             dict: Training data dict of the corresponding index.
         """
-        if self.queue_length == 0:
+        if self.queue_length is None or self.queue_length == 0:
             input_dict = self.get_data_info(index)
             if input_dict is None:
                 return None
@@ -306,7 +307,6 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
             index_list = sorted(index_list[-(self.queue_length - 1) :])
             index_list.append(index)
             latest_dict = None
-            debug_frame_indices = []
             for i in index_list[::-1]:
                 i = max(0, i)
                 input_dict = self.get_data_info(i)
@@ -314,19 +314,20 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
                     latest_dict is not None
                     and input_dict["scene_token"] != latest_dict["scene_token"]
                 ):
-                    input_dict = latest_dict
+                    input_dict = copy.deepcopy(latest_dict)
                 else:
                     latest_dict = copy.deepcopy(input_dict)
-                debug_frame_indices.append(input_dict["frame_idx"])
+
                 self.pre_pipeline(input_dict)
-                example = self.pipeline(input_dict)
-                if self.filter_empty_gt and (
-                    example is None or ~(example["gt_labels_3d"]._data != -1).any()
-                ):
-                    return None
-                queue.append(example)
-            # print(f"train {index} debug_frame_indices", debug_frame_indices[::-1])
-            return self.union2one(queue[::-1])
+                queue.append(input_dict)
+
+            queue = self.pipeline(queue[::-1])
+
+            if self.filter_empty_gt and (
+                queue is None or ~(queue[-1]["gt_labels_3d"]._data != -1).any()
+            ):
+                return None
+            return self.union2one(queue)
 
     def prepare_test_data(self, index):
         """Prepare data for testing.
@@ -337,7 +338,7 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         Returns:
             dict: Testing data dict of the corresponding index.
         """
-        if self.queue_length == 0:
+        if self.queue_length is None or self.queue_length == 0:
             input_dict = self.get_data_info(index)
             self.pre_pipeline(input_dict)
             example = self.pipeline(input_dict)
@@ -351,7 +352,6 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
             index_list = sorted(index_list[-(self.queue_length - 1) :])
             index_list.append(index)
             latest_dict = None
-            debug_frame_indices = []
             for i in index_list[::-1]:
                 i = max(0, i)
                 input_dict = self.get_data_info(i)
@@ -359,15 +359,20 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
                     latest_dict is not None
                     and input_dict["scene_token"] != latest_dict["scene_token"]
                 ):
-                    input_dict = latest_dict
+                    input_dict = copy.deepcopy(latest_dict)
                 else:
                     latest_dict = copy.deepcopy(input_dict)
-                debug_frame_indices.append(input_dict["frame_idx"])
+
                 self.pre_pipeline(input_dict)
-                example = self.pipeline(input_dict)
-                queue.append(example)
-            # print(f"test {index} debug_frame_indices", debug_frame_indices[::-1])
-            return self.union2one(queue[::-1])
+                queue.append(input_dict)
+
+            queue = self.pipeline(queue[::-1])
+
+            if self.filter_empty_gt and (
+                queue is None or ~(queue[-1]["gt_labels_3d"]._data != -1).any()
+            ):
+                return None
+            return self.union2one(queue)
 
     def get_ann_info(self, index):
         """Get annotation info according to the given index.

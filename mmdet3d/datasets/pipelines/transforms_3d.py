@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 import mmcv
 import numpy as np
@@ -6,6 +6,7 @@ import torch
 import torchvision
 from mmcv import is_tuple_of
 from mmcv.utils import build_from_cfg
+from mmdet.datasets.builder import PIPELINES
 from numpy import random
 from PIL import Image
 
@@ -16,7 +17,6 @@ from mmdet3d.core.bbox import (
     LiDARInstance3DBoxes,
     box_np_ops,
 )
-from mmdet.datasets.builder import PIPELINES
 
 from ..builder import OBJECTSAMPLERS
 from .utils import noise_per_object_v3_
@@ -25,7 +25,14 @@ from .utils import noise_per_object_v3_
 @PIPELINES.register_module()
 class ImageAug3D:
     def __init__(
-        self, final_dim, resize_lim, bot_pct_lim, rot_lim, rand_flip, is_train
+        self,
+        final_dim,
+        resize_lim,
+        bot_pct_lim,
+        rot_lim,
+        rand_flip,
+        is_train,
+        apply_same_aug_to_seq: bool = False,
     ):
         self.final_dim = final_dim
         self.resize_lim = resize_lim
@@ -33,6 +40,8 @@ class ImageAug3D:
         self.rand_flip = rand_flip
         self.rot_lim = rot_lim
         self.is_train = is_train
+        self.apply_same_aug_to_seq = apply_same_aug_to_seq
+        self.sample_aug = None
 
     def sample_augmentation(self, results):
         W, H = results["ori_shape"]
@@ -59,9 +68,7 @@ class ImageAug3D:
             rotate = 0
         return resize, resize_dims, crop, flip, rotate
 
-    def img_transform(
-        self, img, rotation, translation, resize, resize_dims, crop, flip, rotate
-    ):
+    def img_transform(self, img, rotation, translation, resize, resize_dims, crop, flip, rotate):
         # adjust image
         img = img.resize(resize_dims)
         img = img.crop(crop)
@@ -91,12 +98,24 @@ class ImageAug3D:
 
         return img, rotation, translation
 
-    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         imgs = data["img"]
         new_imgs = []
         transforms = []
-        for img in imgs:
-            resize, resize_dims, crop, flip, rotate = self.sample_augmentation(data)
+
+        if self.apply_same_aug_to_seq:
+            if self.sample_aug is None:
+                self.sample_aug = [None] * len(imgs)
+                for i, img in enumerate(imgs):
+                    resize, resize_dims, crop, flip, rotate = self.sample_augmentation(data)
+                    self.sample_aug[i] = (resize, resize_dims, crop, flip, rotate)
+
+        for i, img in enumerate(imgs):
+            if self.apply_same_aug_to_seq:
+                resize, resize_dims, crop, flip, rotate = self.sample_aug[i]
+            else:
+                resize, resize_dims, crop, flip, rotate = self.sample_augmentation(data)
+
             post_rot = torch.eye(2)
             post_tran = torch.zeros(2)
             new_img, rotation, translation = self.img_transform(
@@ -119,22 +138,52 @@ class ImageAug3D:
         data["img_aug_matrix"] = transforms
         return data
 
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        self.sample_aug = None
+        return data
+
+    def __call__(
+        self, data: Union[dict, List[Dict[str, Any]]]
+    ) -> Union[dict, List[Dict[str, Any]]]:
+        if isinstance(data, list):  # temporal
+            return self.apply_temporal(data)
+        else:  # non-temporal
+            return self.apply(data)
+
 
 @PIPELINES.register_module()
 class GlobalRotScaleTrans:
-    def __init__(self, resize_lim, rot_lim, trans_lim, is_train):
+    def __init__(
+        self, resize_lim, rot_lim, trans_lim, is_train, apply_same_aug_to_seq: bool = False
+    ):
         self.resize_lim = resize_lim
         self.rot_lim = rot_lim
         self.trans_lim = trans_lim
         self.is_train = is_train
+        self.apply_same_aug_to_seq = apply_same_aug_to_seq
+        self.sample_aug = None
 
-    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def sample_augmentation(self):
+        scale = random.uniform(*self.resize_lim)
+        theta = random.uniform(*self.rot_lim)
+        translation = np.array([random.normal(0, self.trans_lim) for i in range(3)])
+        return scale, theta, translation
+
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         transform = np.eye(4).astype(np.float32)
 
         if self.is_train:
-            scale = random.uniform(*self.resize_lim)
-            theta = random.uniform(*self.rot_lim)
-            translation = np.array([random.normal(0, self.trans_lim) for i in range(3)])
+            if self.apply_same_aug_to_seq:
+                if self.sample_aug is None:
+                    scale, theta, translation = self.sample_augmentation()
+                    self.sample_aug = (scale, theta, translation)
+                else:
+                    scale, theta, translation = self.sample_aug
+            else:
+                scale, theta, translation = self.sample_augmentation()
+
             rotation = np.eye(3)
 
             if "points" in data:
@@ -154,6 +203,20 @@ class GlobalRotScaleTrans:
         data["lidar_aug_matrix"] = transform
         return data
 
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        self.sample_aug = None
+        return data
+
+    def __call__(
+        self, data: Union[dict, List[Dict[str, Any]]]
+    ) -> Union[dict, List[Dict[str, Any]]]:
+        if isinstance(data, list):
+            return self.apply_temporal(data)
+        else:
+            return self.apply(data)
+
 
 @PIPELINES.register_module()
 class GridMask:
@@ -168,6 +231,7 @@ class GridMask:
         mode=0,
         prob=1.0,
         fixed_prob=False,
+        apply_same_aug_to_seq: bool = False,
     ):
         self.use_h = use_h
         self.use_w = use_w
@@ -180,6 +244,8 @@ class GridMask:
         self.epoch = None
         self.max_epoch = max_epoch
         self.fixed_prob = fixed_prob
+        self.apply_same_aug_to_seq = apply_same_aug_to_seq
+        self.sample_aug = None
 
     def set_epoch(self, epoch):
         self.epoch = epoch
@@ -189,42 +255,67 @@ class GridMask:
     def set_prob(self, epoch, max_epoch):
         self.prob = self.st_prob * self.epoch / self.max_epoch
 
-    def __call__(self, results):
+    def sample_augmentation(self, h, w):
         if np.random.rand() > self.prob:
-            return results
-        imgs = results["img"]
-        h = imgs[0].shape[0]
-        w = imgs[0].shape[1]
-        self.d1 = 2
-        self.d2 = min(h, w)
-        hh = int(1.5 * h)
-        ww = int(1.5 * w)
-        d = np.random.randint(self.d1, self.d2)
+            return None
+
+        d1 = 2
+        d2 = min(h, w)
+        d = np.random.randint(d1, d2)
+
         if self.ratio == 1:
-            self.l = np.random.randint(1, d)
+            l = np.random.randint(1, d)
         else:
-            self.l = min(max(int(d * self.ratio + 0.5), 1), d - 1)
-        mask = np.ones((hh, ww), np.float32)
+            l = min(max(int(d * self.ratio + 0.5), 1), d - 1)
+
         st_h = np.random.randint(d)
         st_w = np.random.randint(d)
+
+        r = np.random.randint(self.rotate)
+
+        offset_r = np.random.rand(h, w)
+
+        return d, l, st_h, st_w, r, offset_r
+
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        imgs = data["img"]
+
+        h = imgs[0].shape[0]
+        w = imgs[0].shape[1]
+
+        if self.apply_same_aug_to_seq:
+            if self.sample_aug is None:
+                aug_vars = self.sample_augmentation(h, w)
+                self.sample_aug = aug_vars
+            else:
+                aug_vars = self.sample_aug
+        else:
+            aug_vars = self.sample_augmentation(h, w)
+
+        if aug_vars is None:
+            return data
+
+        d, l, st_h, st_w, r, offset_r = aug_vars
+
+        hh = int(1.5 * h)
+        ww = int(1.5 * w)
+        mask = np.ones((hh, ww), np.float32)
+
         if self.use_h:
             for i in range(hh // d):
                 s = d * i + st_h
-                t = min(s + self.l, hh)
+                t = min(s + l, hh)
                 mask[s:t, :] *= 0
         if self.use_w:
             for i in range(ww // d):
                 s = d * i + st_w
-                t = min(s + self.l, ww)
+                t = min(s + l, ww)
                 mask[:, s:t] *= 0
 
-        r = np.random.randint(self.rotate)
         mask = Image.fromarray(np.uint8(mask))
         mask = mask.rotate(r)
         mask = np.asarray(mask)
-        mask = mask[
-            (hh - h) // 2 : (hh - h) // 2 + h, (ww - w) // 2 : (ww - w) // 2 + w
-        ]
+        mask = mask[(hh - h) // 2 : (hh - h) // 2 + h, (ww - w) // 2 : (ww - w) // 2 + w]
 
         mask = mask.astype(np.float32)
         mask = mask[:, :, None]
@@ -233,21 +324,50 @@ class GridMask:
 
         # mask = mask.expand_as(imgs[0])
         if self.offset:
-            offset = torch.from_numpy(2 * (np.random.rand(h, w) - 0.5)).float()
+            offset = torch.from_numpy(2 * (offset_r - 0.5)).float()
             offset = (1 - mask) * offset
             imgs = [x * mask + offset for x in imgs]
         else:
             imgs = [x * mask for x in imgs]
 
-        results.update(img=imgs)
-        return results
+        data.update(img=imgs)
+        return data
+
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        self.sample_aug = None
+        return data
+
+    def __call__(
+        self, data: Union[dict, List[Dict[str, Any]]]
+    ) -> Union[dict, List[Dict[str, Any]]]:
+        if isinstance(data, list):
+            return self.apply_temporal(data)
+        else:
+            return self.apply(data)
 
 
 @PIPELINES.register_module()
 class RandomFlip3D:
-    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def __init__(self, apply_same_aug_to_seq: bool = False):
+        self.apply_same_aug_to_seq = apply_same_aug_to_seq
+        self.sample_aug = None
+
+    def sample_augmentation(self):
         flip_horizontal = random.choice([0, 1])
         flip_vertical = random.choice([0, 1])
+        return flip_horizontal, flip_vertical
+
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if self.apply_same_aug_to_seq:
+            if self.sample_aug is None:
+                flip_horizontal, flip_vertical = self.sample_augmentation()
+                self.sample_aug = (flip_horizontal, flip_vertical)
+            else:
+                flip_horizontal, flip_vertical = self.sample_aug
+        else:
+            flip_horizontal, flip_vertical = self.sample_augmentation()
 
         rotation = np.eye(3)
         if flip_horizontal:
@@ -271,6 +391,20 @@ class RandomFlip3D:
         data["lidar_aug_matrix"][:3, :] = rotation @ data["lidar_aug_matrix"][:3, :]
         return data
 
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        self.sample_aug = None
+        return data
+
+    def __call__(
+        self, data: Union[dict, List[Dict[str, Any]]]
+    ) -> Union[dict, List[Dict[str, Any]]]:
+        if isinstance(data, list):
+            return self.apply_temporal(data)
+        else:
+            return self.apply(data)
+
 
 @PIPELINES.register_module()
 class ObjectPaste:
@@ -282,7 +416,9 @@ class ObjectPaste:
             Defaults to False.
     """
 
-    def __init__(self, db_sampler, sample_2d=False, stop_epoch=None):
+    def __init__(
+        self, db_sampler, sample_2d=False, stop_epoch=None, apply_same_aug_to_seq: bool = False
+    ):
         self.sampler_cfg = db_sampler
         self.sample_2d = sample_2d
         if "type" not in db_sampler.keys():
@@ -290,6 +426,8 @@ class ObjectPaste:
         self.db_sampler = build_from_cfg(db_sampler, OBJECTSAMPLERS)
         self.epoch = -1
         self.stop_epoch = stop_epoch
+        self.apply_same_aug_to_seq = apply_same_aug_to_seq
+        self.sample_aug = None
 
     def set_epoch(self, epoch):
         self.epoch = epoch
@@ -307,17 +445,7 @@ class ObjectPaste:
         points = points[np.logical_not(masks.any(-1))]
         return points
 
-    def __call__(self, data):
-        """Call function to sample ground truth objects to the data.
-        Args:
-            data (dict): Result dict from loading pipeline.
-        Returns:
-            dict: Results after object sampling augmentation, \
-                'points', 'gt_bboxes_3d', 'gt_labels_3d' keys are updated \
-                in the result dict.
-        """
-        if self.stop_epoch is not None and self.epoch >= self.stop_epoch:
-            return data
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         gt_bboxes_3d = data["gt_bboxes_3d"]
         gt_labels_3d = data["gt_labels_3d"]
 
@@ -354,9 +482,9 @@ class ObjectPaste:
 
             if self.sample_2d:
                 sampled_gt_bboxes_2d = sampled_dict["gt_bboxes_2d"]
-                gt_bboxes_2d = np.concatenate(
-                    [gt_bboxes_2d, sampled_gt_bboxes_2d]
-                ).astype(np.float32)
+                gt_bboxes_2d = np.concatenate([gt_bboxes_2d, sampled_gt_bboxes_2d]).astype(
+                    np.float32
+                )
 
                 data["gt_bboxes"] = gt_bboxes_2d
                 data["img"] = sampled_dict["img"]
@@ -366,6 +494,27 @@ class ObjectPaste:
         data["points"] = points
 
         return data
+
+    def apply_temporal(self, data) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        self.sample_aug = None
+        return data
+
+    def __call__(
+        self, data: Union[dict, List[Dict[str, Any]]]
+    ) -> Union[dict, List[Dict[str, Any]]]:
+        """Call function to sample ground truth objects to the data.
+        Args:
+            data (dict, list): Result dict or list from loading pipeline
+        """
+        if self.stop_epoch is not None and self.epoch >= self.stop_epoch:
+            return data
+
+        if isinstance(data, list):  # temporal
+            return self.apply_temporal(data)
+        else:  # non-temporal
+            return self.apply(data)
 
 
 @PIPELINES.register_module()
@@ -395,14 +544,7 @@ class ObjectNoise:
         self.rot_range = rot_range
         self.num_try = num_try
 
-    def __call__(self, data):
-        """Call function to apply noise to each ground truth in the scene.
-        Args:
-            data (dict): Result dict from loading pipeline.
-        Returns:
-            dict: Results after adding noise to each object, \
-                'points', 'gt_bboxes_3d' keys are updated in the result dict.
-        """
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         gt_bboxes_3d = data["gt_bboxes_3d"]
         points = data["points"]
 
@@ -423,6 +565,23 @@ class ObjectNoise:
         data["points"] = points.new_point(numpy_points)
         return data
 
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        """Call function to apply noise to each ground truth in the scene.
+        Args:
+            data (dict, list): Result dict, list from loading pipeline.
+        """
+        if isinstance(data, list):  # temporal
+            return self.apply_temporal(data)
+        else:  # non-temporal
+            return self.apply(data)
+
 
 @PIPELINES.register_module()
 class FrameDropout:
@@ -430,7 +589,7 @@ class FrameDropout:
         self.prob = prob
         self.time_dim = time_dim
 
-    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         offsets = []
         for offset in torch.unique(data["points"].tensor[:, self.time_dim]):
             if offset == 0 or random.random() > self.prob:
@@ -442,12 +601,38 @@ class FrameDropout:
         data["points"].tensor = points[indices]
         return data
 
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        if isinstance(data, list):  # temporal
+            return self.apply_temporal(data)
+        else:  # non-temporal
+            return self.apply(data)
+
 
 @PIPELINES.register_module()
 class PointShuffle:
-    def __call__(self, data):
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         data["points"].shuffle()
         return data
+
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        if isinstance(data, list):  # temporal
+            return self.apply_temporal(data)
+        else:  # non-temporal
+            return self.apply(data)
 
 
 @PIPELINES.register_module()
@@ -460,21 +645,16 @@ class ObjectRangeFilter:
     def __init__(self, point_cloud_range):
         self.pcd_range = np.array(point_cloud_range, dtype=np.float32)
 
-    def __call__(self, data):
-        """Call function to filter objects by the range.
-        Args:
-            data (dict): Result dict from loading pipeline.
-        Returns:
-            dict: Results after filtering, 'gt_bboxes_3d', 'gt_labels_3d' \
-                keys are updated in the result dict.
-        """
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         # Check points instance type and initialise bev_range
-        if isinstance(
-            data["gt_bboxes_3d"], (LiDARInstance3DBoxes, DepthInstance3DBoxes)
-        ):
+        if isinstance(data["gt_bboxes_3d"], (LiDARInstance3DBoxes, DepthInstance3DBoxes)):
             bev_range = self.pcd_range[[0, 1, 3, 4]]
         elif isinstance(data["gt_bboxes_3d"], CameraInstance3DBoxes):
             bev_range = self.pcd_range[[0, 2, 3, 5]]
+        else:
+            raise TypeError(
+                "Only support LiDARInstance3DBoxes, DepthInstance3DBoxes and CameraInstance3DBoxes"
+            )
 
         gt_bboxes_3d = data["gt_bboxes_3d"]
         gt_labels_3d = data["gt_labels_3d"]
@@ -493,6 +673,23 @@ class ObjectRangeFilter:
 
         return data
 
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        """Call function to filter objects by the range.
+        Args:
+            data (dict, list): Result dict from loading pipeline.
+        """
+        if isinstance(data, list):  # temporal
+            return self.apply_temporal(data)
+        else:  # non-temporal
+            return self.apply(data)
+
     def __repr__(self):
         """str: Return a string that describes the module."""
         repr_str = self.__class__.__name__
@@ -510,19 +707,29 @@ class PointsRangeFilter:
     def __init__(self, point_cloud_range):
         self.pcd_range = np.array(point_cloud_range, dtype=np.float32)
 
-    def __call__(self, data):
-        """Call function to filter points by the range.
-        Args:
-            data (dict): Result dict from loading pipeline.
-        Returns:
-            dict: Results after filtering, 'points', 'pts_instance_mask' \
-                and 'pts_semantic_mask' keys are updated in the result dict.
-        """
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         points = data["points"]
         points_mask = points.in_range_3d(self.pcd_range)
         clean_points = points[points_mask]
         data["points"] = clean_points
         return data
+
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        """Call function to filter points by the range.
+        Args:
+            data (dict, list): Result dict from loading pipeline.
+        """
+        if isinstance(data, list):
+            return self.apply_temporal(data)
+        else:
+            return self.apply(data)
 
 
 @PIPELINES.register_module()
@@ -536,14 +743,29 @@ class ObjectNameFilter:
         self.classes = classes
         self.labels = list(range(len(self.classes)))
 
-    def __call__(self, data):
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         gt_labels_3d = data["gt_labels_3d"]
-        gt_bboxes_mask = np.array(
-            [n in self.labels for n in gt_labels_3d], dtype=np.bool_
-        )
+        gt_bboxes_mask = np.array([n in self.labels for n in gt_labels_3d], dtype=np.bool_)
         data["gt_bboxes_3d"] = data["gt_bboxes_3d"][gt_bboxes_mask]
         data["gt_labels_3d"] = data["gt_labels_3d"][gt_bboxes_mask]
         return data
+
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        """Call function to filter GT objects by their names.
+        Args:
+            data (dict, list): Result dict from loading pipeline.
+        """
+        if isinstance(data, list):  # temporal
+            return self.apply_temporal(data)
+        else:  # non-temporal
+            return self.apply(data)
 
 
 @PIPELINES.register_module()
@@ -611,14 +833,7 @@ class PointSample:
         else:
             return points[choices]
 
-    def __call__(self, data):
-        """Call function to sample points to in indoor scenes.
-        Args:
-            data (dict): Result dict from loading pipeline.
-        Returns:
-            dict: Results after sampling, 'points', 'pts_instance_mask' \
-                and 'pts_semantic_mask' keys are updated in the result dict.
-        """
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         points = data["points"]
         # Points in Camera coord can provide the depth information.
         # TODO: Need to suport distance-based sampling for other coord system.
@@ -637,6 +852,23 @@ class PointSample:
         )
         data["points"] = points
         return data
+
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        """Call function to sample points to in indoor scenes.
+        Args:
+            data (dict, list): Result dict from loading pipeline.
+        """
+        if isinstance(data, list):
+            return self.apply_temporal(data)
+        else:
+            return self.apply(data)
 
     def __repr__(self):
         """str: Return a string that describes the module."""
@@ -664,18 +896,9 @@ class BackgroundPointsFilter:
 
         if isinstance(bbox_enlarge_range, float):
             bbox_enlarge_range = [bbox_enlarge_range] * 3
-        self.bbox_enlarge_range = np.array(bbox_enlarge_range, dtype=np.float32)[
-            np.newaxis, :
-        ]
+        self.bbox_enlarge_range = np.array(bbox_enlarge_range, dtype=np.float32)[np.newaxis, :]
 
-    def __call__(self, data):
-        """Call function to filter points by the range.
-        Args:
-            data (dict): Result dict from loading pipeline.
-        Returns:
-            dict: Results after filtering, 'points', 'pts_instance_mask' \
-                and 'pts_semantic_mask' keys are updated in the result dict.
-        """
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         points = data["points"]
         gt_bboxes_3d = data["gt_bboxes_3d"]
 
@@ -698,6 +921,23 @@ class BackgroundPointsFilter:
 
         data["points"] = points[valid_masks]
         return data
+
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        """Call function to filter points by the range.
+        Args:
+            data (dict, list): Result dict from loading pipeline.
+        """
+        if isinstance(data, list):
+            return self.apply_temporal(data)
+        else:
+            return self.apply(data)
 
     def __repr__(self):
         """str: Return a string that describes the module."""
@@ -756,15 +996,8 @@ class VoxelBasedPointSampler:
 
         return sample_points
 
-    def __call__(self, results):
-        """Call function to sample points from multiple sweeps.
-        Args:
-            data (dict): Result dict from loading pipeline.
-        Returns:
-            dict: Results after sampling, 'points', 'pts_instance_mask' \
-                and 'pts_semantic_mask' keys are updated in the result dict.
-        """
-        points = results["points"]
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        points = data["points"]
         original_dim = points.shape[1]
 
         # TODO: process instance and semantic mask while _max_num_points
@@ -774,14 +1007,14 @@ class VoxelBasedPointSampler:
         start_dim = original_dim
         points_numpy = points.tensor.numpy()
         extra_channel = [points_numpy]
-        for idx, key in enumerate(results["pts_mask_fields"]):
+        for idx, key in enumerate(data["pts_mask_fields"]):
             map_fields2dim.append((key, idx + start_dim))
-            extra_channel.append(results[key][..., None])
+            extra_channel.append(data[key][..., None])
 
-        start_dim += len(results["pts_mask_fields"])
-        for idx, key in enumerate(results["pts_seg_fields"]):
+        start_dim += len(data["pts_mask_fields"])
+        for idx, key in enumerate(data["pts_seg_fields"]):
             map_fields2dim.append((key, idx + start_dim))
-            extra_channel.append(results[key][..., None])
+            extra_channel.append(data[key][..., None])
 
         points_numpy = np.concatenate(extra_channel, axis=-1)
 
@@ -813,13 +1046,30 @@ class VoxelBasedPointSampler:
 
         if self.cur_voxel_generator._max_num_points == 1:
             points_numpy = points_numpy.squeeze(1)
-        results["points"] = points.new_point(points_numpy[..., :original_dim])
+        data["points"] = points.new_point(points_numpy[..., :original_dim])
 
         # Restore the correspoinding seg and mask fields
         for key, dim_index in map_fields2dim:
-            results[key] = points_numpy[..., dim_index]
+            data[key] = points_numpy[..., dim_index]
 
-        return results
+        return data
+
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        """Call function to sample points from multiple sweeps.
+        Args:
+            data (dict, list): Result dict from loading pipeline.
+        """
+        if isinstance(data, list):
+            return self.apply_temporal(data)
+        else:
+            return self.apply(data)
 
     def __repr__(self):
         """str: Return a string that describes the module."""
@@ -867,8 +1117,7 @@ class ImagePad:
         """Pad images according to ``self.size``."""
         if self.size is not None:
             padded_img = [
-                mmcv.impad(img, shape=self.size, pad_val=self.pad_val)
-                for img in results["img"]
+                mmcv.impad(img, shape=self.size, pad_val=self.pad_val) for img in results["img"]
             ]
         elif self.size_divisor is not None:
             padded_img = [
@@ -881,15 +1130,26 @@ class ImagePad:
         results["pad_fixed_size"] = self.size
         results["pad_size_divisor"] = self.size_divisor
 
-    def __call__(self, results):
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        self._pad_img(data)
+        return data
+
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """Call function to pad images, masks, semantic segmentation maps.
         Args:
-            results (dict): Result dict from loading pipeline.
-        Returns:
-            dict: Updated result dict.
+            data (dict, list): Result dict from loading pipeline.
         """
-        self._pad_img(results)
-        return results
+        if isinstance(data, list):
+            return self.apply_temporal(data)
+        else:
+            return self.apply(data)
 
     def __repr__(self):
         repr_str = self.__class__.__name__
@@ -911,10 +1171,23 @@ class ImageNormalize:
             ]
         )
 
-    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         data["img"] = [self.compose(img) for img in data["img"]]
         data["img_norm_cfg"] = dict(mean=self.mean, std=self.std)
         return data
+
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        if isinstance(data, list):
+            return self.apply_temporal(data)
+        else:
+            return self.apply(data)
 
 
 @PIPELINES.register_module()
@@ -949,7 +1222,7 @@ class ImageDistort:
         self.saturation_lower, self.saturation_upper = saturation_range
         self.hue_delta = hue_delta
 
-    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         imgs = data["img"]
         new_imgs = []
         for img in imgs:
@@ -975,9 +1248,7 @@ class ImageDistort:
 
             # random saturation
             if random.randint(2):
-                img[..., 1] *= random.uniform(
-                    self.saturation_lower, self.saturation_upper
-                )
+                img[..., 1] *= random.uniform(self.saturation_lower, self.saturation_upper)
 
             # random hue
             if random.randint(2):
@@ -1000,3 +1271,16 @@ class ImageDistort:
             new_imgs.append(img)
         data["img"] = new_imgs
         return data
+
+    def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for i, frame_data in enumerate(data):
+            data[i] = self.apply(frame_data)
+        return data
+
+    def __call__(
+        self, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        if isinstance(data, list):
+            return self.apply_temporal(data)
+        else:
+            return self.apply(data)

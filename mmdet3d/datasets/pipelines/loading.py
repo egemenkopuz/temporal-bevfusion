@@ -1,5 +1,4 @@
-import os
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 import mmcv
 import numpy as np
@@ -12,6 +11,43 @@ from PIL import Image
 from mmdet3d.core.points import BasePoints, get_points_type
 
 from .loading_utils import load_augmented_point_cloud, reduce_LiDAR_beams
+
+
+@PIPELINES.register_module()
+class LoadTemporalFiles:
+    def __init__(
+        self,
+        queue_length: Optional[int] = None,
+        queue_range_threshold: Optional[int] = None,
+        load_images_vars: Dict[str, Any] = {},
+        load_points_vars: Dict[str, Any] = {},
+        load_annotations_vars: Dict[str, Any] = {},
+    ) -> None:
+        self.queue_length = queue_length
+        self.queue_range_threshold = queue_range_threshold
+        self.load_images = LoadMultiViewImageFromFiles(**load_images_vars)
+        self.load_points = LoadPointsFromFile(**load_points_vars)
+        self.load_annotations = LoadAnnotations3D(**load_annotations_vars)
+
+    def __call__(self, results: Union[dict, list]):
+        if isinstance(results, dict):
+            self.load_images(results)
+            self.load_points(results)
+            self.load_annotations(results)
+            return results
+
+        for i in range(len(results)):
+            self.load_images(results[i])
+            self.load_points(results[i])
+            self.load_annotations(results[i])
+
+        return results
+
+    def __repr__(self) -> str:
+        repr_str = self.__class__.__name__
+        repr_str += f"(queue_length={self.queue_length}, "
+        repr_str += f"queue_range_threshold={self.queue_range_threshold}"
+        return repr_str
 
 
 @PIPELINES.register_module()
