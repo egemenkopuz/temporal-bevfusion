@@ -6,46 +6,9 @@ model:
   heads:
     map: null
 
-data:
-  train:
-    type: CBGSDataset
-    temporal: true
-    dataset:
-      type: ${dataset_type}
-      dataset_root: ${dataset_root}
-      ann_file: ${dataset_root + "tumtraf_infos_train.pkl"}
-      pipeline: ${train_pipeline}
-      object_classes: ${object_classes}
-      modality: ${input_modality}
-      test_mode: false
-      online: false
-      queue_length: ${queue_length}
-      queue_range_threshold: ${queue_range_threshold}
-      use_valid_flag: true
-      box_type_3d: LiDAR
-  val:
-    type: ${dataset_type}
-    dataset_root: ${dataset_root}
-    ann_file: ${dataset_root + "tumtraf_infos_val.pkl"}
-    pipeline: ${test_pipeline}
-    object_classes: ${object_classes}
-    modality: ${input_modality}
-    test_mode: true
-    online: true
-    queue_length: ${queue_length}
-    queue_range_threshold: ${queue_range_threshold}
-    box_type_3d: LiDAR
-    eval_point_cloud_range: ${point_cloud_range}
-  test:
-    type: ${dataset_type}
-    dataset_root: ${dataset_root}
-    ann_file: ${dataset_root + "tumtraf_infos_test.pkl"}
-    pipeline: ${test_pipeline}
-    object_classes: ${object_classes}
-    modality: ${input_modality}
-    test_mode: true
-    online: true
-    queue_length: ${queue_length}
-    queue_range_threshold: ${queue_range_threshold}
-    box_type_3d: LiDAR
-    eval_point_cloud_range: ${point_cloud_range}
+temporal_mode: true
+val_online_mode: true
+test_online_mode: true
+
+temporal_aware_gt_paste: true
+apply_same_aug_to_seq: true
