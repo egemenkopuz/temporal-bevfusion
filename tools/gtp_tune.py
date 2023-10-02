@@ -76,10 +76,13 @@ def tune(args, opts) -> None:
     os.makedirs(args.run_dir, exist_ok=True)
     run_id = os.path.basename(args.run_dir)
 
+    db_path = "sqlite:///" + args.run_dir + "/tune.db"
     study = optuna.create_study(
         study_name=run_id,
         direction="maximize",
         sampler=optuna.samplers.TPESampler(),
+        storage=db_path,
+        load_if_exists=True,
     )
 
     study.optimize(
@@ -117,17 +120,24 @@ def read_map(checkpoint_folder_path: str, classes: list, ap_dists: list) -> floa
         with open(json_file, "r") as f:
             for line in f:
                 data.append(json.loads(line))
-        data = data[-1]
+        last_val = None
+        for x in data[::-1]:
+            if x["mode"] == "val":
+                last_val = x
+                break
+
+        if last_val is None:
+            raise Exception("No val mode found in json file")
 
         class_ap = {x: 0 for x in classes}
         for cls in classes:
             all_ap_dists = []
             for ap_dist in ap_dists:
-                all_ap_dists.append(data[f"object/{cls}_{ap_dist}"])
+                all_ap_dists.append(last_val[f"object/{cls}_{ap_dist}"])
             class_ap[cls] = np.mean(all_ap_dists)
 
-        map = data["object/map"]
-        epoch = data["epoch"]
+        map = last_val["object/map"]
+        epoch = last_val["epoch"]
     except Exception as e:
         print(e)
         map = 0
@@ -171,9 +181,10 @@ def objective(
         os.remove(tmp_config_path)
 
     cfg.run_dir = run_dir
-    cfg.checkpoint_config.max_keep_ckpts = 0
+    cfg.checkpoint_config.max_keep_ckpts = 1
     cfg.runner.max_epochs = max_epochs
-    cfg.optimizer.lr = 2.0e-4
+    cfg.deterministic = True
+    # cfg.optimizer.lr = 2.0e-4
     cfg.dump(tmp_config_path)
 
     command = f"torchpack dist-run -np {n_gpus} python tools/train.py {tmp_config_path} --run-dir {run_dir}"
