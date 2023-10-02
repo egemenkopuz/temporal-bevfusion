@@ -12,6 +12,9 @@ from ..bbox import LiDARInstance3DBoxes
 
 __all__ = ["visualize_camera", "visualize_lidar", "visualize_map", "visualize_bev_feature"]
 
+DEFAULT_PRED_COLOR = (238, 80, 56)
+DEFAULT_GT_COLOR = (30, 68, 155)
+
 
 OBJECT_PALETTE = {
     "car": (255, 158, 0),
@@ -197,8 +200,8 @@ def visualize_camera_combined(
                     cv2.line(canvas, coords[index, start].astype(np.int), coords[index, end].astype(np.int), color, thickness, cv2.LINE_AA)
         # fmt: on
 
-        draw_lines(gt_bboxes, (0, 255, 0))
-        draw_lines(pred_bboxes, (255, 0, 0))
+        draw_lines(gt_bboxes, DEFAULT_GT_COLOR)
+        draw_lines(pred_bboxes, DEFAULT_PRED_COLOR)
 
         canvas = canvas.astype(np.uint8)
     canvas = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
@@ -344,7 +347,7 @@ def visualize_lidar_combined(
                 pred_coords[index, :, 0],
                 pred_coords[index, :, 1],
                 linewidth=thickness,
-                color=np.array((255, 0, 0)) / 255,
+                color=np.array(DEFAULT_PRED_COLOR) / 255,
             )
 
         gt_coords = gt_bboxes.corners[:, [0, 3, 7, 4, 0], :2]
@@ -353,7 +356,7 @@ def visualize_lidar_combined(
                 gt_coords[index, :, 0],
                 gt_coords[index, :, 1],
                 linewidth=thickness,
-                color=np.array((0, 255, 0)) / 255,
+                color=np.array(DEFAULT_GT_COLOR) / 255,
             )
 
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
