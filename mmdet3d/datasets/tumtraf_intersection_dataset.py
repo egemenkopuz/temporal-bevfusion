@@ -257,6 +257,9 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         points_list = [each["points"].data for each in queue]
         metas_map = [{}] * len(queue)
 
+        gt_bboxes_3d_list = [each["gt_bboxes_3d"].data for each in queue]
+        gt_labels_3d_list = [each["gt_labels_3d"].data for each in queue]
+
         prev_scene_token = None
         for i, each in enumerate(queue):
             metas_map[i] = each["metas"].data
@@ -274,6 +277,10 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         queue[-1]["img"] = DC(torch.stack(imgs_list), cpu_only=False, stack=True)
         queue[-1]["points"] = DC(points_list, cpu_only=False)
         queue[-1]["metas"] = DC(metas_map, cpu_only=True)
+
+        queue[-1]["gt_bboxes_3d"] = DC(gt_bboxes_3d_list, cpu_only=True)
+        queue[-1]["gt_labels_3d"] = DC(gt_labels_3d_list, cpu_only=False)
+
         queue = queue[-1]
 
         return queue

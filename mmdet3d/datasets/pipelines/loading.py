@@ -31,15 +31,15 @@ class LoadTemporalFiles:
 
     def __call__(self, results: Union[dict, list]):
         if isinstance(results, dict):
-            self.load_images(results)
-            self.load_points(results)
-            self.load_annotations(results)
+            results = self.load_images(results)
+            results = self.load_points(results)
+            results = self.load_annotations(results)
             return results
 
         for i in range(len(results)):
-            self.load_images(results[i])
-            self.load_points(results[i])
-            self.load_annotations(results[i])
+            results[i] = self.load_images(results[i])
+            results[i] = self.load_points(results[i])
+            results[i] = self.load_annotations(results[i])
 
         return results
 

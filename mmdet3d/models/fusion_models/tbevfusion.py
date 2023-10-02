@@ -57,9 +57,9 @@ class TBEVFusion(BEVFusion):
     ) -> None:
         super().__init__(encoders, fuser, decoder, heads, save_bev_features, **kwargs)
 
-        assert temporal_fuser is not None
+        # assert temporal_fuser is not None
+        # self.temporal_fuser = build_fuser(temporal_fuser)
 
-        self.temporal_fuser = build_fuser(temporal_fuser)
         self.cache_queue = Queue()
         global _frame_indices_iter
         _frame_indices_iter = 0
@@ -96,6 +96,9 @@ class TBEVFusion(BEVFusion):
 
         prev_metas = [[x[i] for x in metas] for i in range(len_queue - 1)]
         metas = [x[-1] for x in metas]
+
+        gt_bboxes_3d = [x[:][-1] for x in gt_bboxes_3d]
+        gt_labels_3d = [x[:][-1] for x in gt_labels_3d]
 
         if online:
             if self.cache_queue.is_empty():  # only at the first frame of a sequence
@@ -154,8 +157,8 @@ class TBEVFusion(BEVFusion):
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
 
-            basename = metas[0]["lidar_path"].split("/")[-1][:-4]
-            self._save_bev_feat(feature, f"feat-bev-{sensor}", basename)
+            # basename = metas[0]["lidar_path"].split("/")[-1][:-4]
+            # self._save_bev_feat(feature, f"feat-bev-{sensor}", basename)
 
             features.append(feature)
 
@@ -176,14 +179,14 @@ class TBEVFusion(BEVFusion):
         if online:
             self.cache_queue.enqueue(features, metas[0]["frame_idx"])
 
-        if len(prev_features) != 0:
-            features = [features] + [x for x in prev_features]
-            x = self.temporal_fuser(features)
-        else:
-            x = features[0]
+        # if len(prev_features) != 0:
+        #     features = [features] + [x for x in prev_features]
+        #     x = self.temporal_fuser(features)
+        # else:
+        x = features
 
-        basename = metas[0]["lidar_path"].split("/")[-1][:-4]
-        self._save_bev_feat(x, "feat-bev-temporal-fused", basename)
+        # basename = metas[0]["lidar_path"].split("/")[-1][:-4]
+        # self._save_bev_feat(x, "feat-bev-temporal-fused", basename)
 
         # if online:
         #     global _frame_indices_iter
@@ -197,28 +200,31 @@ class TBEVFusion(BEVFusion):
         batch_size = x.shape[0]
 
         x = self.decoder["backbone"](x)
+        # basename = metas[0]["lidar_path"].split("/")[-1][:-4]
+        # self._save_bev_feat(x[0], "feat-backbone128", basename, True, "test_images")
+        # self._save_bev_feat(x[1], "feat-backbone256", basename, True, "test_images")
         x = self.decoder["neck"](x)
 
         if self.training:
             outputs = {}
-            for type, head in self.heads.items():
-                if type == "object":
+            for h_type, head in self.heads.items():
+                if h_type == "object":
                     pred_dict = head(x, metas)
                     losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict)
-                elif type == "map":
+                elif h_type == "map":
                     losses = head(x, gt_masks_bev)
                 else:
-                    raise ValueError(f"unsupported head: {type}")
+                    raise ValueError(f"unsupported head: {h_type}")
                 for name, val in losses.items():
                     if val.requires_grad:
-                        outputs[f"loss/{type}/{name}"] = val * self.loss_scale[type]
+                        outputs[f"loss/{h_type}/{name}"] = val * self.loss_scale[h_type]
                     else:
-                        outputs[f"stats/{type}/{name}"] = val
+                        outputs[f"stats/{h_type}/{name}"] = val
             return outputs
         else:
             outputs = [{} for _ in range(batch_size)]
-            for type, head in self.heads.items():
-                if type == "object":
+            for h_type, head in self.heads.items():
+                if h_type == "object":
                     pred_dict = head(x, metas)
                     bboxes = head.get_bboxes(pred_dict, metas)
                     for k, (boxes, scores, labels) in enumerate(bboxes):
@@ -229,7 +235,7 @@ class TBEVFusion(BEVFusion):
                                 "labels_3d": labels.cpu(),
                             }
                         )
-                elif type == "map":
+                elif h_type == "map":
                     logits = head(x)
                     for k in range(batch_size):
                         outputs[k].update(
@@ -239,7 +245,7 @@ class TBEVFusion(BEVFusion):
                             }
                         )
                 else:
-                    raise ValueError(f"unsupported head: {type}")
+                    raise ValueError(f"unsupported head: {h_type}")
             return outputs
 
     def get_bev_history(
@@ -289,8 +295,8 @@ class TBEVFusion(BEVFusion):
                     else:
                         raise ValueError(f"unsupported sensor: {sensor}")
 
-                    basename = prev_metas[i][0]["lidar_path"].split("/")[-1][:-4]
-                    self._save_bev_feat(prev_feature, f"feat-bev-prev{i}-{sensor}", basename)
+                    # basename = prev_metas[i][0]["lidar_path"].split("/")[-1][:-4]
+                    # self._save_bev_feat(prev_feature, f"feat-bev-prev{i}-{sensor}", basename)
 
                     prev_features.append(prev_feature.detach())
 
@@ -310,26 +316,3 @@ class TBEVFusion(BEVFusion):
             self.train()
 
         return prev_all_features
-
-    def _save_bev_feat(self, x: torch.Tensor, foldername: str, basename: str) -> None:
-        """
-        Save BEV feature as an image only if `save_bev_features` is not None.
-
-        Args:
-            x (torch.Tensor): BEV feature of shape (1, C, H, W).
-            foldername (str): folder name to save the BEV feature.
-            basename (str): base name of the BEV feature.
-        """
-        if self.save_bev_features is not None:
-            assert "out_dir" in self.save_bev_features
-            visualize_bev_feature(
-                os.path.join(
-                    self.save_bev_features["out_dir"],
-                    foldername,
-                    f"{basename}.png",
-                ),
-                x.clone().detach().cpu().numpy().squeeze(),
-                self.save_bev_features["xlim"],
-                self.save_bev_features["ylim"],
-                self.save_bev_features["dataset"],
-            )

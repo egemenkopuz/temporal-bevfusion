@@ -169,6 +169,7 @@ class Collect3D:
             "pcd_rotation",
             "lidar_path",
             "transformation_3d_flow",
+            "sample_mode",
         ),
     ):
         self.keys = keys

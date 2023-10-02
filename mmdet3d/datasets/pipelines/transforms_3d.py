@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Union
+import copy
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import mmcv
 import numpy as np
@@ -17,9 +18,10 @@ from mmdet3d.core.bbox import (
     LiDARInstance3DBoxes,
     box_np_ops,
 )
+from mmdet3d.core.points import LiDARPoints
 
 from ..builder import OBJECTSAMPLERS
-from .utils import noise_per_object_v3_
+from .utils import box_collision_test, noise_per_object_v3_
 
 
 @PIPELINES.register_module()
@@ -156,7 +158,12 @@ class ImageAug3D:
 @PIPELINES.register_module()
 class GlobalRotScaleTrans:
     def __init__(
-        self, resize_lim, rot_lim, trans_lim, is_train, apply_same_aug_to_seq: bool = False
+        self,
+        resize_lim,
+        rot_lim,
+        trans_lim,
+        is_train,
+        apply_same_aug_to_seq: bool = False,
     ):
         self.resize_lim = resize_lim
         self.rot_lim = rot_lim
@@ -350,13 +357,28 @@ class GridMask:
 
 @PIPELINES.register_module()
 class RandomFlip3D:
-    def __init__(self, apply_same_aug_to_seq: bool = False):
+    def __init__(
+        self,
+        flip_horizontal: bool = True,
+        flip_vertical: bool = True,
+        is_train: bool = False,
+        apply_same_aug_to_seq: bool = False,
+    ):
+        self.flip_horizontal = flip_horizontal
+        self.flip_vertical = flip_vertical
+        self.is_train = is_train
         self.apply_same_aug_to_seq = apply_same_aug_to_seq
         self.sample_aug = None
 
     def sample_augmentation(self):
-        flip_horizontal = random.choice([0, 1])
-        flip_vertical = random.choice([0, 1])
+        if self.flip_horizontal:
+            flip_horizontal = random.choice([0, 1])
+        else:
+            flip_horizontal = 0
+        if self.flip_vertical:
+            flip_vertical = random.choice([0, 1])
+        else:
+            flip_vertical = 0
         return flip_horizontal, flip_vertical
 
     def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -370,23 +392,25 @@ class RandomFlip3D:
             flip_horizontal, flip_vertical = self.sample_augmentation()
 
         rotation = np.eye(3)
-        if flip_horizontal:
-            rotation = np.array([[1, 0, 0], [0, -1, 0], [0, 0, 1]]) @ rotation
-            if "points" in data:
-                data["points"].flip("horizontal")
-            if "gt_bboxes_3d" in data:
-                data["gt_bboxes_3d"].flip("horizontal")
-            if "gt_masks_bev" in data:
-                data["gt_masks_bev"] = data["gt_masks_bev"][:, :, ::-1].copy()
 
-        if flip_vertical:
-            rotation = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, 1]]) @ rotation
-            if "points" in data:
-                data["points"].flip("vertical")
-            if "gt_bboxes_3d" in data:
-                data["gt_bboxes_3d"].flip("vertical")
-            if "gt_masks_bev" in data:
-                data["gt_masks_bev"] = data["gt_masks_bev"][:, ::-1, :].copy()
+        if self.is_train:
+            if flip_horizontal:
+                rotation = np.array([[1, 0, 0], [0, -1, 0], [0, 0, 1]]) @ rotation
+                if "points" in data:
+                    data["points"].flip("horizontal")
+                if "gt_bboxes_3d" in data:
+                    data["gt_bboxes_3d"].flip("horizontal")
+                if "gt_masks_bev" in data:
+                    data["gt_masks_bev"] = data["gt_masks_bev"][:, :, ::-1].copy()
+
+            if flip_vertical:
+                rotation = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, 1]]) @ rotation
+                if "points" in data:
+                    data["points"].flip("vertical")
+                if "gt_bboxes_3d" in data:
+                    data["gt_bboxes_3d"].flip("vertical")
+                if "gt_masks_bev" in data:
+                    data["gt_masks_bev"] = data["gt_masks_bev"][:, ::-1, :].copy()
 
         data["lidar_aug_matrix"][:3, :] = rotation @ data["lidar_aug_matrix"][:3, :]
         return data
@@ -417,7 +441,13 @@ class ObjectPaste:
     """
 
     def __init__(
-        self, db_sampler, sample_2d=False, stop_epoch=None, apply_same_aug_to_seq: bool = False
+        self,
+        db_sampler,
+        sample_2d=False,
+        stop_epoch=None,
+        apply_temporal_forward=False,
+        apply_collision_check=True,
+        apply_same_aug_to_seq: bool = False,
     ):
         self.sampler_cfg = db_sampler
         self.sample_2d = sample_2d
@@ -426,6 +456,8 @@ class ObjectPaste:
         self.db_sampler = build_from_cfg(db_sampler, OBJECTSAMPLERS)
         self.epoch = -1
         self.stop_epoch = stop_epoch
+        self.apply_temporal_forward = apply_temporal_forward
+        self.apply_collision_check_gt = apply_collision_check
         self.apply_same_aug_to_seq = apply_same_aug_to_seq
         self.sample_aug = None
 
@@ -445,32 +477,161 @@ class ObjectPaste:
         points = points[np.logical_not(masks.any(-1))]
         return points
 
-    def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        gt_bboxes_3d = data["gt_bboxes_3d"]
-        gt_labels_3d = data["gt_labels_3d"]
-
+    def sample(self, data: Dict[str, Any]):
         # change to float for blending operation
-        points = data["points"]
         if self.sample_2d:
-            img = data["img"]
-            gt_bboxes_2d = data["gt_bboxes"]
             # Assume for now 3D & 2D bboxes are the same
-            sampled_dict = self.db_sampler.sample_all(
-                gt_bboxes_3d.tensor.numpy(),
-                gt_labels_3d,
-                gt_bboxes_2d=gt_bboxes_2d,
-                img=img,
+            return self.db_sampler.sample_all(
+                data["gt_bboxes_3d"].tensor.numpy(),
+                data["gt_bboxes_3d"],
+                gt_bboxes_2d=data["gt_bboxes"],
+                img=data["img"],
             )
         else:
-            sampled_dict = self.db_sampler.sample_all(
-                gt_bboxes_3d.tensor.numpy(), gt_labels_3d, img=None
+            return self.db_sampler.sample_all(
+                data["gt_bboxes_3d"].tensor.numpy(), data["gt_labels_3d"], img=None
             )
+
+    def apply_rot(
+        self, bboxes_3d: np.ndarray, points: LiDARPoints, rot, indices: List[int] = None
+    ) -> Tuple[np.ndarray, List[LiDARPoints]]:
+        if indices is not None:
+            bboxes_3d[indices, 6] += rot[indices]
+        else:
+            bboxes_3d[:, 6] += rot
+        iter_range = range(rot.shape[0]) if indices is None else indices
+        for x in iter_range:
+            angle = rot[x]
+            rot_sin = np.sin(angle)
+            rot_cos = np.cos(angle)
+            rot_mat_T = np.array([[rot_cos, -rot_sin, 0], [rot_sin, rot_cos, 0], [0, 0, 1]])
+            # center the points first and then rotate the points, and then move back
+            points[x].tensor[:, :3] -= bboxes_3d[x, :3]
+            points[x].tensor[:, :3] = points[x].tensor[:, :3] @ rot_mat_T
+            points[x].tensor[:, :3] += bboxes_3d[x, :3]
+        return bboxes_3d, points
+
+    def apply_trans(
+        self, bboxes_3d: np.ndarray, points: LiDARPoints, trans, indices: List[int] = None
+    ) -> Tuple[np.ndarray, List[LiDARPoints]]:
+        yaws = bboxes_3d[:, 6]
+        unit_vector = np.stack([np.cos(yaws), -np.sin(yaws)], axis=1)
+        vector = unit_vector * trans.reshape(-1, 1)
+        vector = np.concatenate([vector, np.zeros((len(yaws), 1))], axis=1)
+        iter_range = range(vector.shape[0]) if indices is None else indices
+        for x in iter_range:
+            bboxes_3d[x, 0:2] += vector[x, 0:2]
+            points[x].tensor[:, :3] += vector[x]
+        return bboxes_3d, points
+
+    def check_collision_gt(self, sampled_bboxes_3d, gt_bboxes_3d) -> List[int]:
+        sampled = copy.deepcopy(sampled_bboxes_3d)
+        num_gt = gt_bboxes_3d.shape[0]
+        num_sampled = len(sampled)
+
+        # print(f"num_gt: {num_gt}")
+        # print(f"num_sampled: {num_sampled}")
+
+        gt_bboxes_bv = box_np_ops.center_to_corner_box2d(
+            gt_bboxes_3d[:, 0:2], gt_bboxes_3d[:, 3:5], gt_bboxes_3d[:, 6]
+        )
+
+        boxes = np.concatenate([gt_bboxes_3d, sampled_bboxes_3d], axis=0).copy()
+
+        sp_boxes_new = boxes[gt_bboxes_3d.shape[0] :]
+        sp_boxes_bv = box_np_ops.center_to_corner_box2d(
+            sp_boxes_new[:, 0:2], sp_boxes_new[:, 3:5], sp_boxes_new[:, 6]
+        )
+
+        total_bv = np.concatenate([gt_bboxes_bv, sp_boxes_bv], axis=0)
+        coll_mat = box_collision_test(total_bv, total_bv)
+        diag = np.arange(total_bv.shape[0])
+        coll_mat[diag, diag] = False
+
+        valid_samples_indices = []
+        for i in range(num_gt, num_gt + num_sampled):
+            if coll_mat[i].any():
+                coll_mat[i] = False
+                coll_mat[:, i] = False
+            else:
+                valid_samples_indices.append(i - num_gt)
+        return valid_samples_indices
+
+    def apply(self, data: Dict[str, Any], temporal_index: Optional[int] = None) -> Dict[str, Any]:
+        gt_bboxes_3d = data["gt_bboxes_3d"]
+        gt_labels_3d = data["gt_labels_3d"]
+        points = data["points"]
+        sample_mode = [0] * len(gt_labels_3d)
+
+        if self.apply_same_aug_to_seq:
+            if self.sample_aug is None:
+                sampled_dict = self.sample(data)
+                self.sample_aug = {"sampled_dict": sampled_dict}
+            else:
+                sampled_dict = self.sample_aug["sampled_dict"]
+        else:
+            sampled_dict = self.sample(data)
 
         if sampled_dict is not None:
             sampled_gt_bboxes_3d = sampled_dict["gt_bboxes_3d"]
             sampled_points = sampled_dict["points"]
             sampled_gt_labels = sampled_dict["gt_labels_3d"]
+            sample_mode += [1] * len(sampled_gt_labels)
 
+            if temporal_index is not None:
+                if self.apply_temporal_forward:
+                    sampled_rot = sampled_dict["sampled_rot"]
+                    sampled_trans = sampled_dict["sampled_trans"]
+                else:
+                    sampled_rot = -sampled_dict["sampled_rot"]
+                    sampled_trans = -sampled_dict["sampled_trans"]
+
+                if temporal_index != 0:  # not applying to first frame in the queue
+                    if sampled_rot is not None:
+                        sampled_gt_bboxes_3d, sampled_points = self.apply_rot(
+                            sampled_gt_bboxes_3d, sampled_points, sampled_rot
+                        )
+                    if sampled_trans is not None:
+                        sampled_gt_bboxes_3d, sampled_points = self.apply_trans(
+                            sampled_gt_bboxes_3d, sampled_points, sampled_trans
+                        )
+
+                # check collision with gt
+                valid_sample_indices_w_gt = []
+                not_valid_sample_indices_w_gt = []
+                if self.apply_collision_check_gt:
+                    valid_sample_indices_w_gt = self.check_collision_gt(
+                        sampled_gt_bboxes_3d, gt_bboxes_3d.tensor.numpy()
+                    )
+                    not_valid_sample_indices_w_gt = list(
+                        set(range(len(sampled_points))) - set(valid_sample_indices_w_gt)
+                    )
+                    # print(
+                    #     f"valid samples: {len(valid_sample_indices_w_gt)} {valid_sample_indices_w_gt}"
+                    # )
+                    # print(
+                    #     f"not valid samples: {len(not_valid_sample_indices_w_gt)} {not_valid_sample_indices_w_gt}"
+                    # )
+                    # revert invalid samples' rotation and translation
+                    if temporal_index != 0 and len(not_valid_sample_indices_w_gt) > 0:
+                        if sampled_trans is not None:
+                            # print("reverting translation")
+                            sampled_gt_bboxes_3d, sampled_points = self.apply_trans(
+                                sampled_gt_bboxes_3d,
+                                sampled_points,
+                                -sampled_trans,
+                                not_valid_sample_indices_w_gt,
+                            )
+                        if sampled_rot is not None:
+                            # print("reverting rotation")
+                            sampled_gt_bboxes_3d, sampled_points = self.apply_rot(
+                                sampled_gt_bboxes_3d,
+                                sampled_points,
+                                -sampled_rot,
+                                not_valid_sample_indices_w_gt,
+                            )
+
+            sampled_points = sampled_points[0].cat(sampled_points)
             gt_labels_3d = np.concatenate([gt_labels_3d, sampled_gt_labels], axis=0)
             gt_bboxes_3d = gt_bboxes_3d.new_box(
                 np.concatenate([gt_bboxes_3d.tensor.numpy(), sampled_gt_bboxes_3d])
@@ -491,13 +652,20 @@ class ObjectPaste:
 
         data["gt_bboxes_3d"] = gt_bboxes_3d
         data["gt_labels_3d"] = gt_labels_3d.astype(np.long)
+        data["sample_mode"] = np.asarray(sample_mode).astype(np.long)
         data["points"] = points
 
         return data
 
     def apply_temporal(self, data) -> List[Dict[str, Any]]:
-        for i, frame_data in enumerate(data):
-            data[i] = self.apply(frame_data)
+        if self.apply_temporal_forward:
+            for i, frame_data in enumerate(data):
+                # print(f"applying to frame {frame_data['frame_idx']}")
+                data[i] = self.apply(frame_data, i)
+        else:  # backwards
+            for i, frame_data in enumerate(data[::-1]):
+                # print(f"applying to frame {frame_data['frame_idx']}")
+                data[i] = self.apply(frame_data, i)
         self.sample_aug = None
         return data
 
@@ -658,8 +826,13 @@ class ObjectRangeFilter:
 
         gt_bboxes_3d = data["gt_bboxes_3d"]
         gt_labels_3d = data["gt_labels_3d"]
+
         mask = gt_bboxes_3d.in_range_bev(bev_range)
         gt_bboxes_3d = gt_bboxes_3d[mask]
+        if "sample_mode" in data:
+            sample_mode = data["sample_mode"][mask]
+            data["sample_mode"] = sample_mode
+
         # mask is a torch tensor but gt_labels_3d is still numpy array
         # using mask to index gt_labels_3d will cause bug when
         # len(gt_labels_3d) == 1, where mask=1 will be interpreted
@@ -748,6 +921,9 @@ class ObjectNameFilter:
         gt_bboxes_mask = np.array([n in self.labels for n in gt_labels_3d], dtype=np.bool_)
         data["gt_bboxes_3d"] = data["gt_bboxes_3d"][gt_bboxes_mask]
         data["gt_labels_3d"] = data["gt_labels_3d"][gt_bboxes_mask]
+        if "sample_mode" in data:
+            sample_mode = data["sample_mode"][gt_bboxes_mask]
+            data["sample_mode"] = sample_mode
         return data
 
     def apply_temporal(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -1161,15 +1337,18 @@ class ImagePad:
 
 @PIPELINES.register_module()
 class ImageNormalize:
-    def __init__(self, mean, std):
+    def __init__(self, mean, std, skip_normalize=False):
         self.mean = mean
         self.std = std
-        self.compose = torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize(mean=mean, std=std),
-            ]
-        )
+        if skip_normalize:
+            self.compose = torchvision.transforms.Compose([torchvision.transforms.ToTensor()])
+        else:
+            self.compose = torchvision.transforms.Compose(
+                [
+                    torchvision.transforms.ToTensor(),
+                    torchvision.transforms.Normalize(mean=mean, std=std),
+                ]
+            )
 
     def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         data["img"] = [self.compose(img) for img in data["img"]]

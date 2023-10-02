@@ -315,7 +315,14 @@ class BEVFusion(Base3DFusionModel):
                     raise ValueError(f"unsupported head: {type}")
             return outputs
 
-    def _save_bev_feat(self, x: torch.Tensor, foldername: str, basename: str) -> None:
+    def _save_bev_feat(
+        self,
+        x: torch.Tensor,
+        foldername: str,
+        basename: str,
+        bypass: bool = False,
+        bypass_out_dir: str = None,
+    ) -> None:
         """
         Save BEV feature as an image only if `save_bev_features` is not None.
 
@@ -323,17 +330,21 @@ class BEVFusion(Base3DFusionModel):
             x (torch.Tensor): BEV feature of shape (1, C, H, W).
             foldername (str): folder name to save the BEV feature.
             basename (str): base name of the BEV feature.
+            bypass (bool): whether to bypass saving the BEV feature.
+            bypass_out_dir (str): if not None, save the BEV feature to this.
         """
-        if self.save_bev_features is not None:
-            assert "out_dir" in self.save_bev_features
+        if bypass or self.save_bev_features is not None:
+            assert bypass_out_dir or "out_dir" in self.save_bev_features
             visualize_bev_feature(
                 os.path.join(
-                    self.save_bev_features["out_dir"],
+                    bypass_out_dir
+                    if bypass_out_dir is not None
+                    else self.save_bev_features["out_dir"],
                     foldername,
                     f"{basename}.png",
                 ),
                 x.clone().detach().cpu().numpy().squeeze(),
-                self.save_bev_features["xlim"],
-                self.save_bev_features["ylim"],
-                self.save_bev_features["dataset"],
+                self.save_bev_features["xlim"] if not bypass else None,
+                self.save_bev_features["ylim"] if not bypass else None,
+                self.save_bev_features["dataset"] if not bypass else None,
             )
