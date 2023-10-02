@@ -10,5 +10,40 @@ temporal_mode: true
 val_online_mode: true
 test_online_mode: true
 
-temporal_aware_gt_paste: true
 apply_same_aug_to_seq: true
+
+augment_gt_paste: # default
+  apply_same_aug_to_seq: true
+  apply_collision_check: true
+  apply_temporal_forward: true
+  sample_groups:
+    CAR: 3
+    TRAILER: 2
+    TRUCK: 4
+    VAN: 5
+    PEDESTRIAN: 7
+    BUS: 2
+    MOTORCYCLE: 5
+    BICYCLE: 5
+    EMERGENCY_VEHICLE: 3
+  sampler:
+    cls_trans_lim:
+      CAR: ["uniform", 0.4, 2.0]
+      TRAILER: ["uniform", 0.4, 1.5]
+      TRUCK: ["uniform", 0.4, 1.5]
+      VAN: ["uniform", 0.4, 0.5]
+      PEDESTRIAN: ["uniform", 0.4, 1.0]
+      BUS: ["uniform", 0.0, 0.5]
+      MOTORCYCLE: ["uniform", 0.4, 1.5]
+      BICYCLE: ["uniform", 0.4, 1.2]
+      EMERGENCY_VEHICLE: ["uniform", 0.4, 0.15]
+    cls_rot_lim:
+      CAR: ["normal", 0.0, 0.15]
+      TRAILER: ["normal", 0.0, 0.1]
+      TRUCK: ["normal", 0.0, 0.1]
+      VAN: ["normal", 0.0, 0.1]
+      PEDESTRIAN: ["normal", 0.0, 0.3]
+      BUS: ["normal", 0.0, 0.1]
+      MOTORCYCLE: ["normal", 0.0, 0.2]
+      BICYCLE: ["normal", 0.0, 0.2]
+      EMERGENCY_VEHICLE: ["normal", 0.0, 0.1]

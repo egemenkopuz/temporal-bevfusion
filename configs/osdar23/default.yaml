@@ -10,8 +10,6 @@ image_size: [256, 704] # default
 out_size_factor: 8 # default
 score_threshold: 0.0 # default
 
-gt_paste_stop_epoch: -1 # default, -1 means no pasting
-temporal_aware_gt_paste: false # default, enable temporal-aware gt pasting
 apply_same_aug_to_seq: false # default, apply same augmentation to all frames in a temporal sequence
 
 queue_length: null # default, None means no temporal
@@ -23,13 +21,37 @@ augment2d: # default
   bot_pct_lim: [[0.6, 0.7], [0.65, 0.65]]
   rotate: [-5.4, 5.4]
   gridmask:
-    prob: 0.1
+    prob: 0.0
     fixed_prob: true
     max_epochs: -1
+
 augment3d: # default
   scale: [0.9, 1.1]
-  rotate: [-0.78539816, 0.78539816]
-  translate: 0.5
+  rotate: [-0.2, 0.2]
+  translate: 0.25
+
+augment_gt_paste: # default
+  apply_same_aug_to_seq: false
+  apply_collision_check: true
+  apply_temporal_forward: true
+  max_epoch: -1
+  sample_groups:
+    lidar__cuboid__person: 7
+    lidar__cuboid__catenary_pole: 4
+    lidar__cuboid__signal_pole: 4
+    lidar__cuboid__road_vehicle: 3
+    lidar__cuboid__buffer_stop: 2
+  sampler:
+    rate: 1.0
+    filter_by_difficulty: [-1]
+    filter_by_min_points:
+      lidar__cuboid__person: 5
+      lidar__cuboid__catenary_pole: 5
+      lidar__cuboid__signal_pole: 5
+      lidar__cuboid__road_vehicle: 5
+      lidar__cuboid__buffer_stop: 5
+    cls_trans_lim: null
+    cls_rot_lim: null
 
 no_classes: 5
 object_classes:
@@ -63,27 +85,21 @@ train_pipeline:
       with_label_3d: true
       with_attr_label: False
   - type: ObjectPaste
-    stop_epoch: ${gt_paste_stop_epoch}
+    stop_epoch: ${augment_gt_paste.max_epoch}
+    apply_collision_check: ${augment_gt_paste.apply_collision_check}
+    apply_same_aug_to_seq: ${augment_gt_paste.apply_same_aug_to_seq}
+    apply_temporal_forward: ${augment_gt_paste.apply_temporal_forward}
     db_sampler:
       dataset_root: ${dataset_root}
+      cls_rot_lim: ${augment_gt_paste.sampler.cls_rot_lim}
+      cls_trans_lim: ${augment_gt_paste.sampler.cls_rot_lim}
       info_path: ${dataset_root + "osdar23_dbinfos_train.pkl"}
-      temporal_aware: ${temporal_aware_gt_paste}
-      rate: 1.0
+      rate: ${augment_gt_paste.sampler.rate}
       prepare:
-        filter_by_difficulty: [-1]
-        filter_by_min_points:
-          lidar__cuboid__person: 5
-          lidar__cuboid__catenary_pole: 5
-          lidar__cuboid__signal_pole: 5
-          lidar__cuboid__road_vehicle: 5
-          lidar__cuboid__buffer_stop: 5
+        filter_by_difficulty: ${augment_gt_paste.sampler.filter_by_difficulty}
+        filter_by_min_points: ${augment_gt_paste.sampler.filter_by_min_points}
       classes: ${object_classes}
-      sample_groups:
-        lidar__cuboid__person: 7
-        lidar__cuboid__catenary_pole: 4
-        lidar__cuboid__signal_pole: 4
-        lidar__cuboid__road_vehicle: 3
-        lidar__cuboid__buffer_stop: 2
+      sample_groups: ${augment_gt_paste.sample_groups}
       points_loader:
         type: LoadPointsFromFile
         coord_type: LIDAR
@@ -105,6 +121,9 @@ train_pipeline:
     is_train: true
     apply_same_aug_to_seq: ${apply_same_aug_to_seq}
   - type: RandomFlip3D
+    flip_horizontal: true
+    flip_vertical: false
+    is_train: true
     apply_same_aug_to_seq: ${apply_same_aug_to_seq}
   - type: PointsRangeFilter
     point_cloud_range: ${point_cloud_range}

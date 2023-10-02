@@ -14,7 +14,9 @@ samples_per_gpu: 6
 workers_per_gpu: 6
 
 max_epochs: 20
-gt_paste_stop_epoch: 15
+
+augment_gt_paste:
+  max_epoch: 15
 
 optimizer:
   type: AdamW
@@ -35,11 +37,6 @@ optimizer_config:
   grad_clip:
     max_norm: 25
     norm_type: 2
-
-augment3d:
-  scale: [0.9, 1.1]
-  rotate: [-0.78539816, 0.78539816]
-  translate: 0.5
 
 model:
   encoders:

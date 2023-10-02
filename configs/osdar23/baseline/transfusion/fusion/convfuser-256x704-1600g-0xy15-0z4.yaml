@@ -42,18 +42,10 @@ optimizer_config:
     norm_type: 2
 
 augment2d:
-  resize: [[0.38, 0.55], [0.48, 0.48]]
-  bot_pct_lim: [[0.6, 0.7], [0.65, 0.65]]
-  rotate: [-5.4, 5.4]
   gridmask:
-    prob: 0.1
+    prob: 0.0
     fixed_prob: true
     max_epoch: 4
-
-augment3d:
-  scale: [0.9, 1.1]
-  rotate: [-0.78539816, 0.78539816]
-  translate: 0.5
 
 model:
   fuser:
