@@ -1,12 +1,13 @@
 import copy
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import mmcv
 import numpy as np
 from mmdet.datasets import PIPELINES
 
 from mmdet3d.core.bbox import box_np_ops
+from mmdet3d.core.points.lidar_points import LiDARPoints
 
 from ..builder import OBJECTSAMPLERS
 from .utils import box_collision_test
@@ -110,8 +111,9 @@ class DataBaseSampler:
             load_dim=4,
             use_dim=[0, 1, 2, 3],
         ),
-        cls_trans_lim: Dict[str, float] = None,
-        cls_rot_lim: Dict[str, float] = None,
+        reduce_points_by_distance: Optional[Dict[str, float]] = None,
+        cls_trans_lim: Optional[Dict[str, float]] = None,
+        cls_rot_lim: Optional[Dict[str, float]] = None,
     ):
         super().__init__()
         self.dataset_root = dataset_root
@@ -122,6 +124,8 @@ class DataBaseSampler:
         self.cat2label = {name: i for i, name in enumerate(classes)}
         self.label2cat = {i: name for i, name in enumerate(classes)}
         self.points_loader = mmcv.build_from_cfg(points_loader, PIPELINES)
+        self.reduce_points_by_distance = reduce_points_by_distance
+
         self.cls_trans_lim = cls_trans_lim
         self.cls_rot_lim = cls_rot_lim
 
@@ -222,6 +226,18 @@ class DataBaseSampler:
                 db_infos[name] = filtered_infos
         return db_infos
 
+    @staticmethod
+    def inv_lerp(a, b, v):
+        """
+        Inverse linear interpolation
+
+        Args:
+            a (float): min
+            b (float): max
+            v (float): value
+        """
+        return (v - a) / (b - a)
+
     def sample_rot(self, cls_label: int, sample_trans: float) -> float:
         if sample_trans < 0.5:
             return 0.0
@@ -284,7 +300,8 @@ class DataBaseSampler:
             sampled_gt_bboxes = np.concatenate(sampled_gt_bboxes, axis=0)
             # center = sampled_gt_bboxes[:, 0:3]
 
-            # num_sampled = len(sampled)
+            s_num_points_in_gt_list = []
+            s_distance_list = []
             s_points_list = []
             count = 0
             for info in sampled:
@@ -297,9 +314,14 @@ class DataBaseSampler:
                 s_points = self.points_loader(results)["points"]
                 s_points.translate(info["box3d_lidar"][:3])
 
+                num_points_in_gt = info["num_points_in_gt"]
+                distance = info["distance"]
+
                 count += 1
 
                 s_points_list.append(s_points)
+                s_num_points_in_gt_list.append(num_points_in_gt)
+                s_distance_list.append(distance)
 
             gt_labels = np.array([self.cat2label[s["name"]] for s in sampled], dtype=np.long)
 
@@ -317,6 +339,33 @@ class DataBaseSampler:
                     )
             else:
                 sample_rot = None
+
+            # reduce points
+            if (
+                self.reduce_points_by_distance is not None
+                and self.reduce_points_by_distance["prob"] > 0
+            ):
+                distance_threshold = self.reduce_points_by_distance["distance_threshold"]
+                reduce_prob = self.reduce_points_by_distance["prob"]
+
+                # trigger probability
+                prob = np.random.uniform(0, 1)
+                if prob < reduce_prob:
+                    for i, (s_points, s_num_points_in_gt, s_distance) in enumerate(
+                        zip(s_points_list, s_num_points_in_gt_list, s_distance_list)
+                    ):
+                        max_ratio = self.inv_lerp(0.0, distance_threshold, s_distance)
+                        max_ratio = np.clip(
+                            max_ratio, 0.0, self.reduce_points_by_distance["max_ratio"]
+                        )
+
+                        # trigger probability between 0 and max_ratio
+                        ratio = np.random.uniform(0, max_ratio)
+
+                        if ratio > 0:
+                            s_points.shuffle()
+                            num_points_to_keep = int(s_num_points_in_gt * (1 - ratio))
+                            s_points.tensor = s_points.tensor[:num_points_to_keep]
 
             ret = {
                 "gt_labels_3d": gt_labels,

@@ -47,6 +47,10 @@ augment_gt_paste: # default
     EMERGENCY_VEHICLE: 3
   sampler:
     rate: 1.0
+    reduce_points_by_distance:
+      prob: 0.0
+      distance_threshold: 200
+      max_ratio: 0.6
     filter_by_difficulty: [-1]
     filter_by_min_points:
       CAR: 5
@@ -102,6 +106,7 @@ train_pipeline:
     apply_temporal_forward: ${augment_gt_paste.apply_temporal_forward}
     db_sampler:
       dataset_root: ${dataset_root}
+      reduce_points_by_distance: ${augment_gt_paste.sampler.reduce_points_by_distance}
       cls_rot_lim: ${augment_gt_paste.sampler.cls_rot_lim}
       cls_trans_lim: ${augment_gt_paste.sampler.cls_rot_lim}
       info_path: ${dataset_root + "tumtraf_dbinfos_train.pkl"}
