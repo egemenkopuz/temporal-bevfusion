@@ -156,16 +156,53 @@ def create_auto_dir_name(cfg) -> str:
     # temporal queue length
     if cfg.get("queue_length", None) not in [0, None]:
         info.append(f"ql{cfg['queue_length']}")
+        if cfg.get("apply_same_aug_to_seq", False):
+            info.append("sameaugall")
+
     if cfg.get("queue_range_threshold", None) not in [0, None]:
         info.append(f"qrt{cfg['queue_range_threshold']}")
 
     # gt mode stop epoch
-    if cfg["gt_paste_stop_epoch"] not in [None, -1]:
-        info.append(f"gtp{cfg['gt_paste_stop_epoch']}")
+    if modality.count("l") > 0:
+        if cfg["augment_gt_paste"]["max_epoch"] not in [None, -1]:
+            info.append(f"gtp{cfg['augment_gt_paste']['max_epoch']}")
+
+            if cfg["augment_gt_paste"]["apply_same_aug_to_seq"]:
+                info.append("sameaug")
+
+            rpd = cfg["augment_gt_paste"]["sampler"]["reduce_points_by_distance"]
+            if rpd["prob"] > 0:
+                info.append(f"rpd{str(rpd['prob']).replace('.', 'p')}")
+                info.append(f"dt{rpd['distance_threshold']}")
+                info.append(f"mr{str(rpd['max_ratio']).replace('.', 'p')}")
+
+            if cfg["augment_gt_paste"]["sampler"]["cls_trans_lim"] is not None:
+                info.append("trans")
+            if cfg["augment_gt_paste"]["sampler"]["cls_rot_lim"] is not None:
+                info.append("rot")
 
     # grid mask
-    if cfg["augment2d"]["gridmask"]["max_epochs"] not in [None, -1]:
-        info.append(f"gm{cfg['augment2d']['grid_mask']['max_epochs']}")
+    if modality.count("c") > 0:
+        if cfg["augment2d"]["gridmask"]["max_epochs"] not in [None, -1]:
+            info.append(f"gm{cfg['augment2d']['gridmask']['max_epochs']}")
+            info.append(f"{str(cfg['augment2d']['gridmask']['prob']).replace('.', 'p')}")
+
+    # augment3d
+    if modality.count("l") > 0:
+        info.append("aug3d")
+        aug3d_scale_x = str(cfg["augment3d"]["scale"][0]).replace(".", "sx")
+        info.append(aug3d_scale_x)
+        aug3d_scale_y = str(cfg["augment3d"]["scale"][1]).replace(".", "sy")
+        info.append(aug3d_scale_y)
+        aug3d_rot_x = str(cfg["augment3d"]["rotate"][0]).replace(".", "rx")
+        info.append(aug3d_rot_x)
+        aug3d_rot_y = str(cfg["augment3d"]["rotate"][1]).replace(".", "ry")
+        info.append(aug3d_rot_y)
+        aug3d_trans = str(cfg["augment3d"]["translate"]).replace(".", "t")
+        info.append(aug3d_trans)
+
+    if cfg["deterministic"]:
+        info.append("dtrmnstc")
 
     out.append(modality)
     out.extend(models)
