@@ -117,7 +117,7 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
 
         assert eval_point_cloud_range is None or len(eval_point_cloud_range) == 6
         if queue_length is not None and not queue_length > 0:
-            raise ValueError("queue_length must be positive")
+            raise ValueError("queue_length must be positive; instead got {}".format(queue_length))
 
         self.eval_point_cloud_range = eval_point_cloud_range
         self.queue_length = queue_length
@@ -1124,6 +1124,7 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         self.pred_boxes = self.filter_eval_boxes(
             self.pred_boxes, None, config["point_cloud_range"], verbose=verbose
         )
+
         self.gt_boxes = self.filter_eval_boxes(
             self.gt_boxes, None, config["point_cloud_range"], verbose=verbose
         )

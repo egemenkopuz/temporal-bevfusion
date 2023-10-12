@@ -287,8 +287,8 @@ class GridMask:
     def apply(self, data: Dict[str, Any]) -> Dict[str, Any]:
         imgs = data["img"]
 
-        h = imgs[0].shape[0]
-        w = imgs[0].shape[1]
+        h = imgs[0].shape[1]
+        w = imgs[0].shape[2]
 
         if self.apply_same_aug_to_seq:
             if self.sample_aug is None:
@@ -325,7 +325,7 @@ class GridMask:
         mask = mask[(hh - h) // 2 : (hh - h) // 2 + h, (ww - w) // 2 : (ww - w) // 2 + w]
 
         mask = mask.astype(np.float32)
-        mask = mask[:, :, None]
+        mask = mask[None, :, :]
         if self.mode == 1:
             mask = 1 - mask
 
