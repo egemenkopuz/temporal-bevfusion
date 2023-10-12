@@ -32,6 +32,7 @@ ERR_NAME_MAPPING = {
     "trans_err": "mATE",
     "scale_err": "mASE",
     "orient_err": "mAOE",
+    "iou": "mIoU",
 }
 
 TUMTRAF_CLASSES = (
@@ -69,6 +70,16 @@ HEADERS = [
     "sensors",
     "test_fps",
     "test_mem",
+    "mAP",
+    "mIoU",
+    "NDS",
+    "mAOE",
+    "mATE",
+    "mASE",
+    "pretrained",
+    "deterministic",
+    "lr",
+    "weight_decay",
     "pcd_dim",
     "ql",
     "qrt",
@@ -76,13 +87,20 @@ HEADERS = [
     "voxel_size",
     "grid_size",
     "score_threshold",
+    "same_aug",
     "x_pcd_range",
     "y_pcd_range",
     "z_pcd_range",
     "x_pcd_post_range",
     "y_pcd_post_range",
     "z_pcd_post_range",
-    "gt_paste_stop_epoch",
+    "gtp_max_epochs",
+    "gtp_same_aug",
+    "gtp_reduce_points_prob",
+    "gtp_reduce_points_threshold",
+    "gtp_reduce_points_max_ratio",
+    "cls_trans_lim",
+    "cls_rot_lim",
     "gridmask_prob",
     "gridmask_stop_epoch",
     "decoder_backbone",
@@ -90,14 +108,10 @@ HEADERS = [
     "encoder_cam_backbone",
     "encoder_cam_neck",
     "encoder_lid_backbone",
+    "encoder_lid_max_num_points",
+    "encoder_lid_max_max_voxels",
     "fuser",
     "temporal_fuser",
-    "mAP",
-    "mIoU",
-    "NDS",
-    "mAOE",
-    "mATE",
-    "mASE",
 ]
 
 
@@ -326,7 +340,7 @@ def create_images(
     include_labels: bool,
     images_include_combined: bool,
     images_max_samples: Optional[int] = None,
-    images_cam_bbox_score: Optional[float] = None,
+    score_threshold: Optional[float] = None,
     loglevel: str = "info",
 ) -> None:
     """
@@ -340,7 +354,7 @@ def create_images(
         include_labels (bool): save labels
         images_include_combined (bool): include combined images (gt and preds)
         images_max_samples (Optional[int], optional): maximum number of samples to include in images. Defaults to None.
-        images_cam_bbox_score (Optional[float], optional): minimum score of bounding boxes to include in images. Defaults to None.
+        score_threshold (Optional[float], optional): minimum score for bounding boxes. Defaults to None.
         loglevel (str, optional): logging level. Defaults to "info".
     """
     for x in chkpts:
@@ -376,8 +390,8 @@ def create_images(
         if include_scores:
             command += f" --save-scores --save-scores-dir {scores_dir}"
 
-        if images_cam_bbox_score is not None and x.split("/")[-1][0] in ["C", "c"]:
-            command += f" --bbox-score {images_cam_bbox_score}"
+        if score_threshold is not None:
+            command += f" --bbox-score {score_threshold}"
 
         if images_max_samples is not None:
             command += f" --max-samples {images_max_samples}"
@@ -545,7 +559,7 @@ def compile(
                 data = json.load(json_file)
 
             config_path = config_paths[id]
-            model_meta = get_model_meta(config_path)
+            model_meta = get_model_meta(config_path, dataset)
 
             out_csv = os.path.join(x, test_results_csv_filename)
             with open(out_csv, "w") as f:
@@ -629,6 +643,10 @@ def create_meta(dataset: str) -> Tuple[List[str], List[str]]:
     else:
         raise NotImplementedError
 
+    for m in ["sample_group", "cls_trans_lim", "cls_rot_lim"]:
+        for x in classes:
+            headers.append(f"{x}_{m}")
+
     for m in ["mAP", "mIoU", "mAOE", "mATE", "mASE"]:
         for x in classes:
             headers.append(f"{x}_{m}")
@@ -643,12 +661,13 @@ def create_meta(dataset: str) -> Tuple[List[str], List[str]]:
     return headers, classes
 
 
-def get_model_meta(config_path: str) -> Dict[str, Any]:
+def get_model_meta(config_path: str, dataset: str) -> Dict[str, Any]:
     """
     Get model metadata from config file.
 
     Args:
         config_path (str): path to config file
+        dataset (str): dataset name
 
     Returns:
         Dict[str, Any]: model metadata
@@ -665,9 +684,14 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
     meta = {
         "pcd_dim": data["use_dim"],
         "voxel_size": str(data["voxel_size"]),
-        "ql": data["queue_length"],
+        "ql": data["queue_length"] if data["queue_length"] else 0,
         "qrt": data["queue_range_threshold"],
         "sensors": sensors,
+        "same_aug": data["apply_same_aug_to_seq"],
+        "pretrained": True if data["load_from"] else False,
+        "deterministic": data["deterministic"],
+        "lr" : data["optimizer"]["lr"],
+        "weight_decay" : data["optimizer"]["weight_decay"]
     }
 
     decoder = data["model"]["decoder"]
@@ -692,6 +716,8 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
         meta.update(
             {
                 "encoder_lid_backbone": encoder_lid.get("backbone", {}).get("type", None),
+                "encoder_lid_max_num_points": encoder_lid["voxelize"]["max_num_points"],
+                "encoder_lid_max_max_voxels": encoder_lid["voxelize"]["max_voxels"],
             }
         )
 
@@ -699,14 +725,55 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
     if fuser is not None:
         meta.update({"fuser": fuser.get("type", None)})
 
-    temporal_fuser = data["model"].get("temporal_fuser", None)
+    temporal_fuser = data["model"].get("temporal", None)
     if temporal_fuser is not None:
         meta.update({"temporal_fuser": temporal_fuser.get("type", None)})
 
     image_size_x, image_size_y = data["image_size"]
     image_size = f"{image_size_x}x{image_size_y}"
 
-    gt_paste_stop_epoch = data.get("gt_paste_stop_epoch", -1)
+    if dataset.lower() == "osdar23":
+        classes = OSDAR23_CLASSES
+    elif dataset.lower() == "tumtraf-i":
+        classes = TUMTRAF_CLASSES
+    else:
+        raise NotImplementedError
+
+    gtp_details = data.get("augment_gt_paste", -1)
+    if gtp_details != -1:
+        gtp_sample_groups = {
+            f"{x}_sample_group": str(gtp_details["sample_groups"][x]) for x in classes
+        }
+
+        meta.update(gtp_sample_groups)
+
+        gtp_apply_same_aug_to_seq = gtp_details["apply_same_aug_to_seq"]
+        gtp_max_epoch = gtp_details["max_epoch"]
+        gtp_sampler = gtp_details["sampler"]
+        gtp_reduce_points_prob = gtp_sampler["reduce_points_by_distance"]["prob"]
+        gtp_reduce_points_threshold = gtp_sampler["reduce_points_by_distance"]["distance_threshold"]
+        gtp_reduce_points_max_ratio = gtp_sampler["reduce_points_by_distance"]["max_ratio"]
+
+        meta.update(
+            {
+                "gtp_max_epochs": gtp_max_epoch,
+                "gtp_same_aug": gtp_apply_same_aug_to_seq,
+                "gtp_reduce_points_prob": gtp_reduce_points_prob,
+                "gtp_reduce_points_threshold": gtp_reduce_points_threshold,
+                "gtp_reduce_points_max_ratio": gtp_reduce_points_max_ratio,
+            }
+        )
+
+    # fmt: off
+    if gtp_sampler.get("cls_trans_lim", None):
+        cls_trans_lim_class_details = {f"{x}_cls_trans_lim": str(gtp_sampler["cls_trans_lim"][x]) for x in classes}
+        meta.update({"cls_trans_lim": True})
+        meta.update(cls_trans_lim_class_details)
+    if gtp_sampler.get("cls_rot_lim", None):
+        meta.update({"cls_rot_lim": True})
+        cls_rot_lim_class_details = {f"{x}_cls_rot_lim": str(gtp_sampler["cls_rot_lim"][x]) for x in classes}
+        meta.update(cls_rot_lim_class_details)
+    # fmt: on
 
     pcd_range_x = f"{data['point_cloud_range'][0]}:{data['point_cloud_range'][3]}"
     pcd_range_y = f"{data['point_cloud_range'][1]}:{data['point_cloud_range'][4]}"
@@ -741,7 +808,6 @@ def get_model_meta(config_path: str) -> Dict[str, Any]:
     meta.update(
         {
             "image_size": image_size,
-            "gt_paste_stop_epoch": gt_paste_stop_epoch,
             "grid_size": grid_size,
             "score_threshold": data.get("score_threshold", None),
             "x_pcd_range": pcd_range_x,
