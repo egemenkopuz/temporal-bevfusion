@@ -7,6 +7,9 @@ grid_size: [1600, 1600, 51]
 queue_length: 3
 queue_range_threshold: 1
 
+apply_same_aug_to_seq: false
+deterministic: True
+
 voxel_max_points: 10
 voxel_max_voxels: [120000, 120000]
 
@@ -17,10 +20,14 @@ max_epochs: 20
 
 augment_gt_paste:
   max_epoch: 15
+  apply_same_aug_to_seq: true
+  sampler:
+    cls_trans_lim: null
+    cls_rot_lim: null
 
 optimizer:
   type: AdamW
-  lr: 1.0e-4
+  lr: 6.6e-05
   weight_decay: 0.01
 
 momentum_config:

@@ -1,27 +1,36 @@
 point_cloud_range: [-20.0, -80.0, -10.0, 140.0, 80.0, 0.0]
 post_center_range: [-25.0, -85.0, -12.0, 145.0, 85.0, 2.0]
 
-voxel_size: [0.1, 0.1, 0.2]
 image_size: [256, 704]
-grid_size: [1600, 1600, 51]
-
-voxel_max_points: 10
-voxel_max_voxels: [120000, 120000]
+voxel_size: [0.1, 0.1, 0.2]
+grid_size: [1600, 1600, 1]
 
 xbound: ${[point_cloud_range[0], point_cloud_range[3], voxel_size[0] * 4]}
 ybound: ${[point_cloud_range[1], point_cloud_range[4], voxel_size[1] * 4]}
 zbound: ${[point_cloud_range[2], point_cloud_range[5], point_cloud_range[5] - point_cloud_range[2]]}
 dbound: [1.0, 60.0, 0.5]
 
-samples_per_gpu: 6
+out_size_factor: 8
+score_threshold: 0.1
+nms_threshold: 0.2
+
+samples_per_gpu: 8
 workers_per_gpu: 6
 
-max_epochs: 6
+max_epochs: 20
 
 optimizer:
   type: AdamW
-  lr: 1.0e-4
+  lr: 6.6e-05
   weight_decay: 0.01
+  paramwise_cfg:
+    custom_keys:
+      absolute_pos_embed:
+        decay_mult: 0
+      relative_position_bias_table:
+        decay_mult: 0
+      encoders.camera.backbone:
+        lr_mult: 0.1
 
 momentum_config:
   policy: cyclic
@@ -29,28 +38,31 @@ momentum_config:
   step_ratio_up: 0.4
 
 lr_config:
-  policy: CosineAnnealing
-  warmup: linear
-  warmup_iters: 500
-  warmup_ratio: 0.33333333
-  min_lr_ratio: 1.0e-3
+  cyclic_times: 1
+  policy: cyclic
+  step_ratio_up: 0.4
+  target_ratio: 5.0
 
 optimizer_config:
   grad_clip:
-    max_norm: 25
+    max_norm: 35
     norm_type: 2
 
 augment2d:
+  resize: [[0.36, 0.44], [0.4, 0.4]]
+  bot_pct_lim: [[0.3, 0.5], [0.4, 0.4]]
+  rotate: [-5.4, 5.4]
   gridmask:
-    prob: 0.0
+    prob: 0.6
     fixed_prob: true
-    max_epoch: 4
+    max_epochs: 17
+
+augment3d:
+  scale: [0.95, 1.05]
+  rotate: [-0.05, 0.05]
+  translate: 0
 
 model:
-  fuser:
-    type: ConvFuser
-    in_channels: [80, 256]
-    out_channels: 256
   encoders:
     camera:
       backbone:
@@ -89,38 +101,26 @@ model:
           align_corners: false
       vtransform:
         type: DepthLSSTransform
+        image_size: ${image_size}
         in_channels: 256
         out_channels: 80
-        image_size: ${image_size}
         feature_size: ${[image_size[0] // 8, image_size[1] // 8]}
         xbound: ${xbound}
         ybound: ${ybound}
         zbound: ${zbound}
         dbound: ${dbound}
         downsample: 2
-    lidar:
-      voxelize:
-        max_num_points: ${voxel_max_points}
-        point_cloud_range: ${point_cloud_range}
-        voxel_size: ${voxel_size}
-        max_voxels: ${voxel_max_voxels}
-      backbone:
-        type: SparseEncoder
-        in_channels: ${use_dim}
-        sparse_shape: ${grid_size}
-        output_channels: 128
-        order:
-          - conv
-          - norm
-          - act
-        encoder_channels:
-          - [16, 16, 32]
-          - [32, 32, 64]
-          - [64, 64, 128]
-          - [128, 128]
-        encoder_paddings:
-          - [0, 0, 1]
-          - [0, 0, 1]
-          - [0, 0, [1, 1, 0]]
-          - [0, 0]
-        block_type: basicblock
+  decoder:
+    backbone:
+      type: GeneralizedResNet
+      in_channels: 80
+      blocks:
+        - [2, 128, 2]
+        - [2, 256, 2]
+        - [2, 512, 1]
+    neck:
+      type: LSSFPN
+      in_indices: [-1, 0]
+      in_channels: [512, 128]
+      out_channels: 256
+      scale_factor: 2

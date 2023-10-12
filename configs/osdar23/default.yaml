@@ -252,8 +252,8 @@ data:
     modality: ${input_modality}
     test_mode: true
     online: ${val_online_mode}
-    queue_length: ${queue_length}
-    queue_range_threshold: ${test_queue_range_threshold}
+    queue_length: 0 # 0 because online loading
+    queue_range_threshold: 0 # 0 because online loading
     box_type_3d: LiDAR
     eval_point_cloud_range: ${point_cloud_range}
   test:
@@ -265,7 +265,7 @@ data:
     modality: ${input_modality}
     test_mode: true
     online: ${test_online_mode}
-    queue_length: ${queue_length}
-    queue_range_threshold: ${test_queue_range_threshold}
+    queue_length: 0 # 0 because online loading
+    queue_range_threshold: 0 # 0 because online loading
     box_type_3d: LiDAR
     eval_point_cloud_range: ${point_cloud_range}

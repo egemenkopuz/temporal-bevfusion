@@ -12,8 +12,9 @@ score_threshold: 0.0 # default
 
 apply_same_aug_to_seq: false # default, apply same augmentation to all frames in a temporal sequence
 
-queue_length: null # default, None means no temporal
+queue_length: null # default, null means no temporal
 queue_range_threshold: 0 # default
+test_queue_length: 3
 test_queue_range_threshold: 0 # default
 
 augment2d: # default
@@ -36,15 +37,15 @@ augment_gt_paste: # default
   apply_temporal_forward: true
   max_epoch: -1
   sample_groups:
-    CAR: 3
-    TRAILER: 2
-    TRUCK: 4
+    CAR: 14
+    TRAILER: 0
+    TRUCK: 2
     VAN: 5
-    PEDESTRIAN: 7
-    BUS: 2
-    MOTORCYCLE: 5
-    BICYCLE: 5
-    EMERGENCY_VEHICLE: 3
+    PEDESTRIAN: 1
+    BUS: 1
+    MOTORCYCLE: 4
+    BICYCLE: 1
+    EMERGENCY_VEHICLE: 2
   sampler:
     rate: 1.0
     reduce_points_by_distance:
@@ -61,6 +62,7 @@ augment_gt_paste: # default
       BUS: 5
       MOTORCYCLE: 5
       BICYCLE: 5
+      EMERGENCY_VEHICLE: 5
     cls_trans_lim: null
     cls_rot_lim: null
 
@@ -182,7 +184,7 @@ train_pipeline:
 
 test_pipeline:
   - type: LoadTemporalFiles
-    queue_length: ${queue_length}
+    queue_length: ${test_queue_length}
     queue_range_threshold: ${test_queue_range_threshold}
     load_images_vars:
       to_float32: true
@@ -263,8 +265,8 @@ data:
     modality: ${input_modality}
     test_mode: true
     online: ${val_online_mode}
-    queue_length: ${queue_length}
-    queue_range_threshold: ${test_queue_range_threshold}
+    queue_length: null # null because online loading
+    queue_range_threshold: 0 # 0 because online loading
     box_type_3d: LiDAR
     eval_point_cloud_range: ${point_cloud_range}
   test:
@@ -276,7 +278,7 @@ data:
     modality: ${input_modality}
     test_mode: true
     online: ${test_online_mode}
-    queue_length: ${queue_length}
-    queue_range_threshold: ${test_queue_range_threshold}
+    queue_length: null # null because online loading
+    queue_range_threshold: 0 # 0 because online loading
     box_type_3d: LiDAR
     eval_point_cloud_range: ${point_cloud_range}

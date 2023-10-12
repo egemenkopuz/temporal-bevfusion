@@ -1,7 +1,7 @@
 point_cloud_range: [-20.0, -80.0, -10.0, 140.0, 80.0, 0.0]
 post_center_range: [-25.0, -85.0, -12.0, 145.0, 85.0, 2.0]
 
-image_size: [320, 704]
+image_size: [256, 704]
 voxel_size: [0.1, 0.1, 0.2]
 grid_size: [1600, 1600, 1]
 
@@ -13,14 +13,14 @@ dbound: [1.0, 60.0, 0.5]
 out_size_factor: 8
 nms_threshold: 0.2
 
-samples_per_gpu: 6
-workers_per_gpu: 6
+samples_per_gpu: 4
+workers_per_gpu: 4
 
 max_epochs: 20
 
 optimizer:
   type: AdamW
-  lr: 2.0e-4
+  lr: 6.6e-05
   weight_decay: 0.01
   paramwise_cfg:
     custom_keys:
@@ -34,7 +34,7 @@ optimizer:
 momentum_config:
   policy: cyclic
   cyclic_times: 1
-  step_ratio_up: 0.2
+  step_ratio_up: 0.4
 
 lr_config:
   cyclic_times: 1
@@ -44,7 +44,7 @@ lr_config:
 
 optimizer_config:
   grad_clip:
-    max_norm: 25
+    max_norm: 35
     norm_type: 2
 
 augment2d:
@@ -52,13 +52,13 @@ augment2d:
   bot_pct_lim: [[0.3, 0.5], [0.4, 0.4]]
   rotate: [-5.4, 5.4]
   gridmask:
-    prob: 0.1
+    prob: 0.0
     fixed_prob: true
-    max_epochs: 17
+    max_epochs: -1
 
 augment3d:
   scale: [0.95, 1.05]
-  rotate: [-0.3925, 0.3925]
+  rotate: [-0.05, 0.05]
   translate: 0
 
 model:

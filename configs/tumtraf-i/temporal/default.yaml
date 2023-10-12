@@ -1,8 +1,14 @@
 model:
   type: TBEVFusion
+  max_queue_length: ${test_queue_length}
   encoders: null
   fuser: null
-  temporal_fuser: null
+  temporal:
+    type: ConvLSTM
+    in_channels: 256
+    hidden_channels: [256]
+    kernel_size: [3, 3]
+    bias: true
   heads:
     map: null
 
@@ -16,16 +22,6 @@ augment_gt_paste: # default
   apply_same_aug_to_seq: true
   apply_collision_check: true
   apply_temporal_forward: true
-  sample_groups:
-    CAR: 3
-    TRAILER: 2
-    TRUCK: 4
-    VAN: 5
-    PEDESTRIAN: 7
-    BUS: 2
-    MOTORCYCLE: 5
-    BICYCLE: 5
-    EMERGENCY_VEHICLE: 3
   sampler:
     cls_trans_lim:
       CAR: ["uniform", 0.4, 2.0]

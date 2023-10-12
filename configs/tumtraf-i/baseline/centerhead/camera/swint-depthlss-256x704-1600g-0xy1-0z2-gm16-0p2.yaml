@@ -11,16 +11,17 @@ zbound: ${[point_cloud_range[2], point_cloud_range[5], point_cloud_range[5] - po
 dbound: [1.0, 60.0, 0.5]
 
 out_size_factor: 8
+score_threshold: 0.1
 nms_threshold: 0.2
 
-samples_per_gpu: 6
+samples_per_gpu: 8
 workers_per_gpu: 6
 
 max_epochs: 20
 
 optimizer:
   type: AdamW
-  lr: 2.0e-4
+  lr: 6.6e-05
   weight_decay: 0.01
   paramwise_cfg:
     custom_keys:
@@ -34,7 +35,7 @@ optimizer:
 momentum_config:
   policy: cyclic
   cyclic_times: 1
-  step_ratio_up: 0.2
+  step_ratio_up: 0.4
 
 lr_config:
   cyclic_times: 1
@@ -44,7 +45,7 @@ lr_config:
 
 optimizer_config:
   grad_clip:
-    max_norm: 25
+    max_norm: 35
     norm_type: 2
 
 augment2d:
@@ -52,13 +53,13 @@ augment2d:
   bot_pct_lim: [[0.3, 0.5], [0.4, 0.4]]
   rotate: [-5.4, 5.4]
   gridmask:
-    prob: 0.1
+    prob: 0.2
     fixed_prob: true
-    max_epoch: 17
+    max_epochs: 16
 
 augment3d:
   scale: [0.95, 1.05]
-  rotate: [-0.3925, 0.3925]
+  rotate: [-0.05, 0.05]
   translate: 0
 
 model:
@@ -99,7 +100,7 @@ model:
           mode: bilinear
           align_corners: false
       vtransform:
-        type: LSSTransform
+        type: DepthLSSTransform
         image_size: ${image_size}
         in_channels: 256
         out_channels: 80

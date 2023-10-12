@@ -2,7 +2,7 @@ model:
   type: TBEVFusion
   encoders: null
   fuser: null
-  temporal_fuser: null
+  temporal: null
   heads:
     map: null
 

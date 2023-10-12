@@ -4,15 +4,25 @@ post_center_range: [-25.0, -85.0, -12.0, 145.0, 85.0, 2.0]
 voxel_size: [0.1, 0.1, 0.2]
 grid_size: [1600, 1600, 51]
 
-voxel_max_points: 10
-voxel_max_voxels: [120000, 120000]
+queue_length: 3
+queue_range_threshold: 1
 
 deterministic: True
+
+voxel_max_points: 10
+voxel_max_voxels: [120000, 120000]
 
 samples_per_gpu: 6
 workers_per_gpu: 6
 
-max_epochs: 20
+max_epochs: 6
+
+augment_gt_paste:
+  max_epoch: -1
+  apply_same_aug_to_seq: true
+  sampler:
+    cls_trans_lim: null
+    cls_rot_lim: null
 
 optimizer:
   type: AdamW

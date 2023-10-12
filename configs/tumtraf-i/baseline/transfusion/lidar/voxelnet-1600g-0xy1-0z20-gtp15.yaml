@@ -7,6 +7,8 @@ grid_size: [1600, 1600, 51]
 voxel_max_points: 10
 voxel_max_voxels: [120000, 120000]
 
+deterministic: True
+
 samples_per_gpu: 6
 workers_per_gpu: 6
 
@@ -17,7 +19,7 @@ augment_gt_paste:
 
 optimizer:
   type: AdamW
-  lr: 1.0e-4
+  lr: 6.6e-05
   weight_decay: 0.01
 
 momentum_config:
