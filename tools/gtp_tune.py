@@ -58,6 +58,8 @@ def parse_args():
     parser.add_argument("--MOTORCYCLE", nargs="+", type=int, required=True)
     parser.add_argument("--BICYCLE", nargs="+", type=int, required=True)
     parser.add_argument("--EMERGENCY_VEHICLE", nargs="+", type=int, required=True)
+    parser.add_argument("--enqueue", nargs="+", type=int, required=False)
+    parser.add_argument("--timeout", type=int, required=False, help="timeout in hours")
     parser.add_argument("--verbose", action="store_true")
     args, opts = parser.parse_known_args()
     return args, opts
@@ -85,6 +87,14 @@ def tune(args, opts) -> None:
         load_if_exists=True,
     )
 
+    if args.timeout is not None:
+        print(f"Timeout: {args.timeout}h")
+
+    if args.enqueue is not None:
+        enqueue_dict = {x: args.enqueue[i] for i, x in enumerate(CLASSES)}
+        print(f"Enqueue: {enqueue_dict}")
+        study.enqueue_trial(enqueue_dict)
+
     study.optimize(
         lambda trial: objective(
             trial,
@@ -95,6 +105,7 @@ def tune(args, opts) -> None:
             CLASSES,
             AP_DISTS,
             search_space,
+            args.timeout,
             args.verbose,
         ),
         n_trials=args.n_trials,
@@ -162,6 +173,7 @@ def objective(
     target_classes: list,
     ap_dists: list,
     cls_search_space: dict,
+    timeout: int = None,
     verbose: bool = False,
 ) -> float:
     params = {c: trial.suggest_int(c, v[0], v[1]) for c, v in cls_search_space.items()}
@@ -184,10 +196,14 @@ def objective(
     cfg.checkpoint_config.max_keep_ckpts = 1
     cfg.runner.max_epochs = max_epochs
     cfg.deterministic = True
-    # cfg.optimizer.lr = 2.0e-4
     cfg.dump(tmp_config_path)
 
-    command = f"torchpack dist-run -np {n_gpus} python tools/train.py {tmp_config_path} --run-dir {run_dir}"
+    if timeout is not None:
+        command = f"timeout {timeout}h "
+    else:
+        command = ""
+
+    command += f"torchpack dist-run -np {n_gpus} python tools/train.py {tmp_config_path} --run-dir {run_dir}"
     if not verbose:
         command += " > /dev/null 2>&1"
     os.system(command)
