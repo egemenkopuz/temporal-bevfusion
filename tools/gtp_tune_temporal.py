@@ -62,16 +62,17 @@ def parse_args():
     parser.add_argument("--n-epochs", required=True, type=int, help="max epochs")
     parser.add_argument("--n-gpus", required=True, type=int, help="max gpus")
     parser.add_argument("--n-trials", required=True, type=int, help="max trials")
-    parser.add_argument("--CAR", nargs="+", type=int, required=True)
-    parser.add_argument("--TRAILER", nargs="+", type=int, required=True)
-    parser.add_argument("--TRUCK", nargs="+", type=int, required=True)
-    parser.add_argument("--VAN", nargs="+", type=int, required=True)
-    parser.add_argument("--PEDESTRIAN", nargs="+", type=int)
-    parser.add_argument("--BUS", nargs="+", type=int, required=True)
-    parser.add_argument("--MOTORCYCLE", nargs="+", type=int, required=True)
-    parser.add_argument("--BICYCLE", nargs="+", type=int, required=True)
-    parser.add_argument("--EMERGENCY_VEHICLE", nargs="+", type=int, required=True)
-    parser.add_argument("--enqueue", nargs="+", type=int, required=False)
+    parser.add_argument("--load-from", required=False, type=str, help="load from pretrained model")
+    parser.add_argument("--CAR", nargs="+", type=float, required=True)
+    parser.add_argument("--TRAILER", nargs="+", type=float, required=True)
+    parser.add_argument("--TRUCK", nargs="+", type=float, required=True)
+    parser.add_argument("--VAN", nargs="+", type=float, required=True)
+    parser.add_argument("--PEDESTRIAN", nargs="+", type=float, required=True)
+    parser.add_argument("--BUS", nargs="+", type=float, required=True)
+    parser.add_argument("--MOTORCYCLE", nargs="+", type=float, required=True)
+    parser.add_argument("--BICYCLE", nargs="+", type=float, required=True)
+    parser.add_argument("--EMERGENCY_VEHICLE", nargs="+", type=float, required=True)
+    parser.add_argument("--enqueue", nargs="+", type=float, required=False)
     parser.add_argument("--timeout", type=int, required=False, help="timeout in hours")
     parser.add_argument("--verbose", action="store_true")
     args, opts = parser.parse_known_args()
@@ -121,6 +122,7 @@ def tune(args, opts) -> None:
             CLASSES,
             AP_DISTS,
             search_space,
+            args.load_from,
             args.timeout,
             args.verbose,
         ),
@@ -189,6 +191,7 @@ def objective(
     target_classes: list,
     ap_dists: list,
     cls_search_space: dict,
+    load_from: str = None,
     timeout: int = None,
     verbose: bool = False,
 ) -> float:
@@ -208,13 +211,37 @@ def objective(
 
     cfg = Config(recursive_eval(configs), filename=source_config_path)
 
-    gtp_idx = find_gtp_in_pipeline(cfg.data.train.dataset.pipeline)
-    cfg.data.train.dataset.pipeline[gtp_idx].db_sampler.cls_trans_lim = {
-        cls: [CLASS_TRANS_TYPES[cls.split("_")[0]], v[0], v[1]] for cls, v in trans_params.items()
+    gtp_idx_train = find_gtp_in_pipeline(cfg.data.train.dataset.pipeline)
+    gtp_idx_pipeline = find_gtp_in_pipeline(cfg.train_pipeline)
+
+    trans_dict = {
+        cls: [
+            CLASS_TRANS_TYPES[cls.split("_")[0]]
+            if cls != "EMERGENCY_VEHICLE"
+            else CLASS_TRANS_TYPES["EMERGENCY_VEHICLE"],
+            cls_search_space[cls][0],
+            v,
+        ]
+        for cls, v in trans_params.items()
     }
-    cfg.data.train.dataset.pipeline[gtp_idx].db_sampler.cls_rot_lim = {
-        cls: [CLASS_ROT_TYPES[cls.split("_")[0]], v[0], v[1]] for cls, v in rot_params.items()
+    rot_dict = {
+        cls: [
+            CLASS_ROT_TYPES[cls.split("_")[0]]
+            if cls != "EMERGENCY_VEHICLE"
+            else CLASS_ROT_TYPES["EMERGENCY_VEHICLE"],
+            cls_search_space[cls][2],
+            v,
+        ]
+        for cls, v in rot_params.items()
     }
+
+    cfg.data.train.dataset.pipeline[gtp_idx_train].db_sampler.cls_trans_lim = trans_dict
+    cfg.train_pipeline[gtp_idx_pipeline].db_sampler.cls_trans_lim = trans_dict
+    cfg.augment_gt_paste.sampler.cls_trans_lim = trans_dict
+
+    cfg.data.train.dataset.pipeline[gtp_idx_train].db_sampler.cls_rot_lim = rot_dict
+    cfg.train_pipeline[gtp_idx_pipeline].db_sampler.cls_rot_lim = rot_dict
+    cfg.augment_gt_paste.sampler.cls_rot_lim = rot_dict
 
     tmp_config_path = os.path.join(tune_target_folder_path, "tmp_config.yaml")
     if os.path.exists(tmp_config_path):
@@ -232,6 +259,8 @@ def objective(
         command = ""
 
     command += f"torchpack dist-run -np {n_gpus} python tools/train.py {tmp_config_path} --run-dir {run_dir}"
+    if load_from is not None:
+        command += f" --load_from {load_from}"
     if not verbose:
         command += " > /dev/null 2>&1"
     os.system(command)
