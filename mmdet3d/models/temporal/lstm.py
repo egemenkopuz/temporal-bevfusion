@@ -143,38 +143,25 @@ class ConvLSTM(nn.Module):
 
         self.cell_list = nn.ModuleList(cell_list)
 
-    def forward(self, input_tensor, hidden_state=None):
+    def forward(self, x: torch.Tensor):
         """
-
-        Parameters
-        ----------
-        input_tensor: todo
-            5-D Tensor either of shape (t, b, c, h, w) or (b, t, c, h, w)
-        hidden_state: todo
-            None. todo implement stateful
-
-        Returns
-        -------
-        last_state_list, layer_output
+        Args:
+            x: 5-D input tensor of shape (t, b, c, h, w) or (b, t, c, h, w)
+        Returns:
+            last_state_list, layer_output
         """
         if not self.batch_first:
             # (t, b, c, h, w) -> (b, t, c, h, w)
-            input_tensor = input_tensor.permute(1, 0, 2, 3, 4)
+            x = x.permute(1, 0, 2, 3, 4)
 
-        b, _, _, h, w = input_tensor.size()
-
-        # Implement stateful ConvLSTM
-        if hidden_state is not None:
-            raise NotImplementedError()
-        else:
-            # Since the init is done in forward. Can send image size here
-            hidden_state = self._init_hidden(batch_size=b, image_size=(h, w))
+        b, _, _, h, w = x.size()
+        hidden_state = self._init_hidden(batch_size=b, image_size=(h, w))
 
         layer_output_list = []
         last_state_list = []
 
-        seq_len = input_tensor.size(1)
-        cur_layer_input = input_tensor
+        seq_len = x.size(1)
+        cur_layer_input = x
 
         for layer_idx in range(self.num_layers):
             h, c = hidden_state[layer_idx]

@@ -311,9 +311,11 @@ You can also use the following optional arguments:
 - **--override-videos** if you would like to override the videos, Default: False
 - **--override-benchmark** if you would like to override the benchmark results, Default: False
 - **--images-include-combined** if you would like to include the visuals containing both predictions and ground truths, Default: False
+- **--videos-include-bundled** if you would like to include the bundled videos, Default: False
 - **--images-cam-bbox-score N** if you would like to visualize only the bounding boxes with a score higher than N, example: 0.1, Default: 0.0
 - **--images-max-samples N** if you would like to visualize only a subset of the dataset, example 100, Default: None
 - **--include-bboxes** if you would like to save the bounding boxes as npy files, Default: False
+- **--include-scores** if you would like to save the scores as npy files, Default: False
 - **--include-labels** if you would like to save the labels as npy files, Default: False
 - **--skip-test** if you would like to skip the testing, Default: False
 - **--skip-images** if you would like to skip the images, Default: False
@@ -326,13 +328,26 @@ You can also use the following optional arguments:
 TUMTraf-Intersection
 
 ```bash
-python tools/compile.py tumtraf-i -c checkpoints/tumtraf-i -i tumtraf-i -t results --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
+python tools/compile.py tumtraf-i -c checkpoints/tumtraf-i -i tumtraf-i -t results --include-bboxes --include-scores --include-labels --images-include-combined --images-cam-bbox-score 0.15 --videos-include-bundled --loglevel INFO
 ```
 
 OSDAR23
 
 ```bash
-python tools/compile.py osdar23 -c checkpoints/osdar23 -i osdar23 -t results --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
+python tools/compile.py osdar23 -c checkpoints/osdar23 -i osdar23 -t results --include-bboxes --include-scores --include-labels --images-include-combined --images-cam-bbox-score 0.15 --videos-include-bundled --loglevel INFO
 ```
 
 </details>
+
+
+
+# gtp tunning
+
+```bash
+python ./tools/gtp_tune.py "configs/tumtraf-i/baseline/transfusion/lidar/voxelnet-1600g-0xy1-0z20-gtp15.yaml" --run-dir "checkpoints/tune/tumtraf-i" --n-epochs 20 --n-gpus 2 --n-trials 20 --CAR 8 15 --TRAILER 0 2 --TRUCK 0 4 --VAN 0 5 --PEDESTRIAN 0 8 --BUS 0 2 --MOTORCYCLE 0 4 --BICYCLE 0 4 --EMERGENCY_VEHICLE 0 2 --verbose --timeout 3 --enqueue 12 2 4 0 0 0 3 3 0
+```
+
+```bash
+python tools/gtp_tune_temporal.py configs/tumtraf-i/temporal/transfusion/lidar/voxelnet-convlstm-1600g-0xy1-0z20-sameaugall-ql3-qrt2-gtp3-sameaug-trans-rot-lfrz.yaml --run-dir checkpoints/tune/tumtraf-i-t --load-from checkpoints/tumtraf-i/hp-lidar-best/latest.pth --n-gpus 2 --n-epochs 4 --n-trials 25 --timeout 2 --verbose --CAR 0.0 2.5 0.0 0.2 --TRAILER 0.0 2.5 0.0 0.2 --TRUCK 0.0 2.5 0.0 0.2 --VAN 0.0 2.5 0.0 0.2 --PEDESTRIAN 0.0 2.5 0.0 0.3 --BUS 0.0 2.5 0.0 0.2 --MOTORCYCLE 0.0 2.5 0.0 0.25 --BICYCLE 0.0 2.5 0.0 0.25 --EMERGENCY_VEHICLE 0.0 2.5 0.0 0.2;
+
+```

@@ -5,9 +5,9 @@ voxel_size: [0.1, 0.1, 0.2]
 grid_size: [1600, 1600, 51]
 
 queue_length: 3
+temporal_cache_length: 3
 queue_range_threshold: 1
 
-apply_same_aug_to_seq: false
 deterministic: True
 
 voxel_max_points: 10
@@ -16,11 +16,11 @@ voxel_max_voxels: [120000, 120000]
 samples_per_gpu: 6
 workers_per_gpu: 6
 
-max_epochs: 20
+max_epochs: 4
 
 augment_gt_paste:
-  max_epoch: 15
-  apply_same_aug_to_seq: true
+  max_epoch: 3
+  apply_same_aug_to_seq: false
   sampler:
     cls_trans_lim: null
     cls_rot_lim: null
@@ -29,6 +29,10 @@ optimizer:
   type: AdamW
   lr: 6.6e-05
   weight_decay: 0.01
+  paramwise_cfg:
+    custom_keys:
+      encoders.lidar.backbone:
+        lr_mult: 0.0
 
 momentum_config:
   policy: cyclic
@@ -36,9 +40,11 @@ momentum_config:
   step_ratio_up: 0.4
 
 lr_config:
-  cyclic_times: 1
-  policy: cyclic
-  step_ratio_up: 0.4
+  policy: CosineAnnealing
+  warmup: linear
+  warmup_iters: 500
+  warmup_ratio: 0.33333333
+  min_lr_ratio: 1.0e-3
 
 optimizer_config:
   grad_clip:

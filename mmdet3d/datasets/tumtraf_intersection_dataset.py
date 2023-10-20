@@ -86,14 +86,22 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         "n>50",
         "n20-50",
         "n<20",
-        "d>50",
-        "d40-50",
-        "d<40",
+        "d>75",
+        "d50-75",
+        "d30-50",
+        "d<30",
         "hard",
         "moderate",
         "easy",
         "overall",
     ]
+
+    DISTANCE_MAP = {
+        "d<30": [0, 30],
+        "d30-50": [30, 50],
+        "d50-75": [50, 75],
+        "d>75": [75, 999999],
+    }
 
     def __init__(
         self,
@@ -927,6 +935,7 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         eval_boxes,
         max_dist: Dict[str, float],
         point_range: Optional[List[float]] = None,
+        distance_range: Optional[Tuple[float, float]] = None,
         verbose: bool = False,
     ):
         """
@@ -935,6 +944,7 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         :param eval_boxes: An instance of the EvalBoxes class.
         :param max_dist: Maps the detection name to the eval distance threshold for that class.
         :param point_range: Only evaluate boxes within this range from the ego vehicle.
+        :param distance_range: Only evaluate boxes within this distance range from the ego.
         :param verbose: Whether to print to stdout.
         """
         # Accumulators for number of filtered boxes.
@@ -961,6 +971,13 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
                     box
                     for box in eval_boxes[timestamp]
                     if box["ego_dist"] < max_dist[box["detection_name"]]
+                ]
+            # Filter on distance range.
+            if distance_range is not None:
+                eval_boxes[timestamp] = [
+                    box
+                    for box in eval_boxes[timestamp]
+                    if box["ego_dist"] >= distance_range[0] and box["ego_dist"] <= distance_range[1]
                 ]
 
             after_filter += len(eval_boxes[timestamp])
@@ -1029,8 +1046,6 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         evals = copy.deepcopy(eval_boxes)
 
         filtered_evals = defaultdict(list)
-
-        distance_map = {"d<40": [0, 40], "d40-50": [40, 50], "d>50": [50, 64]}
         num_points_map = {"n<20": [5, 20], "n20-50": [20, 50], "n>50": [50, 999999]}
         occlusion_map = {
             "no_occluded": "NOT_OCCLUDED",
@@ -1051,10 +1066,10 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
                     if e_box["difficulty"] == eval_name:
                         filtered_evals[timestamp].append(e_box)
 
-        elif eval_name in ["d<40", "d40-50", "d>50"]:  # based on distance from sensor
+        elif eval_name in list(self.DISTANCE_MAP.keys()):  # based on distance from sensor
             for timestamp, e_boxes in evals.items():
                 for e_box in e_boxes:
-                    min_d, max_d = distance_map[eval_name]
+                    min_d, max_d = self.DISTANCE_MAP[eval_name]
                     if e_box["ego_dist"] > min_d and e_box["ego_dist"] <= max_d:
                         filtered_evals[timestamp].append(e_box)
         elif eval_name in [
@@ -1152,6 +1167,14 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
             }
             total_curr_gt_class_counts = sum(curr_gt_class_counts.values())
 
+            if eval_name in list(self.DISTANCE_MAP.keys()):
+                curr_pred_boxes = copy.deepcopy(self.pred_boxes)
+                curr_pred_boxes = self.filter_eval_boxes(
+                    curr_pred_boxes, None, None, self.DISTANCE_MAP[eval_name], verbose=verbose
+                )
+            else:
+                curr_pred_boxes = self.pred_boxes
+
             start_time = time.time()
 
             # -----------------------------------
@@ -1163,7 +1186,7 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
             metric_data_list = {}
             for class_name in curr_gt_classes:
                 for dist_th in self.dist_ths:
-                    md = self.accumulate(curr_gt_boxes, self.pred_boxes, class_name, dist_th)
+                    md = self.accumulate(curr_gt_boxes, curr_pred_boxes, class_name, dist_th)
                     metric_data_list[(class_name, dist_th)] = md
 
             # -----------------------------------

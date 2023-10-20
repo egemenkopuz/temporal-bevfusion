@@ -1,0 +1,6 @@
+model:
+  encoders:
+    lidar: null
+  temporal:
+    in_channels: 80
+    hidden_channels: [256]

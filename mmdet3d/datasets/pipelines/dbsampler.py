@@ -239,9 +239,8 @@ class DataBaseSampler:
         return (v - a) / (b - a)
 
     def sample_rot(self, cls_label: int, sample_trans: float) -> float:
-        if sample_trans < 0.5:
-            return 0.0
-
+        # if sample_trans < 0.5:
+        #     return 0.0
         val = self.cls_rot_lim[cls_label][1:]
         return self.cls_rot_fn[cls_label](*val)
 

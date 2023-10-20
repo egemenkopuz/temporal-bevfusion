@@ -17,14 +17,11 @@ from .loading_utils import load_augmented_point_cloud, reduce_LiDAR_beams
 class LoadTemporalFiles:
     def __init__(
         self,
-        queue_length: Optional[int] = None,
-        queue_range_threshold: Optional[int] = None,
         load_images_vars: Dict[str, Any] = {},
         load_points_vars: Dict[str, Any] = {},
         load_annotations_vars: Dict[str, Any] = {},
+        **kwargs,
     ) -> None:
-        self.queue_length = queue_length
-        self.queue_range_threshold = queue_range_threshold
         self.load_images = LoadMultiViewImageFromFiles(**load_images_vars)
         self.load_points = LoadPointsFromFile(**load_points_vars)
         self.load_annotations = LoadAnnotations3D(**load_annotations_vars)
@@ -45,8 +42,6 @@ class LoadTemporalFiles:
 
     def __repr__(self) -> str:
         repr_str = self.__class__.__name__
-        repr_str += f"(queue_length={self.queue_length}, "
-        repr_str += f"queue_range_threshold={self.queue_range_threshold}"
         return repr_str
 
 

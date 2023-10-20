@@ -115,7 +115,7 @@ def create_auto_dir_name(cfg) -> str:
         if fuser is not None:
             models.append(fuser.lower())
 
-    temporal_fuser = cfg["model"].get("temporal_fuser", None)
+    temporal_fuser = cfg["model"].get("temporal", None)
     if temporal_fuser is not None:
         models.append(temporal_fuser["type"].lower())
 
@@ -152,6 +152,9 @@ def create_auto_dir_name(cfg) -> str:
 
     # score threshold
     info.append(str(cfg["score_threshold"]).replace(".", "st"))
+
+    if cfg["reduce_beams"] < 32:
+        info.append(f"rb{cfg['reduce_beams']}")
 
     # temporal queue length
     if cfg.get("queue_length", None) not in [0, None]:
@@ -200,6 +203,20 @@ def create_auto_dir_name(cfg) -> str:
         info.append(aug3d_rot_y)
         aug3d_trans = str(cfg["augment3d"]["translate"]).replace(".", "t")
         info.append(aug3d_trans)
+
+    pretrained = cfg.get("load_from", None)
+    if pretrained is not None:
+        info.append("pretrained")
+
+    lidar_freeze = (
+        cfg["optimizer"]
+        .get("paramwise_cfg", {})
+        .get("custom_keys", {})
+        .get("encoders.lidar.backbone", {})
+        .get("lr_mult", None)
+    )
+    if lidar_freeze == 0.0:
+        info.append("lfrz")
 
     if cfg["deterministic"]:
         info.append("dtrmnstc")

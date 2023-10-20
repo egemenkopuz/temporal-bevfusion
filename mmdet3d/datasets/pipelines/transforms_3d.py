@@ -586,7 +586,9 @@ class ObjectPaste:
                     sampled_rot = -sampled_dict["sampled_rot"]
                     sampled_trans = -sampled_dict["sampled_trans"]
 
-                if temporal_index != 0:  # not applying to first frame in the queue
+                if not (
+                    temporal_index == 0 and self.apply_same_aug_to_seq
+                ):  # not applying to first frame in the queue
                     if sampled_rot is not None:
                         sampled_gt_bboxes_3d, sampled_points = self.apply_rot(
                             sampled_gt_bboxes_3d, sampled_points, sampled_rot

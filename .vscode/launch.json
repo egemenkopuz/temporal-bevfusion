@@ -146,6 +146,36 @@
             ]
         },
         {
+            "name": "Python: OSDAR23 DEBUG-TRAIN temporal lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/osdar23/temporal/transfusion/lidar/voxelnet-1600g-0xy16-0z4-ql3-qrt2-gtp15.yaml",
+                "--max_epochs",
+                "1",
+                "--samples_per_gpu",
+                "1",
+                "--workers_per_gpu",
+                "1",
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 DEBUG-TEST temporal lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "runs/test/configs.yaml",
+                "runs/test/latest.pth",
+                "--eval=bbox",
+            ]
+        },
+        {
             "name": "Python: TUMTRAF-I compile",
             "type": "python",
             "request": "launch",
@@ -177,7 +207,7 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "configs/a9-80s10s10-t3-1600g-0p1/det/transfusion/secfpn/lidar/voxelnet.yaml",
+                "configs/tumtraf-i/temporal/transfusion/lidar/voxelnet-1600g-0xy1-0z20-sameaugall-ql3-qrt2-gtp15-sameaug.yaml",
                 "--max_epochs",
                 "1"
             ]
@@ -207,8 +237,8 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "checkpoints/test/l-temporal/configs.yaml",
-                "checkpoints/test/l-temporal/latest.pth",
+                "configs/tumtraf-i/temporal/transfusion/lidar/voxelnet-1600g-0xy1-0z20-sameaugall-ql3-qrt2-gtp15-sameaug-trans-rot.yaml",
+                "checkpoints/tumtraf-i-default/l-voxelnet-1600z51-0xy1-0z2-0st0-ql3-sameaugall-qrt1-gtp15-sameaug-trans-rot-aug3d-0sx9-1sy1--0rx2-0ry2-0t25-dtrmnstc/latest.pth",
                 "--eval=bbox"
             ]
         },
@@ -251,6 +281,22 @@
                 "--split-ratios",
                 "0.8",
                 "0.2",
+            ]
+        },
+        {
+            "name": "Python: TUMTRAF DEBUG-TEST lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "checkpoints/tumtraf-i-default/l-voxelnet-1600z51-0xy1-0z2-0st0-gtp15-aug3d-0sx9-1sy1--0rx2-0ry2-0t25-dtrmnstc/configs.yaml",
+                "checkpoints/tumtraf-i-default/l-voxelnet-1600z51-0xy1-0z2-0st0-gtp15-aug3d-0sx9-1sy1--0rx2-0ry2-0t25-dtrmnstc/latest.pth",
+                "--eval=bbox",
+                "--eval-options",
+                "extensive_report=True",
+                // "save_summary_path=results/test"
             ]
         },
     ]
