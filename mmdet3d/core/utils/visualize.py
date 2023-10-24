@@ -260,8 +260,9 @@ def visualize_lidar(
     ylim: Tuple[float, float] = (-50, 50),
     color: Optional[Tuple[int, int, int]] = None,
     radius: float = 15,
-    thickness: float = 25,
+    thickness: float = 10,
     dataset: Optional[str] = None,
+    save_dpi: int = 10,
 ) -> None:
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
@@ -300,7 +301,7 @@ def visualize_lidar(
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
     fig.savefig(
         fpath,
-        dpi=10,
+        dpi=save_dpi,
         facecolor="black",
         format="png",
         bbox_inches="tight",
@@ -317,8 +318,14 @@ def visualize_lidar_combined(
     xlim: Tuple[float, float] = (-50, 50),
     ylim: Tuple[float, float] = (-50, 50),
     radius: float = 15,
-    thickness: float = 15,
+    thickness: float = 10,
+    custom_pred_color: Optional[Tuple[int, int, int]] = None,
+    custom_gt_color: Optional[Tuple[int, int, int]] = None,
+    save_dpi: int = 10,
 ) -> None:
+    pred_color = custom_pred_color or DEFAULT_PRED_COLOR
+    gt_color = custom_gt_color or DEFAULT_GT_COLOR
+
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
     ax = plt.gca()
@@ -347,7 +354,7 @@ def visualize_lidar_combined(
                 pred_coords[index, :, 0],
                 pred_coords[index, :, 1],
                 linewidth=thickness,
-                color=np.array(DEFAULT_PRED_COLOR) / 255,
+                color=np.array(pred_color) / 255,
             )
 
         gt_coords = gt_bboxes.corners[:, [0, 3, 7, 4, 0], :2]
@@ -356,13 +363,65 @@ def visualize_lidar_combined(
                 gt_coords[index, :, 0],
                 gt_coords[index, :, 1],
                 linewidth=thickness,
-                color=np.array(DEFAULT_GT_COLOR) / 255,
+                color=np.array(gt_color) / 255,
             )
 
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
     fig.savefig(
         fpath,
-        dpi=10,
+        dpi=save_dpi,
+        facecolor="black",
+        format="png",
+        bbox_inches="tight",
+        pad_inches=0,
+    )
+    plt.close()
+
+
+def visualize_prev_lidar_combined(
+    fpath: str,
+    lidar: Optional[np.ndarray] = None,
+    bboxes: List[Optional[LiDARInstance3DBoxes]] = None,
+    xlim: Tuple[float, float] = (-50, 50),
+    ylim: Tuple[float, float] = (-50, 50),
+    radius: float = 15,
+    thickness: float = 10,
+    colors: List[Tuple[int, int, int]] = None,
+    save_dpi: int = 10,
+) -> None:
+    assert len(bboxes) == len(colors)
+
+    fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
+
+    ax = plt.gca()
+    ax.set_xlim(*xlim)
+    ax.set_ylim(*ylim)
+    ax.set_aspect(1)
+    ax.set_axis_off()
+
+    if lidar is not None:
+        plt.scatter(
+            lidar[:, 0],
+            lidar[:, 1],
+            s=radius,
+            c="white",
+        )
+
+    for _, (bbox, color) in enumerate(zip(bboxes, colors)):
+        if bbox is not None and len(bbox) > 0:
+            coords = bbox.corners[:, [0, 3, 7, 4, 0], :2]
+            for index in range(coords.shape[0]):
+                plt.plot(
+                    coords[index, :, 0],
+                    coords[index, :, 1],
+                    linewidth=thickness,
+                    color=np.array(color) / 255,
+                )
+
+    mmcv.mkdir_or_exist(os.path.dirname(fpath))
+    fig.savefig(
+        fpath,
+        dpi=save_dpi,
         facecolor="black",
         format="png",
         bbox_inches="tight",

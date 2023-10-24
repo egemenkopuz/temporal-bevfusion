@@ -230,6 +230,21 @@
             ]
         },
         {
+            "name": "Python: TUMTRAF-I DEBUG-TRAIN temporal camera",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/tumtraf-i/temporal/centerhead/camera/swint-depthlss-convlstm-256x704-1600g-0xy1-0z2-sameaugall-ql3-qrt2-gm17-0p6.yaml",
+                "--model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth",
+                "pretrained/swint-nuimages-pretrained.pth",
+                "--max_epochs",
+                "1"
+            ]
+        },
+        {
             "name": "Python: TUMTRAF-I DEBUG-TEST temporal lidar",
             "type": "python",
             "request": "launch",

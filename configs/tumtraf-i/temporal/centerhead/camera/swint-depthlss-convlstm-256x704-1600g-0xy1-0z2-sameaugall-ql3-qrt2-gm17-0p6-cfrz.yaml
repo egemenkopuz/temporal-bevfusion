@@ -36,7 +36,7 @@ optimizer:
       relative_position_bias_table:
         decay_mult: 0
       encoders.camera.backbone:
-        lr_mult: 0.1
+        lr_mult: 0.0 # freezed
 
 momentum_config:
   policy: cyclic

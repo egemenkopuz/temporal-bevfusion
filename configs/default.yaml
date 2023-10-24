@@ -3,7 +3,7 @@ deterministic: false
 
 checkpoint_config:
   interval: 1
-  max_keep_ckpts: 3
+  max_keep_ckpts: 5
 
 log_config:
   interval: 50
