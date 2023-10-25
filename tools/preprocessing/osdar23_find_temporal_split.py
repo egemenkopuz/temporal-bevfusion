@@ -634,31 +634,28 @@ def calculate_segment_loss(
 
     # compare the class distributions between splits
     total_cls_loss = 0
-    for i in range(len(split_cls_ratios) - 1):
+    for i in range(1, len(split_cls_ratios)):
         for j, cls in enumerate(classes):
             if class_weights is None:
-                total_cls_loss += abs(split_cls_ratios[i][cls] - split_cls_ratios[i + 1][cls])
+                total_cls_loss += abs(split_cls_ratios[0][cls] - split_cls_ratios[i][cls])
             else:
                 total_cls_loss += (
-                    abs(split_cls_ratios[i][cls] - split_cls_ratios[i + 1][cls]) * class_weights[j]
+                    abs(split_cls_ratios[0][cls] - split_cls_ratios[i][cls]) * class_weights[j]
                 )
     loss += total_cls_loss
 
     # compare the occlusion distributions
     total_occlusion_loss = 0
-    for i in range(len(split_cls_ratios) - 1):
+    for i in range(1, len(split_cls_ratios)):
         for j in OCCLUSION_LEVELS:
             for k, cls in enumerate(classes):
                 if occlusion_weights is None:
                     total_occlusion_loss += abs(
-                        split_occlusion_ratios[i][cls][j] - split_occlusion_ratios[i + 1][cls][j]
+                        split_occlusion_ratios[0][cls][j] - split_occlusion_ratios[i][cls][j]
                     )
                 else:
                     total_occlusion_loss += (
-                        abs(
-                            split_occlusion_ratios[i][cls][j]
-                            - split_occlusion_ratios[i + 1][cls][j]
-                        )
+                        abs(split_occlusion_ratios[0][cls][j] - split_occlusion_ratios[i][cls][j])
                         * occlusion_weights[k]
                     )
 
@@ -666,19 +663,16 @@ def calculate_segment_loss(
 
     # compare the number of points distributions
     total_num_points_loss = 0
-    for i in range(len(split_cls_ratios) - 1):
+    for i in range(1, len(split_cls_ratios)):
         for j in NUM_POINTS_LEVELS.keys():
             for k, cls in enumerate(classes):
                 if num_points_weights is None:
                     total_num_points_loss += abs(
-                        split_num_points_ratios[i][cls][j] - split_num_points_ratios[i + 1][cls][j]
+                        split_num_points_ratios[0][cls][j] - split_num_points_ratios[i][cls][j]
                     )
                 else:
                     total_num_points_loss += (
-                        abs(
-                            split_num_points_ratios[i][cls][j]
-                            - split_num_points_ratios[i + 1][cls][j]
-                        )
+                        abs(split_num_points_ratios[0][cls][j] - split_num_points_ratios[i][cls][j])
                         * num_points_weights[k]
                     )
 
@@ -686,16 +680,16 @@ def calculate_segment_loss(
 
     # compare the distance distributions
     total_distance_loss = 0
-    for i in range(len(split_cls_ratios) - 1):
+    for i in range(1, len(split_cls_ratios)):
         for j in DISTANCE_LEVELS.keys():
             for k, cls in enumerate(classes):
                 if distance_weights is None:
                     total_distance_loss += abs(
-                        split_distance_ratios[i][cls][j] - split_distance_ratios[i + 1][cls][j]
+                        split_distance_ratios[0][cls][j] - split_distance_ratios[i][cls][j]
                     )
                 else:
                     total_distance_loss += (
-                        abs(split_distance_ratios[i][cls][j] - split_distance_ratios[i + 1][cls][j])
+                        abs(split_distance_ratios[0][cls][j] - split_distance_ratios[i][cls][j])
                         * distance_weights[k]
                     )
 
