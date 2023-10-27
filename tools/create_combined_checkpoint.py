@@ -29,6 +29,9 @@ def convert_to_combined_pth(
         "encoders.camera.vtransform",
         "encoders.camera.neck",
     ],
+    blacklist_prefixes: List[str] = [
+        "temporal_fuser",
+    ],
 ) -> None:
     lidar_model = torch.load(lidar_model_path, map_location=torch.device("cpu"))
     camera_model = torch.load(camera_model_path, map_location=torch.device("cpu"))
@@ -43,21 +46,24 @@ def convert_to_combined_pth(
                 camera_keys.append(x)
                 break
 
-    for x in camera_keys:
-        print(x)
-
-    print("total keys in camera model to be merged", len(camera_keys))
-
     # create a new state dict
     new_state_dict = {}
     for key, value in lidar_model["state_dict"].items():
-        new_state_dict[key] = value
+        skip = False
+        for x in blacklist_prefixes:
+            if key.startswith(x):
+                skip = True
+                break
+        if not skip:
+            new_state_dict[key] = value
 
     for key, value in camera_model["state_dict"].items():
-        if key in camera_keys:
+        if key in camera_keys and key not in blacklist_prefixes:
             new_state_dict[key] = value
 
     print("total keys in new state dict", len(new_state_dict.keys()))
+    for x in new_state_dict:
+        print(x)
 
     # save the new state dict
     lidar_model["state_dict"] = new_state_dict
