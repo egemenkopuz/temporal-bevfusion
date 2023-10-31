@@ -57,6 +57,7 @@ class TUMTrafIntersectionDataset(Custom3DDataset):
         "iou": "mIoU",
     }
 
+    # not used
     # below ranges are used only to filter outliers in detections
     cls_range = {
         "CAR": 100,

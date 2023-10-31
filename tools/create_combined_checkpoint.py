@@ -16,6 +16,7 @@ def get_args() -> Namespace:
     parser.add_argument("-l", type=str, required=True, help="path to lidar model")
     parser.add_argument("-c", type=str, required=True, help="path to camera model")
     parser.add_argument("-t", type=str, required=True, help="path to save target model")
+    parser.add_argument("--full", action="store_true", help="whether to save full model")
 
     return parser.parse_args()
 
@@ -76,4 +77,5 @@ if __name__ == "__main__":
         lidar_model_path=args.l,
         camera_model_path=args.c,
         target_save_path=args.t,
+        blacklist_prefixes=["temporal_fuser"] if not args.full else [],
     )

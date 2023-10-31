@@ -568,9 +568,10 @@ def compile(
 
                 # read benchmark data
                 benchmark_path = os.path.join(x, benchmark_filename)
-                benchmark_data = None
-                with open(benchmark_path, "rb") as json_file:
-                    benchmark_data = json.load(json_file)
+                benchmark_data = {"fps" : 0, "memory_allocated" : 0}
+                if os.path.exists(benchmark_path):
+                    with open(benchmark_path, "rb") as json_file:
+                        benchmark_data = json.load(json_file)
 
                 for eval_type, eval_data in data.items():
                     row = {

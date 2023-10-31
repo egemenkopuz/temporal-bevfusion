@@ -23,7 +23,7 @@ nms_threshold: 0.2
 samples_per_gpu: 8
 workers_per_gpu: 6
 
-max_epochs: 4
+max_epochs: 3
 
 optimizer:
   type: AdamW
@@ -36,7 +36,7 @@ optimizer:
       relative_position_bias_table:
         decay_mult: 0
       encoders.camera.backbone:
-        lr_mult: 0.1
+        lr_mult: 0.0 # freezed
 
 momentum_config:
   policy: cyclic
@@ -60,7 +60,7 @@ augment2d:
   bot_pct_lim: [[0.3, 0.5], [0.4, 0.4]]
   rotate: [-5.4, 5.4]
   gridmask:
-    prob: 0.6
+    prob: 0.0
     fixed_prob: true
     max_epochs: 17
 

@@ -263,6 +263,7 @@ def visualize_lidar(
     thickness: float = 10,
     dataset: Optional[str] = None,
     save_dpi: int = 10,
+    add_coordinate_lines: bool = False,
 ) -> None:
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
@@ -297,6 +298,12 @@ def visualize_lidar(
                 linewidth=thickness,
                 color=np.array(color or object_palette[name]) / 255,
             )
+
+    if add_coordinate_lines:
+        # red for x-axis
+        plt.plot([0, 0], [ylim[0], ylim[1]], linewidth=thickness * 2, color=[1, 0, 0])
+        # green for y-axis
+        plt.plot([xlim[0], xlim[1]], [0, 0], linewidth=thickness * 2, color=[0, 1, 0])
 
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
     fig.savefig(
