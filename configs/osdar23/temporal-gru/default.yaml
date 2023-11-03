@@ -4,7 +4,7 @@ model:
   encoders: null
   fuser: null
   temporal:
-    type: ConvLSTM
+    type: ConvGRU
     in_channels: 256
     hidden_channels: [256]
     kernel_size: [3, 3]

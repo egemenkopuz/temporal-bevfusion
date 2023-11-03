@@ -13,9 +13,6 @@ workers_per_gpu: 6
 
 max_epochs: 20
 
-augment_gt_paste:
-  max_epoch: 15
-
 optimizer:
   type: AdamW
   lr: 6.6e-05

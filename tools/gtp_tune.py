@@ -10,7 +10,7 @@ from torchpack.utils.config import configs
 
 from mmdet3d.utils import recursive_eval
 
-CLASSES = (
+TUMTRAF_CLASSES = (
     "CAR",
     "TRAILER",
     "TRUCK",
@@ -22,6 +22,14 @@ CLASSES = (
     "EMERGENCY_VEHICLE",
 )
 
+OSDAR23_CLASSES = (
+    "lidar__cuboid__person",
+    "lidar__cuboid__catenary_pole",
+    "lidar__cuboid__signal_pole",
+    "lidar__cuboid__road_vehicle",
+    "lidar__cuboid__buffer_stop",
+)
+
 AP_DISTS = [
     "ap_dist_0.5",
     "ap_dist_1.0",
@@ -29,35 +37,29 @@ AP_DISTS = [
     "ap_dist_4.0",
 ]
 
-# CLS_SEARCH_SPACE = {
-#     "CAR": [8, 15],
-#     "TRAILER": [0, 2],
-#     "TRUCK": [0, 4],
-#     "VAN": [0, 5],
-#     "PEDESTRIAN": [0, 8],
-#     "BUS": [0, 2],
-#     "MOTORCYCLE": [0, 4],
-#     "BICYCLE": [0, 4],
-#     "EMERGENCY_VEHICLE": [0, 2],
-# }
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("dataset", type=str, help="dataset")
     parser.add_argument("config", type=str, help="config file")
     parser.add_argument("--run-dir", required=True, type=str, help="run directory")
     parser.add_argument("--n-epochs", required=True, type=int, help="max epochs")
     parser.add_argument("--n-gpus", required=True, type=int, help="max gpus")
     parser.add_argument("--n-trials", required=True, type=int, help="max trials")
-    parser.add_argument("--CAR", nargs="+", type=int, required=True)
-    parser.add_argument("--TRAILER", nargs="+", type=int, required=True)
-    parser.add_argument("--TRUCK", nargs="+", type=int, required=True)
-    parser.add_argument("--VAN", nargs="+", type=int, required=True)
-    parser.add_argument("--PEDESTRIAN", nargs="+", type=int)
-    parser.add_argument("--BUS", nargs="+", type=int, required=True)
-    parser.add_argument("--MOTORCYCLE", nargs="+", type=int, required=True)
-    parser.add_argument("--BICYCLE", nargs="+", type=int, required=True)
-    parser.add_argument("--EMERGENCY_VEHICLE", nargs="+", type=int, required=True)
+    parser.add_argument("--CAR", nargs="+", type=int, required=False)
+    parser.add_argument("--TRAILER", nargs="+", type=int, required=False)
+    parser.add_argument("--TRUCK", nargs="+", type=int, required=False)
+    parser.add_argument("--VAN", nargs="+", type=int, required=False)
+    parser.add_argument("--PEDESTRIAN", nargs="+", type=int, required=False)
+    parser.add_argument("--BUS", nargs="+", type=int, required=False)
+    parser.add_argument("--MOTORCYCLE", nargs="+", type=int, required=False)
+    parser.add_argument("--BICYCLE", nargs="+", type=int, required=False)
+    parser.add_argument("--EMERGENCY_VEHICLE", nargs="+", type=int, required=False)
+    parser.add_argument("--lidar__cuboid__person", nargs="+", type=int, required=False)
+    parser.add_argument("--lidar__cuboid__catenary_pole", nargs="+", type=int, required=False)
+    parser.add_argument("--lidar__cuboid__signal_pole", nargs="+", type=int, required=False)
+    parser.add_argument("--lidar__cuboid__road_vehicle", nargs="+", type=int, required=False)
+    parser.add_argument("--lidar__cuboid__buffer_stop", nargs="+", type=int, required=False)
     parser.add_argument("--enqueue", nargs="+", type=int, required=False)
     parser.add_argument("--timeout", type=int, required=False, help="timeout in hours")
     parser.add_argument("--verbose", action="store_true")
@@ -66,8 +68,15 @@ def parse_args():
 
 
 def tune(args, opts) -> None:
+    if args.dataset.lower() == "tumtraf-i":
+        classes = TUMTRAF_CLASSES
+    elif args.dataset.lower() == "osdar23":
+        classes = OSDAR23_CLASSES
+    else:
+        raise Exception("Unknown dataset")
+
     search_space = {}
-    for cls in CLASSES:
+    for cls in classes:
         assert cls in args.__dict__ and len(args.__dict__[cls]) == 2
         search_space[cls] = args.__dict__[cls]
     assert args.n_gpus > 0
@@ -91,7 +100,7 @@ def tune(args, opts) -> None:
         print(f"Timeout: {args.timeout}h")
 
     if args.enqueue is not None:
-        enqueue_dict = {x: args.enqueue[i] for i, x in enumerate(CLASSES)}
+        enqueue_dict = {x: args.enqueue[i] for i, x in enumerate(classes)}
         print(f"Enqueue: {enqueue_dict}")
         study.enqueue_trial(enqueue_dict)
 
@@ -102,7 +111,7 @@ def tune(args, opts) -> None:
             args.run_dir,
             args.n_epochs,
             args.n_gpus,
-            CLASSES,
+            classes,
             AP_DISTS,
             search_space,
             args.timeout,
@@ -186,7 +195,11 @@ def objective(
     cfg = Config(recursive_eval(configs), filename=source_config_path)
 
     gtp_idx = find_gtp_in_pipeline(cfg.data.train.dataset.pipeline)
+    gtp_idx_pipeline = find_gtp_in_pipeline(cfg.train_pipeline)
+
     cfg.data.train.dataset.pipeline[gtp_idx].db_sampler.sample_groups = params
+    cfg.train_pipeline[gtp_idx_pipeline].db_sampler.sample_groups = params
+    cfg.augment_gt_paste.sample_groups = params
 
     tmp_config_path = os.path.join(tune_target_folder_path, "tmp_config.yaml")
     if os.path.exists(tmp_config_path):

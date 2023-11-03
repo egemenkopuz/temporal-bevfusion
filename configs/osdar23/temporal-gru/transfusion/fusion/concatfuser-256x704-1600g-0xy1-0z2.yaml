@@ -1,13 +1,21 @@
 point_cloud_range: [-6.0, -128.0, -3.0, 250.0, 128.0, 13.0]
 post_center_range: [-11.0, -132.0, -5.0, 255.0, 132.0, 15.0]
 
+find_unused_parameters: true
+
 voxel_size: [0.16, 0.16, 0.4]
 image_size: [256, 704]
 grid_size: [1600, 1600, 41]
 
+queue_length: 3
+temporal_cache_length: 3
+queue_range_threshold: 1
+
 voxel_max_points: 15
 voxel_max_voxels: [200000, 200000]
 out_size_factor: 8
+
+deterministic: True
 
 xbound: ${[point_cloud_range[0], point_cloud_range[3], voxel_size[0] * 4]}
 ybound: ${[point_cloud_range[1], point_cloud_range[4], voxel_size[1] * 4]}
@@ -17,7 +25,7 @@ dbound: [1.0, 240.0, 2.0]
 samples_per_gpu: 6
 workers_per_gpu: 6
 
-max_epochs: 4
+max_epochs: 5
 
 optimizer:
   type: AdamW
@@ -41,17 +49,16 @@ optimizer_config:
     max_norm: 25
     norm_type: 2
 
-augment2d:
-  gridmask:
-    prob: 0.0
-    fixed_prob: true
-    max_epoch: 4
+augment3d:
+  scale: [0.95, 1.05]
+  rotate: [-0.05, 0.05]
+  translate: 0
 
 model:
   fuser:
-    type: ConvFuser
-    in_channels: [80, 256]
-    out_channels: 256
+    type: ConcatFuser
+  temporal:
+    in_channels: 336
   encoders:
     camera:
       backbone:

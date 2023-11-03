@@ -10,7 +10,7 @@ from torchpack.utils.config import configs
 
 from mmdet3d.utils import recursive_eval
 
-CLASSES = (
+TUMTRAF_CLASSES = (
     "CAR",
     "TRAILER",
     "TRUCK",
@@ -22,7 +22,7 @@ CLASSES = (
     "EMERGENCY_VEHICLE",
 )
 
-CLASS_TRANS_TYPES = {
+TUMTRAF_CLASS_TRANS_TYPES = {
     "CAR": "uniform",
     "TRAILER": "uniform",
     "TRUCK": "uniform",
@@ -34,7 +34,7 @@ CLASS_TRANS_TYPES = {
     "EMERGENCY_VEHICLE": "uniform",
 }
 
-CLASS_ROT_TYPES = {
+TUMTRAF_CLASS_ROT_TYPES = {
     "CAR": "normal",
     "TRAILER": "normal",
     "TRUCK": "normal",
@@ -44,6 +44,30 @@ CLASS_ROT_TYPES = {
     "MOTORCYCLE": "normal",
     "BICYCLE": "normal",
     "EMERGENCY_VEHICLE": "normal",
+}
+
+OSDAR23_CLASSES = (
+    "lidar__cuboid__person",
+    "lidar__cuboid__catenary_pole",
+    "lidar__cuboid__signal_pole",
+    "lidar__cuboid__road_vehicle",
+    "lidar__cuboid__buffer_stop",
+)
+
+OSDAR23_CLASS_TRANS_TYPES = {
+    "lidar__cuboid__person": "uniform",
+    "lidar__cuboid__catenary_pole": "uniform",
+    "lidar__cuboid__signal_pole": "uniform",
+    "lidar__cuboid__road_vehicle": "uniform",
+    "lidar__cuboid__buffer_stop": "uniform",
+}
+
+OSDAR23_CLASS_ROT_TYPES = {
+    "lidar__cuboid__person": "normal",
+    "lidar__cuboid__catenary_pole": "normal",
+    "lidar__cuboid__signal_pole": "normal",
+    "lidar__cuboid__road_vehicle": "normal",
+    "lidar__cuboid__buffer_stop": "normal",
 }
 
 
@@ -57,21 +81,27 @@ AP_DISTS = [
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("dataset", type=str, help="dataset")
     parser.add_argument("config", type=str, help="config file")
     parser.add_argument("--run-dir", required=True, type=str, help="run directory")
     parser.add_argument("--n-epochs", required=True, type=int, help="max epochs")
     parser.add_argument("--n-gpus", required=True, type=int, help="max gpus")
     parser.add_argument("--n-trials", required=True, type=int, help="max trials")
     parser.add_argument("--load-from", required=False, type=str, help="load from pretrained model")
-    parser.add_argument("--CAR", nargs="+", type=float, required=True)
-    parser.add_argument("--TRAILER", nargs="+", type=float, required=True)
-    parser.add_argument("--TRUCK", nargs="+", type=float, required=True)
-    parser.add_argument("--VAN", nargs="+", type=float, required=True)
-    parser.add_argument("--PEDESTRIAN", nargs="+", type=float, required=True)
-    parser.add_argument("--BUS", nargs="+", type=float, required=True)
-    parser.add_argument("--MOTORCYCLE", nargs="+", type=float, required=True)
-    parser.add_argument("--BICYCLE", nargs="+", type=float, required=True)
-    parser.add_argument("--EMERGENCY_VEHICLE", nargs="+", type=float, required=True)
+    parser.add_argument("--CAR", nargs="+", type=float, required=False)
+    parser.add_argument("--TRAILER", nargs="+", type=float, required=False)
+    parser.add_argument("--TRUCK", nargs="+", type=float, required=False)
+    parser.add_argument("--VAN", nargs="+", type=float, required=False)
+    parser.add_argument("--PEDESTRIAN", nargs="+", type=float, required=False)
+    parser.add_argument("--BUS", nargs="+", type=float, required=False)
+    parser.add_argument("--MOTORCYCLE", nargs="+", type=float, required=False)
+    parser.add_argument("--BICYCLE", nargs="+", type=float, required=False)
+    parser.add_argument("--EMERGENCY_VEHICLE", nargs="+", type=float, required=False)
+    parser.add_argument("--lidar__cuboid__person", nargs="+", type=float, required=False)
+    parser.add_argument("--lidar__cuboid__catenary_pole", nargs="+", type=float, required=False)
+    parser.add_argument("--lidar__cuboid__signal_pole", nargs="+", type=float, required=False)
+    parser.add_argument("--lidar__cuboid__road_vehicle", nargs="+", type=float, required=False)
+    parser.add_argument("--lidar__cuboid__buffer_stop", nargs="+", type=float, required=False)
     parser.add_argument("--enqueue", nargs="+", type=float, required=False)
     parser.add_argument("--timeout", type=int, required=False, help="timeout in hours")
     parser.add_argument("--verbose", action="store_true")
@@ -80,8 +110,15 @@ def parse_args():
 
 
 def tune(args, opts) -> None:
+    if args.dataset.lower() == "tumtraf-i":
+        classes = TUMTRAF_CLASSES
+    elif args.dataset.lower() == "osdar23":
+        classes = OSDAR23_CLASSES
+    else:
+        raise Exception("Unknown dataset")
+
     search_space = {}
-    for cls in CLASSES:
+    for cls in classes:
         assert (
             cls in args.__dict__ and len(args.__dict__[cls]) == 4
         )  # TRANS_MIN, TRANS_MAX, ROT_MIN, ROT_MAX
@@ -108,7 +145,7 @@ def tune(args, opts) -> None:
         print(f"Timeout: {args.timeout}h")
 
     if args.enqueue is not None:
-        enqueue_dict = {x: args.enqueue[i] for i, x in enumerate(CLASSES)}
+        enqueue_dict = {x: args.enqueue[i] for i, x in enumerate(classes)}
         print(f"Enqueue: {enqueue_dict}")
         study.enqueue_trial(enqueue_dict)
 
@@ -119,7 +156,7 @@ def tune(args, opts) -> None:
             args.run_dir,
             args.n_epochs,
             args.n_gpus,
-            CLASSES,
+            classes,
             AP_DISTS,
             search_space,
             args.load_from,
@@ -214,26 +251,44 @@ def objective(
     gtp_idx_train = find_gtp_in_pipeline(cfg.data.train.dataset.pipeline)
     gtp_idx_pipeline = find_gtp_in_pipeline(cfg.train_pipeline)
 
-    trans_dict = {
-        cls: [
-            CLASS_TRANS_TYPES[cls.split("_")[0]]
-            if cls != "EMERGENCY_VEHICLE"
-            else CLASS_TRANS_TYPES["EMERGENCY_VEHICLE"],
-            cls_search_space[cls][0],
-            v,
-        ]
-        for cls, v in trans_params.items()
-    }
-    rot_dict = {
-        cls: [
-            CLASS_ROT_TYPES[cls.split("_")[0]]
-            if cls != "EMERGENCY_VEHICLE"
-            else CLASS_ROT_TYPES["EMERGENCY_VEHICLE"],
-            cls_search_space[cls][2],
-            v,
-        ]
-        for cls, v in rot_params.items()
-    }
+    if target_classes == TUMTRAF_CLASSES:
+        trans_dict = {
+            cls: [
+                TUMTRAF_CLASS_TRANS_TYPES[cls.split("_")[0]]
+                if cls != "EMERGENCY_VEHICLE"
+                else TUMTRAF_CLASS_TRANS_TYPES["EMERGENCY_VEHICLE"],
+                cls_search_space[cls][0],
+                v,
+            ]
+            for cls, v in trans_params.items()
+        }
+        rot_dict = {
+            cls: [
+                TUMTRAF_CLASS_ROT_TYPES[cls.split("_")[0]]
+                if cls != "EMERGENCY_VEHICLE"
+                else TUMTRAF_CLASS_ROT_TYPES["EMERGENCY_VEHICLE"],
+                cls_search_space[cls][2],
+                v,
+            ]
+            for cls, v in rot_params.items()
+        }
+    elif target_classes == OSDAR23_CLASSES:
+        trans_dict = {
+            cls: [
+                OSDAR23_CLASS_TRANS_TYPES[cls],
+                cls_search_space[cls][0],
+                v,
+            ]
+            for cls, v in trans_params.items()
+        }
+        rot_dict = {
+            cls: [
+                OSDAR23_CLASS_ROT_TYPES[cls],
+                cls_search_space[cls][2],
+                v,
+            ]
+            for cls, v in rot_params.items()
+        }
 
     cfg.data.train.dataset.pipeline[gtp_idx_train].db_sampler.cls_trans_lim = trans_dict
     cfg.train_pipeline[gtp_idx_pipeline].db_sampler.cls_trans_lim = trans_dict

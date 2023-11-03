@@ -108,6 +108,14 @@ class OSDAR23Dataset(Custom3DDataset):
         "overall",
     ]
 
+    DISTANCE_MAP = {
+        "distance_0-49": [0, 50],
+        "distance_50-99": [50, 100],
+        "distance_100-149": [100, 150],
+        "distance_150-199": [150, 200],
+        "distance_200-inf": [200, 999999],
+    }
+
     def __init__(
         self,
         ann_file,
@@ -945,6 +953,7 @@ class OSDAR23Dataset(Custom3DDataset):
         eval_boxes,
         max_dist: Dict[str, float],
         point_range: Optional[List[float]] = None,
+        distance_range: Optional[Tuple[float, float]] = None,
         verbose: bool = False,
     ):
         """
@@ -953,6 +962,7 @@ class OSDAR23Dataset(Custom3DDataset):
         :param eval_boxes: An instance of the EvalBoxes class.
         :param max_dist: Maps the detection name to the eval distance threshold for that class.
         :param point_range: Only evaluate boxes within this range from the ego vehicle.
+        :param distance_range: Only evaluate boxes within this distance range from the ego.
         :param verbose: Whether to print to stdout.
         """
         # Accumulators for number of filtered boxes.
@@ -979,6 +989,13 @@ class OSDAR23Dataset(Custom3DDataset):
                     box
                     for box in eval_boxes[timestamp]
                     if box["ego_dist"] < max_dist[box["detection_name"]]
+                ]
+            # Filter on distance range.
+            if distance_range is not None:
+                eval_boxes[timestamp] = [
+                    box
+                    for box in eval_boxes[timestamp]
+                    if box["ego_dist"] >= distance_range[0] and box["ego_dist"] <= distance_range[1]
                 ]
 
             after_filter += len(eval_boxes[timestamp])
@@ -1170,6 +1187,14 @@ class OSDAR23Dataset(Custom3DDataset):
             }
             total_curr_gt_class_counts = sum(curr_gt_class_counts.values())
 
+            if eval_name in list(self.DISTANCE_MAP.keys()):
+                curr_pred_boxes = copy.deepcopy(self.pred_boxes)
+                curr_pred_boxes = self.filter_eval_boxes(
+                    curr_pred_boxes, None, None, self.DISTANCE_MAP[eval_name], verbose=verbose
+                )
+            else:
+                curr_pred_boxes = self.pred_boxes
+
             start_time = time.time()
 
             # -----------------------------------
@@ -1181,7 +1206,7 @@ class OSDAR23Dataset(Custom3DDataset):
             metric_data_list = {}
             for class_name in curr_gt_classes:
                 for dist_th in self.dist_ths:
-                    md = self.accumulate(curr_gt_boxes, self.pred_boxes, class_name, dist_th)
+                    md = self.accumulate(curr_gt_boxes, curr_pred_boxes, class_name, dist_th)
                     metric_data_list[(class_name, dist_th)] = md
 
             # -----------------------------------
