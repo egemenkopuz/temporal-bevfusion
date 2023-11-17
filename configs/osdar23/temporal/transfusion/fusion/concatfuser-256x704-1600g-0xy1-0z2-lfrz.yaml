@@ -25,7 +25,7 @@ dbound: [1.0, 240.0, 2.0]
 samples_per_gpu: 6
 workers_per_gpu: 6
 
-max_epochs: 5
+max_epochs: 4
 
 optimizer:
   type: AdamW

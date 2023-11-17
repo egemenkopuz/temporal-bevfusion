@@ -16,6 +16,8 @@ temporal_mode: true
 val_online_mode: true
 test_online_mode: true
 
+apply_same_aug_to_seq: true
+
 temporal_aware_gt_paste: true
 apply_same_aug_to_seq: true
 

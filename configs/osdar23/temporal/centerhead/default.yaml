@@ -39,29 +39,23 @@ model:
         post_max_size: 83
         nms_thr: ${nms_threshold}
         nms_type:
-          - circle # CAR
-          - rotate # TRUCK
-          - rotate # VAN
-          - rotate # BUS, TRAILER
-          - rotate # MOTORCYCLE, BICYCLE
-          - rotate # PEDESTRIAN
-          - rotate # EMERGENCY_VEHICLE
+          - rotate # lidar__cuboid__person
+          - circle # lidar__cuboid__catenary_pole
+          - circle # lidar__cuboid__signal_pole
+          - circle # lidar__cuboid__road_vehicle
+          - rotate # lidar__cuboid__buffer_stop
         nms_scale:
-          - [1.0] # CAR
-          - [1.0] # TRUCK
-          - [1.0] # VAN
-          - [1.0, 1.0] # BUS, TRAILER
-          - [1.0, 1.0] # MOTORCYCLE, BICYCLE
-          - [1.0] # PEDESTRIAN
-          - [1.0] # EMERGENCY_VEHICLE
+          - [0.4] # lidar__cuboid__person
+          - [1.0] # lidar__cuboid__catenary_pole
+          - [1.0] # lidar__cuboid__signal_pole
+          - [1.0] # lidar__cuboid__road_vehicle
+          - [1.0] # lidar__cuboid__buffer_stop
       tasks:
-        - ["CAR"]
-        - ["TRUCK"]
-        - ["VAN"]
-        - ["BUS", "TRAILER"]
-        - ["MOTORCYCLE", "BICYCLE"]
-        - ["PEDESTRIAN"]
-        - ["EMERGENCY_VEHICLE"]
+        - ["lidar__cuboid__person"]
+        - ["lidar__cuboid__catenary_pole"]
+        - ["lidar__cuboid__signal_pole"]
+        - ["lidar__cuboid__road_vehicle"]
+        - ["lidar__cuboid__buffer_stop"]
       common_heads:
         reg: [2, 2]
         height: [1, 2]
