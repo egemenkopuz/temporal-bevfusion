@@ -1,10 +1,10 @@
 from mmcv.utils import Registry
-
 from mmdet.models.builder import BACKBONES, HEADS, LOSSES, NECKS
 
 FUSIONMODELS = Registry("fusion_models")
 VTRANSFORMS = Registry("vtransforms")
 FUSERS = Registry("fusers")
+TEMPORAL = Registry("temporal")
 
 
 def build_backbone(cfg):
@@ -23,6 +23,10 @@ def build_fuser(cfg):
     return FUSERS.build(cfg)
 
 
+def build_temporal(cfg):
+    return TEMPORAL.build(cfg)
+
+
 def build_head(cfg):
     return HEADS.build(cfg)
 
@@ -32,9 +36,7 @@ def build_loss(cfg):
 
 
 def build_fusion_model(cfg, train_cfg=None, test_cfg=None):
-    return FUSIONMODELS.build(
-        cfg, default_args=dict(train_cfg=train_cfg, test_cfg=test_cfg)
-    )
+    return FUSIONMODELS.build(cfg, default_args=dict(train_cfg=train_cfg, test_cfg=test_cfg))
 
 
 def build_model(cfg, train_cfg=None, test_cfg=None):

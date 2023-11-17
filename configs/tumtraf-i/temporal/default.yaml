@@ -1,0 +1,49 @@
+model:
+  type: TBEVFusion
+  max_queue_length: ${temporal_cache_length}
+  encoders: null
+  fuser: null
+  temporal:
+    type: ConvLSTM
+    in_channels: 256
+    hidden_channels: [256]
+    kernel_size: [3, 3]
+    bias: true
+  heads:
+    map: null
+
+temporal_mode: true
+val_online_mode: true
+test_online_mode: true
+
+apply_same_aug_to_seq: true
+
+augment_gt_paste: # default
+  apply_same_aug_to_seq: true
+  apply_collision_check: true
+  apply_temporal_forward: true
+  sampler:
+    cls_trans_lim:
+      CAR: ["uniform", 0.0, 0.21142457549557347]
+      TRAILER: ["uniform", 0.0, 2.061603454258997]
+      TRUCK: ["uniform", 0.0, 0.19225818659676847]
+      VAN: ["uniform", 0.0, 0.12440957907943972]
+      # PEDESTRIAN: ["uniform", 0.0, 1.9631158717540234] WE DO NOT SAMPLE PEDESTRIANS
+      PEDESTRIAN: ["uniform", 0.0, 0.0]
+      BUS: ["uniform", 0.0, 1.1107448011494194]
+      # MOTORCYCLE: ["uniform", 0.0, 0.25374656183458383] WE DO NOT SAMPLE MOTORCYCLES
+      MOTORCYCLE: ["uniform", 0.0, 0.0]
+      BICYCLE: ["uniform", 0.0, 0.5918484046343995]
+      EMERGENCY_VEHICLE: ["uniform", 0.0, 0.6620038588093282]
+    cls_rot_lim:
+      CAR: ["normal", 0.0, 0.08516856382385488]
+      TRAILER: ["normal", 0.0, 0.19199153770261218]
+      TRUCK: ["normal", 0.0, 0.12290075954655998]
+      VAN: ["normal", 0.0, 0.18803376690181833]
+      # PEDESTRIAN: ["normal", 0.0, 0.2227474538090619] WE DO NOT SAMPLE PEDESTRIANS
+      PEDESTRIAN: ["normal", 0.0, 0.0]
+      BUS: ["normal", 0.0, 0.19959521881110118]
+      # MOTORCYCLE: ["normal", 0.0, 0.018643425075835468] WE DO NOT SAMPLE MOTORCYCLES
+      MOTORCYCLE: ["normal", 0.0, 0.0]
+      BICYCLE: ["normal", 0.0, 0.21636682539331192]
+      EMERGENCY_VEHICLE: ["normal", 0.0, 0.1328186144435953]

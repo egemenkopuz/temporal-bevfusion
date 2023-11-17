@@ -257,13 +257,21 @@ class TransFusionHead(nn.Module):
                 :,
                 2,
             ] = F.max_pool2d(heatmap[:, 2], kernel_size=1, stride=1, padding=0)
-        elif self.test_cfg["dataset"] == "a9":
+        elif self.test_cfg["dataset"] == "TUMTraf-I":
             local_max[
                 :,
                 4,
             ] = F.max_pool2d(
                 heatmap[:, 4], kernel_size=1, stride=1, padding=0
             )  # Pedestrian
+        elif self.test_cfg["dataset"] == "OSDAR23":
+            local_max[
+                :,
+                0,
+            ] = F.max_pool2d(
+                heatmap[:, 0], kernel_size=1, stride=1, padding=0
+            )  # Person
+
         heatmap = heatmap * (heatmap == local_max)
         heatmap = heatmap.view(batch_size, heatmap.shape[1], -1)
 
@@ -271,7 +279,7 @@ class TransFusionHead(nn.Module):
         top_proposals = heatmap.view(batch_size, -1).argsort(dim=-1, descending=True)[
             ..., : self.num_proposals
         ]
-        top_proposals_class = top_proposals // heatmap.shape[-1]
+        top_proposals_class = torch.div(top_proposals, heatmap.shape[-1], rounding_mode="trunc")
         top_proposals_index = top_proposals % heatmap.shape[-1]
         query_feat = lidar_feat_flatten.gather(
             index=top_proposals_index[:, None, :].expand(-1, lidar_feat_flatten.shape[1], -1),
@@ -520,7 +528,9 @@ class TransFusionHead(nn.Module):
         grid_size = torch.tensor(self.train_cfg["grid_size"])
         pc_range = torch.tensor(self.train_cfg["point_cloud_range"])
         voxel_size = torch.tensor(self.train_cfg["voxel_size"])
-        feature_map_size = grid_size[:2] // self.train_cfg["out_size_factor"]  # [x_len, y_len]
+        feature_map_size = torch.div(
+            grid_size[:2], self.train_cfg["out_size_factor"], rounding_mode="trunc"
+        )
         heatmap = gt_bboxes_3d.new_zeros(
             self.num_classes, int(feature_map_size[1]), int(feature_map_size[0])
         )
@@ -742,7 +752,7 @@ class TransFusionHead(nn.Module):
                     dict(num_class=1, class_names=["Pedestrian"], indices=[1], radius=0.7),
                     dict(num_class=1, class_names=["Cyclist"], indices=[2], radius=0.7),
                 ]
-            elif self.test_cfg["dataset"] == "a9":
+            elif self.test_cfg["dataset"] == "TUMTraf-I":
                 self.tasks = [
                     dict(
                         num_class=1,
@@ -762,6 +772,25 @@ class TransFusionHead(nn.Module):
                         indices=[7],
                         radius=0.7,
                     ),
+                ]
+            elif self.test_cfg["dataset"] == "OSDAR23":
+                self.tasks = [
+                    dict(
+                        num_class=1, class_names=["lidar__cuboid__person"], indices=[0], radius=0.4
+                    ),
+                    dict(
+                        num_class=1,
+                        class_names=["lidar__cuboid__catenary_pole"],
+                        indices=[1],
+                        radius=1.0,
+                    ),
+                    dict(
+                        num_class=1,
+                        class_names=["lidar__cuboid__signal_pole"],
+                        indices=[2],
+                        radius=1.0,
+                    ),
+                    dict(num_class=2, class_names=[], indices=[3, 4], radius=1),
                 ]
 
             ret_layer = []

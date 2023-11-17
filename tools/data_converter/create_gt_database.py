@@ -171,9 +171,11 @@ def create_groundtruth_database(
             ],
         )
 
-    elif dataset_class_name == "A9Dataset":
-        assert not with_mask, "A9Dataset is not eligible for with_mask parameter"
-        assert not load_augmented, "A9Dataset is not eligible for load_augmented parameter"
+    elif dataset_class_name == "TUMTrafIntersectionDataset":
+        assert not with_mask, "TUMTrafIntersectionDataset is not eligible for with_mask parameter"
+        assert (
+            not load_augmented
+        ), "TUMTrafIntersectionDataset is not eligible for load_augmented parameter"
         dataset_cfg.update(
             use_valid_flag=True,
             pipeline=[
@@ -186,6 +188,21 @@ def create_groundtruth_database(
                 dict(type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True),
             ],
         )
+    elif dataset_class_name == "OSDAR23Dataset":
+        assert not with_mask, "OSDAR23Dataset is not eligible for with_mask parameter"
+        dataset_cfg.update(
+            use_valid_flag=True,
+            pipeline=[
+                dict(
+                    type="LoadPointsFromFile",
+                    coord_type="LIDAR",
+                    load_dim=6,
+                    use_dim=6,
+                ),
+                dict(type="LoadAnnotations3D", with_bbox_3d=True, with_label_3d=True),
+            ],
+        )
+
     elif dataset_class_name == "NuScenesDataset":
         if not load_augmented:
             dataset_cfg.update(
@@ -322,7 +339,11 @@ def create_groundtruth_database(
                 gt_boxes, gt_masks, mask_inds, annos["img"]
             )
 
-        if dataset_class_name == "A9Dataset":
+        if dataset_class_name == "TUMTrafIntersectionDataset":
+            temp_name = str(example["lidar_path"]).split("/")
+            temp_name = temp_name[-1].split("_")
+            pcd_idx = temp_name[0] + "_" + temp_name[1]
+        elif dataset_class_name == "OSDAR23Dataset":
             temp_name = str(example["lidar_path"]).split("/")
             temp_name = temp_name[-1].split("_")
             pcd_idx = temp_name[0] + "_" + temp_name[1]
@@ -330,7 +351,9 @@ def create_groundtruth_database(
             image_idx = example["sample_idx"]
 
         for i in range(num_obj):
-            if dataset_class_name == "A9Dataset":
+            if dataset_class_name == "TUMTrafIntersectionDataset":
+                filename = f"{pcd_idx}_{names[i]}_{i}.bin"
+            elif dataset_class_name == "OSDAR23Dataset":
                 filename = f"{pcd_idx}_{names[i]}_{i}.bin"
             else:
                 filename = f"{image_idx}_{names[i]}_{i}.bin"
@@ -363,7 +386,7 @@ def create_groundtruth_database(
                     "num_points_in_gt": gt_points.shape[0],
                     "difficulty": difficulty[i],
                 }
-                if dataset_class_name != "A9Dataset":
+                if dataset_class_name not in ["TUMTrafIntersectionDataset", "OSDAR23Dataset"]:
                     db_info["image_idx"] = image_idx
 
                 local_group_id = group_ids[i]
@@ -376,6 +399,12 @@ def create_groundtruth_database(
                     db_info["score"] = annos["score"][i]
                 if "distance" in annos:
                     db_info["distance"] = annos["distance"][i]
+                if "distance_level" in annos:
+                    db_info["distance_level"] = annos["distance_level"][i]
+                if "num_points_level" in annos:
+                    db_info["num_points_level"] = annos["num_points_level"][i]
+                if "occlusion" in annos:
+                    db_info["occlusion"] = annos["occlusion"][i]
                 if with_mask:
                     db_info.update({"box2d_camera": gt_boxes[i]})
                 if names[i] in all_db_infos:

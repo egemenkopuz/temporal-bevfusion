@@ -28,8 +28,7 @@ def parse_args():
     parser.add_argument(
         "--fuse-conv-bn",
         action="store_true",
-        help="Whether to fuse conv and bn, this will slightly increase"
-        "the inference speed",
+        help="Whether to fuse conv and bn, this will slightly increase" "the inference speed",
     )
     parser.add_argument(
         "--format-only",
@@ -152,10 +151,12 @@ def main():
     elif isinstance(cfg.data.test, list):
         for ds_cfg in cfg.data.test:
             ds_cfg.test_mode = True
-        samples_per_gpu = max(
-            [ds_cfg.pop("samples_per_gpu", 1) for ds_cfg in cfg.data.test]
-        )
+        samples_per_gpu = max([ds_cfg.pop("samples_per_gpu", 1) for ds_cfg in cfg.data.test])
         if samples_per_gpu > 1:
+            if cfg.data.test.online:
+                raise NotImplementedError(
+                    "Temporal implementation does not support batch_size > 1 in test."
+                )
             for ds_cfg in cfg.data.test:
                 ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
 

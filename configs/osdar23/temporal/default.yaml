@@ -1,0 +1,69 @@
+model:
+  type: TBEVFusion
+  max_queue_length: ${temporal_cache_length}
+  encoders: null
+  fuser: null
+  temporal:
+    type: ConvLSTM
+    in_channels: 256
+    hidden_channels: [256]
+    kernel_size: [3, 3]
+    bias: true
+  heads:
+    map: null
+
+temporal_mode: true
+val_online_mode: true
+test_online_mode: true
+
+apply_same_aug_to_seq: true
+
+temporal_aware_gt_paste: true
+apply_same_aug_to_seq: true
+
+augment_gt_paste: # default
+  apply_same_aug_to_seq: true
+  apply_collision_check: true
+  apply_temporal_forward: true
+  cls_rot_lim:
+    lidar__cuboid__buffer_stop:
+      - normal
+      - 0.0
+      - 0.0
+    lidar__cuboid__catenary_pole:
+      - normal
+      - 0.0
+      - 0.16490484576995193
+    lidar__cuboid__person:
+      - normal
+      - 0.0
+      - 0.16723854104003127
+    lidar__cuboid__road_vehicle:
+      - normal
+      - 0.0
+      - 0.07090241143317916
+    lidar__cuboid__signal_pole:
+      - normal
+      - 0.0
+      - 0.06715749315684862
+  cls_trans_lim:
+    lidar__cuboid__buffer_stop:
+      - uniform
+      - 0.0
+      - 0.0
+    lidar__cuboid__catenary_pole:
+      - uniform
+      - 0.0
+      - 0.837096823556553
+    lidar__cuboid__person:
+      - uniform
+      - 0.0
+      - 2.3655256268321976
+    lidar__cuboid__road_vehicle:
+      - uniform
+      - 0.0
+      - 0.8333046350100968
+    lidar__cuboid__signal_pole:
+      - uniform
+      - 0.0
+      - 3.3953008285651545

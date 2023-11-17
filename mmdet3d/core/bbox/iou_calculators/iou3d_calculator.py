@@ -1,7 +1,7 @@
 import torch
-
 from mmdet.core.bbox import bbox_overlaps
 from mmdet.core.bbox.iou_calculators.builder import IOU_CALCULATORS
+
 from ..structures import get_box_type
 
 
@@ -41,9 +41,7 @@ class BboxOverlapsNearest3D:
                 bboxes1 and bboxes2 with shape (M, N). If ``is_aligned`` is \
                 ``False``, return shape is M.
         """
-        return bbox_overlaps_nearest_3d(
-            bboxes1, bboxes2, mode, is_aligned, self.coordinate
-        )
+        return bbox_overlaps_nearest_3d(bboxes1, bboxes2, mode, is_aligned, self.coordinate)
 
     def __repr__(self):
         """str: Return a string that describes the module."""
@@ -92,9 +90,7 @@ class BboxOverlaps3D:
         return repr_str
 
 
-def bbox_overlaps_nearest_3d(
-    bboxes1, bboxes2, mode="iou", is_aligned=False, coordinate="lidar"
-):
+def bbox_overlaps_nearest_3d(bboxes1, bboxes2, mode="iou", is_aligned=False, coordinate="lidar"):
     """Calculate nearest 3D IoU.
 
     Note:
@@ -155,7 +151,7 @@ def bbox_overlaps_3d(bboxes1, bboxes2, mode="iou", coordinate="camera"):
         torch.Tensor: Bbox overlaps results of bboxes1 and bboxes2 \
             with shape (M, N) (aligned mode is not supported currently).
     """
-    assert bboxes1.size(-1) == bboxes2.size(-1) >= 7
+    assert bboxes1.size(-1) == bboxes2.size(-1) >= 7, f"{bboxes1.shape}, {bboxes2.shape}"
 
     box_type, _ = get_box_type(coordinate)
 
@@ -195,9 +191,7 @@ class AxisAlignedBboxOverlaps3D:
         return repr_str
 
 
-def axis_aligned_bbox_overlaps_3d(
-    bboxes1, bboxes2, mode="iou", is_aligned=False, eps=1e-6
-):
+def axis_aligned_bbox_overlaps_3d(bboxes1, bboxes2, mode="iou", is_aligned=False, eps=1e-6):
     """Calculate overlap between two set of axis aligned 3D bboxes. If
     ``is_aligned`` is ``False``, then calculate the overlaps between each bbox
     of bboxes1 and bboxes2, otherwise the overlaps between each aligned pair of
@@ -290,12 +284,8 @@ def axis_aligned_bbox_overlaps_3d(
             enclosed_lt = torch.min(bboxes1[..., :3], bboxes2[..., :3])
             enclosed_rb = torch.max(bboxes1[..., 3:], bboxes2[..., 3:])
     else:
-        lt = torch.max(
-            bboxes1[..., :, None, :3], bboxes2[..., None, :, :3]
-        )  # [B, rows, cols, 3]
-        rb = torch.min(
-            bboxes1[..., :, None, 3:], bboxes2[..., None, :, 3:]
-        )  # [B, rows, cols, 3]
+        lt = torch.max(bboxes1[..., :, None, :3], bboxes2[..., None, :, :3])  # [B, rows, cols, 3]
+        rb = torch.min(bboxes1[..., :, None, 3:], bboxes2[..., None, :, 3:])  # [B, rows, cols, 3]
 
         wh = (rb - lt).clamp(min=0)  # [B, rows, cols, 3]
         overlap = wh[..., 0] * wh[..., 1] * wh[..., 2]
@@ -303,12 +293,8 @@ def axis_aligned_bbox_overlaps_3d(
         if mode in ["iou", "giou"]:
             union = area1[..., None] + area2[..., None, :] - overlap
         if mode == "giou":
-            enclosed_lt = torch.min(
-                bboxes1[..., :, None, :3], bboxes2[..., None, :, :3]
-            )
-            enclosed_rb = torch.max(
-                bboxes1[..., :, None, 3:], bboxes2[..., None, :, 3:]
-            )
+            enclosed_lt = torch.min(bboxes1[..., :, None, :3], bboxes2[..., None, :, :3])
+            enclosed_rb = torch.max(bboxes1[..., :, None, 3:], bboxes2[..., None, :, 3:])
 
     eps = union.new_tensor([eps])
     union = torch.max(union, eps)

@@ -1,32 +1,318 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: create_temporal",
+            "name": "Python: OSDAR23 tokenize",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/tools/preprocessing/create_a9_temporal_split.py",
+            "program": "${workspaceFolder}/tools/preprocessing/osdar23_tokenize.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--root-path", "./data/a9_temporal_no_split",
-                "--out-path", "./data/a9_temporal_debug",
-                "--segment-size", "30",
-                "--perm-limit", "10",
-                "-p", "1",
+                "--root-path",
+                "./data/osdar23",
+                "--loglevel",
+                "INFO"
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 create_data",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/create_data.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "osdar23",
+                "--root-path",
+                "./data/osdar23",
+                "--out-dir",
+                "./data/osdar23-bevfusion",
+                "--use-highres",
+                "--workers",
+                "1",
+                "--loglevel",
+                "INFO"
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 prepare",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/preprocessing/osdar23_prepare.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--root-path",
+                "data/osdar23_original",
+                "--add-num-points",
+                "--add-distance",
+                "--loglevel",
+                "INFO",
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 create_temporal",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/preprocessing/osdar23_create_temporal_split.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--root-path",
+                "./data/osdar23_original",
+                "--out-path",
+                "./data/osdar23",
+                "--segment-size",
+                "20",
+                "--perm-limit",
+                "100",
+                "-p",
+                "1",
+                "--include-all-classes",
+                // "--include-all-sequences",
+                "--include-same-classes-in-distance",
+                "--distance-th",
+                "0.0",
+                "--include-same-classes-in-num-points",
+                "--num-points-th",
+                "0.0",
+                "--include-same-classes-in-occlusion",
+                "--occlusion-th",
+                "0.0",
+                "--point-cloud-range",
+                "-6.0",
+                "-156.0",
+                "-3.0",
+                "306.0",
+                "156.0",
+                "13.0",
+                "--splits",
+                "train",
+                "val",
+                // "test",
+                "--split-ratios",
+                "0.8",
+                "0.2",
+                // "0.1",
+                "--exclude-classes",
+                "lidar__cuboid__crowd",
+                "lidar__cuboid__wagons",
+                "lidar__cuboid__signal_bridge",
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 DEBUG-TRAIN lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/osdar23-baseline/det/transfusion/secfpn/lidar/voxelnet.yaml",
+                "--max_epochs",
+                "1"
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 DEBUG-TRAIN camera",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/osdar23-baseline/det/centerhead/lssfpn/camera/320x704/swint/default.yaml",
+                "--model.encoders.camera.backbone.init_cfg.checkpoint",
+                "pretrained/swint-nuimages-pretrained.pth",
+                "--max_epochs",
+                "1"
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 DEBUG-TEST lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/osdar23-baseline/det/transfusion/secfpn/lidar/voxelnet.yaml",
+                "runs/run-2f3704b0-de06151a/latest.pth",
+                "--eval=bbox",
+                "--eval-options",
+                "extensive_report=True",
+                "save_summary_path=results/test"
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 DEBUG-TRAIN temporal lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/osdar23/temporal/transfusion/lidar/voxelnet-1600g-0xy16-0z4-ql3-qrt2-gtp15.yaml",
+                "--max_epochs",
+                "1",
+                "--samples_per_gpu",
+                "1",
+                "--workers_per_gpu",
+                "1",
+            ]
+        },
+        {
+            "name": "Python: OSDAR23 DEBUG-TEST temporal lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "runs/test/configs.yaml",
+                "runs/test/latest.pth",
+                "--eval=bbox",
+            ]
+        },
+        {
+            "name": "Python: TUMTRAF-I compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/compile.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "tumtraf-i",
+                "-c",
+                "checkpoints/tumtraf-i",
+                "-i",
+                "tumtraf-i",
+                "-t",
+                "results",
+                "--include-bboxes",
+                "--include-labels",
+                "--images-include-combined",
+                "--images-cam-bbox-score",
+                "0.15",
+                "--loglevel",
+                "INFO"
+            ]
+        },
+        {
+            "name": "Python: TUMTRAF-I DEBUG-TRAIN temporal lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/tumtraf-i/temporal/transfusion/lidar/voxelnet-1600g-0xy1-0z20-sameaugall-ql3-qrt2-gtp15-sameaug.yaml",
+                "--max_epochs",
+                "1"
+            ]
+        },
+        {
+            "name": "Python: TUMTRAF-I DEBUG-TRAIN temporal fusion",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/tumtraf-i-temporal-conv-ql3-qr2-1600g-0p1/det/transfusion/secfpn/camera+lidar/320x704/swint/convfuser.yaml",
+                "--model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth",
+                "pretrained/swint-nuimages-pretrained.pth",
+                "--load_from",
+                "checkpoints/tumtraf-i/lid-tumtraf-i-temporal-conv-ql3-qr2-1600g-0p1/latest.pth",
+                "--max_epochs",
+                "1"
+            ]
+        },
+        {
+            "name": "Python: TUMTRAF-I DEBUG-TRAIN temporal camera",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/tumtraf-i/temporal/centerhead/camera/swint-depthlss-convlstm-256x704-1600g-0xy1-0z2-sameaugall-ql3-qrt2-gm17-0p6.yaml",
+                "--model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth",
+                "pretrained/swint-nuimages-pretrained.pth",
+                "--max_epochs",
+                "1"
+            ]
+        },
+        {
+            "name": "Python: TUMTRAF-I DEBUG-TEST temporal lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "configs/tumtraf-i/temporal/transfusion/lidar/voxelnet-1600g-0xy1-0z20-sameaugall-ql3-qrt2-gtp15-sameaug-trans-rot.yaml",
+                "checkpoints/tumtraf-i-default/l-voxelnet-1600z51-0xy1-0z2-0st0-ql3-sameaugall-qrt1-gtp15-sameaug-trans-rot-aug3d-0sx9-1sy1--0rx2-0ry2-0t25-dtrmnstc/latest.pth",
+                "--eval=bbox"
+            ]
+        },
+        {
+            "name": "Python: TUMTRAF-I create_temporal",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/preprocessing/tumtraf_create_temporal_split.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--root-path",
+                "./data/a9_temporal_no_split",
+                "--out-path",
+                "./data/a9_temporal_debug",
+                "--segment-size",
+                "30",
+                "--perm-limit",
+                "10",
+                "-p",
+                "1",
                 // "--include-all-classes",
                 // "--include-all-sequences",
                 // "--include-same_classes-in-difficulty", "--difficulty-th", "1.0",
-                "--include-same_classes-in-distance", "--distance-th", "1.0",
+                "--include-same-classes-in-distance",
+                "--distance-th",
+                "1.0",
                 // "--include-same_classes-in-num-points", "--num-points-th", "1.0",
                 // "--include-same_classes-in-occlusion", "--occlusion-th", "1.0",
-                "--point-cloud-range", "-25.0", "-64.0", "-10.0", "64.0", "64.0", "0.0",
-                "--splits", "train", "val",
-                "--split-ratios", "0.8", "0.2",
+                "--point-cloud-range",
+                "-25.0",
+                "-64.0",
+                "-10.0",
+                "64.0",
+                "64.0",
+                "0.0",
+                "--splits",
+                "train",
+                "val",
+                "--split-ratios",
+                "0.8",
+                "0.2",
             ]
-        }
+        },
+        {
+            "name": "Python: TUMTRAF DEBUG-TEST lidar",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/debug_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "checkpoints/tumtraf-i-default/l-voxelnet-1600z51-0xy1-0z2-0st0-gtp15-aug3d-0sx9-1sy1--0rx2-0ry2-0t25-dtrmnstc/configs.yaml",
+                "checkpoints/tumtraf-i-default/l-voxelnet-1600z51-0xy1-0z2-0st0-gtp15-aug3d-0sx9-1sy1--0rx2-0ry2-0t25-dtrmnstc/latest.pth",
+                "--eval=bbox",
+                "--eval-options",
+                "extensive_report=True",
+                // "save_summary_path=results/test"
+            ]
+        },
     ]
 }

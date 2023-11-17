@@ -15,17 +15,19 @@ class CBGSDataset:
         dataset (:obj:`CustomDataset`): The dataset to be class sampled.
     """
 
-    def __init__(self, dataset):
+    def __init__(self, dataset, temporal: bool = False, online: bool = False):
         self.dataset = dataset
         self.CLASSES = dataset.CLASSES
         self.cat2id = {name: i for i, name in enumerate(self.CLASSES)}
+        self.temporal = temporal
+        self.online = online
         self.sample_indices = self._get_sample_indices()
         # self.dataset.data_infos = self.data_infos
         if hasattr(self.dataset, "flag"):
             self.flag = np.array(
                 [self.dataset.flag[ind] for ind in self.sample_indices], dtype=np.uint8
             )
-    
+
     def set_epoch(self, epoch):
         self.dataset.set_epoch(epoch)
 
@@ -41,21 +43,24 @@ class CBGSDataset:
         class_sample_idxs = {cat_id: [] for cat_id in self.cat2id.values()}
         for idx in range(len(self.dataset)):
             sample_cat_ids = self.dataset.get_cat_ids(idx)
-            for cat_id in sample_cat_ids:
-                class_sample_idxs[cat_id].append(idx)
+            if self.temporal:
+                frame_idx = self.dataset.get_data_info(idx)["frame_idx"]
+                if frame_idx - (self.dataset.queue_length - 1) >= 0:
+                    for cat_id in sample_cat_ids:
+                        class_sample_idxs[cat_id].append(idx)
+            else:
+                for cat_id in sample_cat_ids:
+                    class_sample_idxs[cat_id].append(idx)
+
         duplicated_samples = sum([len(v) for _, v in class_sample_idxs.items()])
-        class_distribution = {
-            k: len(v) / duplicated_samples for k, v in class_sample_idxs.items()
-        }
+        class_distribution = {k: len(v) / duplicated_samples for k, v in class_sample_idxs.items()}
 
         sample_indices = []
 
         frac = 1.0 / len(self.CLASSES)
         ratios = [frac / v for v in class_distribution.values()]
         for cls_inds, ratio in zip(list(class_sample_idxs.values()), ratios):
-            sample_indices += np.random.choice(
-                cls_inds, int(len(cls_inds) * ratio)
-            ).tolist()
+            sample_indices += np.random.choice(cls_inds, int(len(cls_inds) * ratio)).tolist()
         return sample_indices
 
     def __getitem__(self, idx):
