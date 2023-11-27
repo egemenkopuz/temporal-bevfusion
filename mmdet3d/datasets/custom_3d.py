@@ -3,9 +3,8 @@ from os import path as osp
 
 import mmcv
 import numpy as np
-from torch.utils.data import Dataset
-
 from mmdet.datasets import DATASETS
+from torch.utils.data import Dataset
 
 from ..core.bbox import get_box_type
 from .pipelines import Compose
@@ -52,11 +51,13 @@ class Custom3DDataset(Dataset):
         box_type_3d="LiDAR",
         filter_empty_gt=True,
         test_mode=False,
+        online: bool = False,
     ):
         super().__init__()
         self.dataset_root = dataset_root
         self.ann_file = ann_file
         self.test_mode = test_mode
+        self.online = online
         self.modality = modality
         self.filter_empty_gt = filter_empty_gt
         self.box_type_3d, self.box_mode_3d = get_box_type(box_type_3d)
@@ -73,14 +74,14 @@ class Custom3DDataset(Dataset):
             self._set_group_flag()
 
         self.epoch = -1
-    
+
     def set_epoch(self, epoch):
         self.epoch = epoch
         if hasattr(self, "pipeline"):
             for transform in self.pipeline.transforms:
                 if hasattr(transform, "set_epoch"):
                     transform.set_epoch(epoch)
-        
+
     def load_annotations(self, ann_file):
         """Load annotations from ann_file.
 
@@ -111,9 +112,7 @@ class Custom3DDataset(Dataset):
         sample_idx = info["point_cloud"]["lidar_idx"]
         lidar_path = osp.join(self.dataset_root, info["pts_path"])
 
-        input_dict = dict(
-            lidar_path=lidar_path, sample_idx=sample_idx, file_name=lidar_path
-        )
+        input_dict = dict(lidar_path=lidar_path, sample_idx=sample_idx, file_name=lidar_path)
 
         if not self.test_mode:
             annos = self.get_ann_info(index)

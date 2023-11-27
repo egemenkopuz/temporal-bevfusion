@@ -1,0 +1,85 @@
+model:
+  decoder:
+    backbone:
+      type: GeneralizedResNet
+      in_channels: 336
+      blocks:
+        - [2, 160, 2]
+        - [2, 320, 2]
+        - [2, 640, 1]
+    neck:
+      type: LSSFPN
+      in_indices: [-1, 0]
+      in_channels: [640, 160]
+      out_channels: 256
+      scale_factor: 2
+  heads:
+    object:
+      type: CenterHead
+      in_channels: 256
+      train_cfg:
+        point_cloud_range: ${point_cloud_range}
+        grid_size: ${grid_size}
+        voxel_size: ${voxel_size}
+        out_size_factor: ${out_size_factor}
+        dense_reg: 1
+        gaussian_overlap: 0.1
+        max_objs: 500
+        min_radius: 2
+        code_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      test_cfg:
+        post_center_limit_range: ${post_center_range}
+        max_per_img: 500
+        max_pool_nms: false
+        min_radius: [4, 12, 10, 1, 0.85, 0.175]
+        score_threshold: ${score_threshold}
+        out_size_factor: ${out_size_factor}
+        voxel_size: ${voxel_size[:2]}
+        pre_max_size: 1000
+        post_max_size: 83
+        nms_thr: ${nms_threshold}
+        nms_type:
+          - rotate # lidar__cuboid__person
+          - circle # lidar__cuboid__catenary_pole
+          - circle # lidar__cuboid__signal_pole
+          - circle # lidar__cuboid__road_vehicle
+          - rotate # lidar__cuboid__buffer_stop
+        nms_scale:
+          - [0.4] # lidar__cuboid__person
+          - [1.0] # lidar__cuboid__catenary_pole
+          - [1.0] # lidar__cuboid__signal_pole
+          - [1.0] # lidar__cuboid__road_vehicle
+          - [1.0] # lidar__cuboid__buffer_stop
+      tasks:
+        - ["lidar__cuboid__person"]
+        - ["lidar__cuboid__catenary_pole"]
+        - ["lidar__cuboid__signal_pole"]
+        - ["lidar__cuboid__road_vehicle"]
+        - ["lidar__cuboid__buffer_stop"]
+      common_heads:
+        reg: [2, 2]
+        height: [1, 2]
+        dim: [3, 2]
+        rot: [2, 2]
+      share_conv_channel: 64
+      bbox_coder:
+        type: CenterPointBBoxCoder
+        pc_range: ${point_cloud_range}
+        post_center_range: ${post_center_range}
+        max_num: 500
+        score_threshold: ${score_threshold}
+        out_size_factor: ${out_size_factor}
+        voxel_size: ${voxel_size[:2]}
+        code_size: 7
+      separate_head:
+        type: SeparateHead
+        init_bias: -2.19
+        final_kernel: 3
+      loss_cls:
+        type: GaussianFocalLoss
+        reduction: mean
+      loss_bbox:
+        type: L1Loss
+        reduction: mean
+        loss_weight: 0.25
+      norm_bbox: true

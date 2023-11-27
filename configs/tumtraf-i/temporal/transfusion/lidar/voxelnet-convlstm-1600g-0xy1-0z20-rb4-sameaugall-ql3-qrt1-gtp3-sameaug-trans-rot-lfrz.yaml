@@ -1,0 +1,80 @@
+point_cloud_range: [-20.0, -80.0, -10.0, 140.0, 80.0, 0.0]
+post_center_range: [-25.0, -85.0, -12.0, 145.0, 85.0, 2.0]
+
+reduce_beams: 4
+
+voxel_size: [0.1, 0.1, 0.2]
+grid_size: [1600, 1600, 51]
+
+queue_length: 3
+temporal_cache_length: 3
+queue_range_threshold: 1
+
+deterministic: True
+
+voxel_max_points: 10
+voxel_max_voxels: [120000, 120000]
+
+samples_per_gpu: 6
+workers_per_gpu: 6
+
+max_epochs: 4
+
+augment_gt_paste:
+  max_epoch: 3
+  apply_same_aug_to_seq: true
+
+optimizer:
+  type: AdamW
+  lr: 6.6e-05
+  weight_decay: 0.01
+  paramwise_cfg:
+    custom_keys:
+      encoders.lidar.backbone:
+        lr_mult: 0.0
+
+momentum_config:
+  policy: cyclic
+  cyclic_times: 1
+  step_ratio_up: 0.4
+
+lr_config:
+  policy: CosineAnnealing
+  warmup: linear
+  warmup_iters: 500
+  warmup_ratio: 0.33333333
+  min_lr_ratio: 1.0e-3
+
+optimizer_config:
+  grad_clip:
+    max_norm: 25
+    norm_type: 2
+
+model:
+  encoders:
+    lidar:
+      voxelize:
+        max_num_points: ${voxel_max_points}
+        point_cloud_range: ${point_cloud_range}
+        voxel_size: ${voxel_size}
+        max_voxels: ${voxel_max_voxels}
+      backbone:
+        type: SparseEncoder
+        in_channels: ${use_dim}
+        sparse_shape: ${grid_size}
+        output_channels: 128
+        order:
+          - conv
+          - norm
+          - act
+        encoder_channels:
+          - [16, 16, 32]
+          - [32, 32, 64]
+          - [64, 64, 128]
+          - [128, 128]
+        encoder_paddings:
+          - [0, 0, 1]
+          - [0, 0, 1]
+          - [0, 0, [1, 1, 0]]
+          - [0, 0]
+        block_type: basicblock

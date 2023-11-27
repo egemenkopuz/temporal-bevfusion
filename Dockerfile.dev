@@ -1,0 +1,27 @@
+FROM nvidia/cuda:11.3.1-devel-ubuntu20.04
+
+ENV PYTHON_VERSION=3.8
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN apt-get update \
+    && apt-get install -y \
+    wget curl build-essential g++ gcc ffmpeg ninja-build git \
+    libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev curl \
+    libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev \
+    libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 \
+    openmpi-bin openmpi-common libopenmpi-dev libgtk2.0-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth=1 https://github.com/pyenv/pyenv.git .pyenv
+ENV PYENV_ROOT="${HOME}/.pyenv"
+ENV PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$HOME/.local/bin:${PATH}"
+
+RUN pyenv install ${PYTHON_VERSION}
+RUN pyenv global ${PYTHON_VERSION}
+
+RUN pip3 install torch==1.10.1+cu113 torchvision==0.11.2+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
+RUN pip3 install setuptools==59.5.0
+
+WORKDIR /root/mmdet3d
+ENTRYPOINT ["tail", "-f", "/dev/null"]

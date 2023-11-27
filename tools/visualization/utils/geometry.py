@@ -5,7 +5,7 @@ import numpy as np
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 
-from . import A9Meta, OSDAR23Meta
+from . import OSDAR23Meta, TUMTrafMeta
 
 
 def draw_line(img, start_point, end_point, color, thickness=1):
@@ -60,7 +60,7 @@ def visualize_bounding_box(
     vis,
     use_two_colors,
     input_type,
-    dataset_name: str = Union[Literal["osdar23"], Literal["a9"]],
+    dataset_name: str = Union[Literal["osdar23"], Literal["TUMTraf-I"]],
 ):
     quaternion = R.from_euler("xyz", [0, 0, rotation_yaw], degrees=False).as_quat()
     corner_box = get_corners(
@@ -100,8 +100,8 @@ def visualize_bounding_box(
         color_green_normalized = (color_green[0] / 255, color_green[1] / 255, color_green[2] / 255)
         colors = [color_green_normalized for _ in range(len(lines))]
     else:
-        if dataset_name.lower() == "a9":
-            colors = [A9Meta.class_id_colors[category] for _ in range(len(lines))]
+        if dataset_name.lower() == "TUMTraf-I":
+            colors = [TUMTrafMeta.class_id_colors[category] for _ in range(len(lines))]
         elif dataset_name.lower() == "osdar23":
             colors = [OSDAR23Meta.class_id_colors[category] for _ in range(len(lines))]
         else:

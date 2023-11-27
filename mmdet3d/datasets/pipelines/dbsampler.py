@@ -1,11 +1,13 @@
 import copy
 import os
+from typing import Dict, List, Optional
 
 import mmcv
 import numpy as np
+from mmdet.datasets import PIPELINES
 
 from mmdet3d.core.bbox import box_np_ops
-from mmdet.datasets import PIPELINES
+from mmdet3d.core.points.lidar_points import LiDARPoints
 
 from ..builder import OBJECTSAMPLERS
 from .utils import box_collision_test
@@ -23,7 +25,12 @@ class BatchSampler:
     """
 
     def __init__(
-        self, sampled_list, name=None, epoch=None, shuffle=True, drop_reminder=False
+        self,
+        sampled_list,
+        name=None,
+        epoch=None,
+        shuffle=True,
+        drop_reminder=False,
     ):
         self._sampled_list = sampled_list
         self._indices = np.arange(len(sampled_list))
@@ -104,6 +111,9 @@ class DataBaseSampler:
             load_dim=4,
             use_dim=[0, 1, 2, 3],
         ),
+        reduce_points_by_distance: Optional[Dict[str, float]] = None,
+        cls_trans_lim: Optional[Dict[str, float]] = None,
+        cls_rot_lim: Optional[Dict[str, float]] = None,
     ):
         super().__init__()
         self.dataset_root = dataset_root
@@ -114,6 +124,33 @@ class DataBaseSampler:
         self.cat2label = {name: i for i, name in enumerate(classes)}
         self.label2cat = {i: name for i, name in enumerate(classes)}
         self.points_loader = mmcv.build_from_cfg(points_loader, PIPELINES)
+        self.reduce_points_by_distance = reduce_points_by_distance
+
+        self.cls_trans_lim = cls_trans_lim
+        self.cls_rot_lim = cls_rot_lim
+
+        self._trans_lambda_normal = lambda mean, std: abs(np.random.normal(mean, std))
+        self._trans_lambda_uniform = lambda min, max: abs(np.random.uniform(min, max))
+        self._rot_lambda_normal = lambda mean, std: np.random.normal(mean, std)
+        self._rot_lambda_uniform = lambda min, max: np.random.uniform(min, max)
+
+        # convert cls_trans_lim into labelled format
+        if self.cls_trans_lim is not None:
+            self.cls_trans_lim = {self.cat2label[x]: y for x, y in self.cls_trans_lim.items()}
+            self.cls_trans_fn = {
+                x: self._trans_lambda_normal
+                if y[0] in ["normal", "gaussian"]
+                else self._trans_lambda_uniform
+                for x, y in self.cls_trans_lim.items()
+            }
+        if self.cls_rot_lim is not None:
+            self.cls_rot_lim = {self.cat2label[x]: y for x, y in self.cls_rot_lim.items()}
+            self.cls_rot_fn = {
+                x: self._rot_lambda_normal
+                if y[0] in ["normal", "gaussian"]
+                else self._rot_lambda_uniform
+                for x, y in self.cls_rot_lim.items()
+            }
 
         db_infos = mmcv.load(info_path)
 
@@ -122,12 +159,12 @@ class DataBaseSampler:
 
         logger = get_root_logger()
         for k, v in db_infos.items():
-            logger.info(f"load {len(v)} {k} database infos")
+            logger.debug(f"load {len(v)} {k} database infos")
         for prep_func, val in prepare.items():
             db_infos = getattr(self, prep_func)(db_infos, val)
-        logger.info("After filter database:")
+        logger.debug("After filter database:")
         for k, v in db_infos.items():
-            logger.info(f"load {len(v)} {k} database infos")
+            logger.debug(f"load {len(v)} {k} database infos")
 
         self.db_infos = db_infos
 
@@ -189,6 +226,28 @@ class DataBaseSampler:
                 db_infos[name] = filtered_infos
         return db_infos
 
+    @staticmethod
+    def inv_lerp(a, b, v):
+        """
+        Inverse linear interpolation
+
+        Args:
+            a (float): min
+            b (float): max
+            v (float): value
+        """
+        return (v - a) / (b - a)
+
+    def sample_rot(self, cls_label: int, sample_trans: float) -> float:
+        # if sample_trans < 0.5:
+        #     return 0.0
+        val = self.cls_rot_lim[cls_label][1:]
+        return self.cls_rot_fn[cls_label](*val)
+
+    def sample_trans(self, cls_label: int) -> float:
+        val = self.cls_trans_lim[cls_label][1:]
+        return self.cls_trans_fn[cls_label](*val)
+
     def sample_all(self, gt_bboxes, gt_labels, img=None):
         """Sampling all categories of bboxes.
 
@@ -208,15 +267,11 @@ class DataBaseSampler:
         """
         sampled_num_dict = {}
         sample_num_per_class = []
-        for class_name, max_sample_num in zip(
-            self.sample_classes, self.sample_max_nums
-        ):
+        for class_name, max_sample_num in zip(self.sample_classes, self.sample_max_nums):
             class_label = self.cat2label[class_name]
             # sampled_num = int(max_sample_num -
             #                   np.sum([n == class_name for n in gt_names]))
-            sampled_num = int(
-                max_sample_num - np.sum([n == class_label for n in gt_labels])
-            )
+            sampled_num = int(max_sample_num - np.sum([n == class_label for n in gt_labels]))
             sampled_num = np.round(self.rate * sampled_num).astype(np.int64)
             sampled_num_dict[class_name] = sampled_num
             sample_num_per_class.append(sampled_num)
@@ -227,30 +282,25 @@ class DataBaseSampler:
 
         for class_name, sampled_num in zip(self.sample_classes, sample_num_per_class):
             if sampled_num > 0:
-                sampled_cls = self.sample_class_v2(
-                    class_name, sampled_num, avoid_coll_boxes
-                )
+                sampled_cls = self.sample_class_v2(class_name, sampled_num, avoid_coll_boxes)
 
                 sampled += sampled_cls
                 if len(sampled_cls) > 0:
                     if len(sampled_cls) == 1:
                         sampled_gt_box = sampled_cls[0]["box3d_lidar"][np.newaxis, ...]
                     else:
-                        sampled_gt_box = np.stack(
-                            [s["box3d_lidar"] for s in sampled_cls], axis=0
-                        )
+                        sampled_gt_box = np.stack([s["box3d_lidar"] for s in sampled_cls], axis=0)
 
                     sampled_gt_bboxes += [sampled_gt_box]
-                    avoid_coll_boxes = np.concatenate(
-                        [avoid_coll_boxes, sampled_gt_box], axis=0
-                    )
+                    avoid_coll_boxes = np.concatenate([avoid_coll_boxes, sampled_gt_box], axis=0)
 
         ret = None
         if len(sampled) > 0:
             sampled_gt_bboxes = np.concatenate(sampled_gt_bboxes, axis=0)
             # center = sampled_gt_bboxes[:, 0:3]
 
-            # num_sampled = len(sampled)
+            s_num_points_in_gt_list = []
+            s_distance_list = []
             s_points_list = []
             count = 0
             for info in sampled:
@@ -263,20 +313,66 @@ class DataBaseSampler:
                 s_points = self.points_loader(results)["points"]
                 s_points.translate(info["box3d_lidar"][:3])
 
+                num_points_in_gt = info["num_points_in_gt"]
+                distance = info["distance"]
+
                 count += 1
 
                 s_points_list.append(s_points)
+                s_num_points_in_gt_list.append(num_points_in_gt)
+                s_distance_list.append(distance)
 
-            gt_labels = np.array(
-                [self.cat2label[s["name"]] for s in sampled], dtype=np.long
-            )
+            gt_labels = np.array([self.cat2label[s["name"]] for s in sampled], dtype=np.long)
+
+            if self.cls_trans_lim is not None:
+                sample_trans = np.array([self.sample_trans(x) for x in gt_labels], dtype=np.float32)
+            else:
+                sample_trans = None
+            if self.cls_rot_lim is not None:
+                if sample_trans is None:
+                    sample_rot = np.array([self.sample_rot(x) for x in gt_labels], dtype=np.float32)
+                else:
+                    sample_rot = np.array(
+                        [self.sample_rot(x, sample_trans[i]) for i, x in enumerate(gt_labels)],
+                        dtype=np.float32,
+                    )
+            else:
+                sample_rot = None
+
+            # reduce points
+            if (
+                self.reduce_points_by_distance is not None
+                and self.reduce_points_by_distance["prob"] > 0
+            ):
+                distance_threshold = self.reduce_points_by_distance["distance_threshold"]
+                reduce_prob = self.reduce_points_by_distance["prob"]
+
+                # trigger probability
+                prob = np.random.uniform(0, 1)
+                if prob < reduce_prob:
+                    for i, (s_points, s_num_points_in_gt, s_distance) in enumerate(
+                        zip(s_points_list, s_num_points_in_gt_list, s_distance_list)
+                    ):
+                        max_ratio = self.inv_lerp(0.0, distance_threshold, s_distance)
+                        max_ratio = np.clip(
+                            max_ratio, 0.0, self.reduce_points_by_distance["max_ratio"]
+                        )
+
+                        # trigger probability between 0 and max_ratio
+                        ratio = np.random.uniform(0, max_ratio)
+
+                        if ratio > 0:
+                            s_points.shuffle()
+                            num_points_to_keep = int(s_num_points_in_gt * (1 - ratio))
+                            s_points.tensor = s_points.tensor[:num_points_to_keep]
+
             ret = {
                 "gt_labels_3d": gt_labels,
                 "gt_bboxes_3d": sampled_gt_bboxes,
-                "points": s_points_list[0].cat(s_points_list),
-                "group_ids": np.arange(
-                    gt_bboxes.shape[0], gt_bboxes.shape[0] + len(sampled)
-                ),
+                "points": s_points_list,  # s_points_list[0].cat(s_points_list),
+                "group_ids": np.arange(gt_bboxes.shape[0], gt_bboxes.shape[0] + len(sampled)),
+                "sampled_rot": sample_rot,
+                "sampled_trans": sample_trans,
             }
 
         return ret

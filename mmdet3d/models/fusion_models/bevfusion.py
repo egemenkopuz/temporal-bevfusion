@@ -105,7 +105,7 @@ class BEVFusion(Base3DFusionModel):
         img_metas,
     ) -> torch.Tensor:
         B, N, C, H, W = x.size()
-        x = x.view(B * N, C, H, W)
+        x = x.reshape(B * N, C, H, W)
 
         x = self.encoders["camera"]["backbone"](x)
         x = self.encoders["camera"]["neck"](x)
@@ -246,20 +246,10 @@ class BEVFusion(Base3DFusionModel):
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
 
-            if self.save_bev_features is not None:
+            if self.save_bev_features is not None and "out_dir" in self.save_bev_features:
                 # assuming batch size = 1
-                if "out_dir" in self.save_bev_features:
-                    visualize_bev_feature(
-                        os.path.join(
-                            self.save_bev_features["out_dir"],
-                            f"bev-{sensor}",
-                            f"{metas[0]['timestamp']}.png",
-                        ),
-                        feature.clone().detach().cpu().numpy().squeeze(),
-                        self.save_bev_features["xlim"],
-                        self.save_bev_features["ylim"],
-                        True if sensor == "lidar" else False,
-                    )
+                basename = metas[0]["lidar_path"].split("/")[-1][:-4]
+                self._save_bev_feat(feature, f"feat-bev-{sensor}", basename)
 
             features.append(feature)
 
@@ -272,6 +262,10 @@ class BEVFusion(Base3DFusionModel):
         else:
             assert len(features) == 1, features
             x = features[0]
+
+        if len(features) > 1:
+            basename = metas[0]["lidar_path"].split("/")[-1][:-4]
+            self._save_bev_feat(x, "feat-bev-fused", basename)
 
         batch_size = x.shape[0]
 
@@ -320,3 +314,37 @@ class BEVFusion(Base3DFusionModel):
                 else:
                     raise ValueError(f"unsupported head: {type}")
             return outputs
+
+    def _save_bev_feat(
+        self,
+        x: torch.Tensor,
+        foldername: str,
+        basename: str,
+        bypass: bool = False,
+        bypass_out_dir: str = None,
+    ) -> None:
+        """
+        Save BEV feature as an image only if `save_bev_features` is not None.
+
+        Args:
+            x (torch.Tensor): BEV feature of shape (1, C, H, W).
+            foldername (str): folder name to save the BEV feature.
+            basename (str): base name of the BEV feature.
+            bypass (bool): whether to bypass saving the BEV feature.
+            bypass_out_dir (str): if not None, save the BEV feature to this.
+        """
+        if bypass or self.save_bev_features is not None:
+            assert bypass_out_dir or "out_dir" in self.save_bev_features
+            visualize_bev_feature(
+                os.path.join(
+                    bypass_out_dir
+                    if bypass_out_dir is not None
+                    else self.save_bev_features["out_dir"],
+                    foldername,
+                    f"{basename}.png",
+                ),
+                x.clone().detach().cpu().numpy().squeeze(),
+                self.save_bev_features["xlim"] if not bypass else None,
+                self.save_bev_features["ylim"] if not bypass else None,
+                self.save_bev_features["dataset"] if not bypass else None,
+            )

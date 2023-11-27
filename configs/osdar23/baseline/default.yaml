@@ -1,0 +1,10 @@
+model:
+  type: BEVFusion
+  encoders: null
+  fuser: null
+  heads:
+    map: null
+
+temporal_mode: false
+val_online_mode: false
+test_online_mode: false

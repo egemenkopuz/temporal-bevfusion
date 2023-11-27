@@ -7,25 +7,27 @@ from typing import Optional
 from data_converter.create_gt_database import create_groundtruth_database
 
 
-def a9_data_prep(
+def tumtraf_intersection_data_prep(
     root_path: str,
     info_prefix: str,
     out_dir: str,
     labels_path: Optional[str] = None,
+    workers: int = 4,
 ) -> None:
-    """Prepare data related to A9 dataset.
+    """Prepare data related to TUMTraf-I dataset.
 
     Related data consists of '.pkl' files recording basic infos,
     2D annotations and groundtruth database.
 
     Args:
         root_path (str): Path of dataset root.
-        labels_path (str): Path of labels.
         info_prefix (str): The prefix of info filenames.
         out_dir (str): Output directory of the groundtruth database info.
+        labels_path (str): Path of labels.
+        workers (int): Number of workers to use. Default: 4
     """
 
-    from data_converter import a9_converter as a9
+    from data_converter import tumtraf_intersection_converter as tumtraf
 
     # get the basenames in root_path
     root_folders = [os.path.basename(x) for x in glob(os.path.join(root_path, "*"))]
@@ -48,10 +50,72 @@ def a9_data_prep(
 
     os.makedirs(save_dir, exist_ok=True, mode=0o777)
 
-    a9.A92KITTI(splits, load_dir, save_dir, labels_path=labels_path).convert(info_prefix)
+    tumtraf.TUMTrafIntersectionConverter(
+        splits, load_dir, save_dir, labels_path=labels_path, num_workers=workers
+    ).convert(info_prefix)
 
     create_groundtruth_database(
-        "A9Dataset", save_dir, info_prefix, f"{save_dir}/{info_prefix}_infos_train.pkl"
+        "TUMTrafIntersectionDataset",
+        save_dir,
+        info_prefix,
+        f"{save_dir}/{info_prefix}_infos_train.pkl",
+    )
+
+
+def osdar23_data_prep(
+    root_path: str,
+    info_prefix: str,
+    out_dir: str,
+    labels_path: Optional[str] = None,
+    use_highres: bool = False,
+    workers: int = 4,
+) -> None:
+    """Prepare data related to OSDAR23 dataset.
+
+    Related data consists of '.pkl' files recording basic infos,
+    2D annotations and groundtruth database.
+
+    Args:
+        root_path (str): Path of dataset root.
+        info_prefix (str): The prefix of info filenames.
+        out_dir (str): Output directory of the groundtruth database info.
+        labels_path (str): Path of labels.
+        use_highres (bool): Whether to use high resolution images. Default: False
+        workers (int): Number of workers to use. Default: 4
+    """
+
+    from data_converter import osdar23_converter as osdar23
+
+    # get the basenames in root_path
+    root_folders = [os.path.basename(x) for x in glob(os.path.join(root_path, "*"))]
+
+    splits = []
+    if "train" in root_folders:
+        splits.append("training")
+    else:
+        raise ValueError("No training split found in root_path")
+
+    if "val" in root_folders:
+        splits.append("validation")
+    if "test" in root_folders:
+        splits.append("testing")
+
+    assert len(splits) > 0, "No splits found in root_path"
+
+    load_dir = os.path.join(root_path)
+    save_dir = os.path.join(out_dir)
+
+    os.makedirs(save_dir, exist_ok=True, mode=0o777)
+
+    osdar23.OSDAR23Converter(
+        splits, load_dir, save_dir, labels_path=labels_path, num_workers=workers
+    ).convert(info_prefix, use_highres)
+
+    create_groundtruth_database(
+        "OSDAR23Dataset",
+        save_dir,
+        info_prefix,
+        f"{save_dir}/{info_prefix}_infos_train.pkl",
     )
 
 
@@ -140,6 +204,10 @@ parser.add_argument(
     required=False,
     help="name of info pkl",
 )
+
+parser.add_argument(
+    "--use-highres", default=False, action="store_true", help="use highres images in osdar23"
+)
 parser.add_argument("--extra-tag", type=str, default="kitti")
 parser.add_argument("--painted", default=False, action="store_true")
 parser.add_argument("--virtual", default=False, action="store_true")
@@ -193,10 +261,20 @@ if __name__ == "__main__":
             max_sweeps=args.max_sweeps,
             load_augmented=load_augmented,
         )
-    elif args.dataset in ["A9", "a9"]:
-        a9_data_prep(
+    elif str(args.dataset).lower() == "tumtraf-i":
+        tumtraf_intersection_data_prep(
             root_path=args.root_path,
-            info_prefix="a9",
+            info_prefix="tumtraf",
             out_dir=args.out_dir,
             labels_path=args.labels_path,
+            workers=args.workers,
+        )
+    elif str(args.dataset).lower() == "osdar23":
+        osdar23_data_prep(
+            root_path=args.root_path,
+            info_prefix="osdar23",
+            out_dir=args.out_dir,
+            labels_path=args.labels_path,
+            use_highres=args.use_highres,
+            workers=args.workers,
         )

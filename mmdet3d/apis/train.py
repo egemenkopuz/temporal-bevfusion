@@ -3,17 +3,17 @@ from mmcv.parallel import MMDistributedDataParallel
 from mmcv.runner import (
     DistSamplerSeedHook,
     EpochBasedRunner,
-    GradientCumulativeFp16OptimizerHook,
     Fp16OptimizerHook,
+    GradientCumulativeFp16OptimizerHook,
     OptimizerHook,
     build_optimizer,
     build_runner,
 )
-from mmdet3d.runner import CustomEpochBasedRunner
-
-from mmdet3d.utils import get_root_logger
-from mmdet.core import DistEvalHook
+from mmdet.core import DistEvalHook, EvalHook
 from mmdet.datasets import build_dataloader, build_dataset, replace_ImageToTensor
+
+from mmdet3d.runner import CustomEpochBasedRunner
+from mmdet3d.utils import get_root_logger
 
 
 def train_model(
@@ -37,6 +37,7 @@ def train_model(
             None,
             dist=distributed,
             seed=cfg.seed,
+            shuffle=not ds.online,
         )
         for ds in dataset
     ]
@@ -65,7 +66,7 @@ def train_model(
             meta={},
         ),
     )
-    
+
     if hasattr(runner, "set_dataset"):
         runner.set_dataset(dataset)
 
@@ -104,6 +105,10 @@ def train_model(
         # Support batch_size > 1 in validation
         val_samples_per_gpu = cfg.data.val.pop("samples_per_gpu", 1)
         if val_samples_per_gpu > 1:
+            if cfg.data.val.online:
+                raise NotImplementedError(
+                    "Temporal implementation does not support batch_size > 1 in validation."
+                )
             # Replace 'ImageToTensor' to 'DefaultFormatBundle'
             cfg.data.val.pipeline = replace_ImageToTensor(cfg.data.val.pipeline)
         val_dataset = build_dataset(cfg.data.val, dict(test_mode=True))
@@ -111,12 +116,16 @@ def train_model(
             val_dataset,
             samples_per_gpu=val_samples_per_gpu,
             workers_per_gpu=cfg.data.workers_per_gpu,
-            dist=distributed,
+            dist=distributed if not cfg.data.val.online else False,
             shuffle=False,
+            # prefetch_factor=2 if not cfg.data.val.online else 1,
         )
         eval_cfg = cfg.get("evaluation", {})
         eval_cfg["by_epoch"] = cfg.runner["type"] != "IterBasedRunner"
-        eval_hook = DistEvalHook
+        if cfg.data.val.online:
+            eval_hook = EvalHook
+        else:
+            eval_hook = DistEvalHook
         runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
 
     if cfg.resume_from:

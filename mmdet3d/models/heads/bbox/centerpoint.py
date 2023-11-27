@@ -484,8 +484,10 @@ class CenterHead(BaseModule):
             heatmap = gt_bboxes_3d.new_zeros(
                 (len(self.class_names[idx]), int(feature_map_size[1]), int(feature_map_size[0]))
             )
-
-            anno_box = gt_bboxes_3d.new_zeros((max_objs, 10), dtype=torch.float32)
+            # anno_box = gt_bboxes_3d.new_zeros((max_objs, 10), dtype=torch.float32)
+            anno_box = gt_bboxes_3d.new_zeros(
+                (max_objs, 8), dtype=torch.float32
+            )  # without velocity for TUMTraf-I
 
             ind = gt_labels_3d.new_zeros((max_objs), dtype=torch.int64)
             mask = gt_bboxes_3d.new_zeros((max_objs), dtype=torch.uint8)
@@ -537,23 +539,34 @@ class CenterHead(BaseModule):
                     ind[new_idx] = x * feature_map_size[1] + y
 
                     mask[new_idx] = 1
-                    # TODO: support other outdoor dataset
-                    vx, vy = task_boxes[idx][k][7:]
                     rot = task_boxes[idx][k][6]
                     box_dim = task_boxes[idx][k][3:6]
                     if self.norm_bbox:
                         box_dim = box_dim.log()
-                    anno_box[new_idx] = torch.cat(
-                        [
-                            center - torch.tensor([x, y], device=device),
-                            z.unsqueeze(0),
-                            box_dim,
-                            torch.sin(rot).unsqueeze(0),
-                            torch.cos(rot).unsqueeze(0),
-                            vx.unsqueeze(0),
-                            vy.unsqueeze(0),
-                        ]
-                    )
+                    # TODO: support other outdoor dataset
+                    if len(task_boxes[idx][k]) >= 8:
+                        vx, vy = task_boxes[idx][k][7:]
+                        anno_box[new_idx] = torch.cat(
+                            [
+                                center - torch.tensor([x, y], device=device),
+                                z.unsqueeze(0),
+                                box_dim,
+                                torch.sin(rot).unsqueeze(0),
+                                torch.cos(rot).unsqueeze(0),
+                                vx.unsqueeze(0),
+                                vy.unsqueeze(0),
+                            ]
+                        )
+                    else:
+                        anno_box[new_idx] = torch.cat(
+                            [
+                                center - torch.tensor([x, y], device=device),
+                                z.unsqueeze(0),
+                                box_dim,
+                                torch.sin(rot).unsqueeze(0),
+                                torch.cos(rot).unsqueeze(0),
+                            ]
+                        )
 
             heatmaps.append(heatmap)
             anno_boxes.append(anno_box)
@@ -590,7 +603,7 @@ class CenterHead(BaseModule):
                     preds_dict[0]["height"],
                     preds_dict[0]["dim"],
                     preds_dict[0]["rot"],
-                    preds_dict[0]["vel"],
+                    # preds_dict[0]["vel"], # no velocity in TUMTraf-I
                 ),
                 dim=1,
             )
