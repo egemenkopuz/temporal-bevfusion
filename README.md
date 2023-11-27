@@ -1,15 +1,29 @@
 <h1 align="center">Multi-Modal 3D Object Detection in Long Range and Low-Resolution Conditions of Sensors</h1>
 
 <p align="center">
+  <a href="docs/figures/teaser.jpg"><img src="docs/figures/teaser.jpg" alt="Teaser"></a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/python-3.8-blue.svg" alt="Python 3.8"></a>
   <img src="https://img.shields.io/badge/pytorch-1.10.1-blue.svg" alt="PyTorch 1.10.1"></a>
   <img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Black"></a>
 </p>
 
+The purpose of this codebase (master's thesis) is to investigate the impact of temporal information on the prediction accuracy of 3D objects in [TUMTraf-i](https://arxiv.org/abs/2306.09266) and [OSDaR23](https://arxiv.org/abs/2305.03001) datasets.
+
+Contributions:
+- Temporal Fusion Network
+- Temporally-Aware Ground Truth Paste Data Augmentation
+- Temporal Pipeline & Online Caching Mechanism
+- Temporal Dataset Split Search Algorithm
+
 Built on the repository of [BEVFusion: Multi-Task Multi-Sensor Fusion with
 Unified Bird's-Eye View Representation](https://arxiv.org/abs/2205.13542).
 
 <!-- mdformat-toc start --slug=github --maxlevel=6 --minlevel=1 -->
+
+## Table of Contents<a name="toc"></a>
 
 - [Installation](#installation)
 - [Dataset Preparation](#dataset-preparation)
@@ -28,11 +42,7 @@ Unified Bird's-Eye View Representation](https://arxiv.org/abs/2205.13542).
 
 ## Installation<a name="installation"></a>
 
-> **You may need to add/remove/change the arguments in docker.sh for your use-case, For example, to create a custom volume.**
-
-If you would like to use the docker container, you can build it by running the following command:
-
-> **dev is for development and prod is for production.**
+You can build the docker image manually or use the docker.sh script to build it. However, you may need to change the arguments in docker.sh for your use-case.
 
 ```bash
 bash docker.sh build <dev/prod>
@@ -57,7 +67,8 @@ make
 ```
 
 <details>
-  <summary>Click to see additional built-in commands</summary>
+  <summary>Click to see additional built-in docker.sh commands</summary><br>
+
 
 ```bash
 bash docker.sh stop <dev/prod>
@@ -82,7 +93,7 @@ bash docker.sh remove-all <dev/prod>
 ### TUMTraf-Intersection Dataset<a name="tumtraf-intersection-dataset"></a>
 
 <details>
-  <summary>Click to expand</summary>
+  <summary>Click to expand</summary><br>
 
 > **If you have dataset fully ready, you can skip to the 5th step.**
 
@@ -121,7 +132,7 @@ python tools/create_data.py tumtraf-i --root-path ./data/tumtraf-i --out-dir ./d
 ### OSDAR23 Dataset<a name="osdar23-dataset"></a>
 
 <details>
-  <summary>Click to expand</summary>
+  <summary>Click to expand</summary><br>
 
 > **If you have dataset fully ready, you can skip to the 3rd step.**
 
@@ -153,25 +164,25 @@ python tools/create_data.py osdar23 --root-path ./data/osdar23 --out-dir ./data/
 
 ## Training<a name="training"></a>
 
-### Lidar-only<a name="lidar-only"></a>
+### LiDAR-only<a name="lidar-only"></a>
 
 ```bash
 torchpack dist-run -np <number_of_gpus> python tools/train.py <config_path>
 ```
 
 <details>
-  <summary>Click to see examples</summary>
+  <summary>Click to see examples</summary><br>
 
 TUMTraf-Intersection
 
 ```bash
-torchpack dist-run -np 1 python tools/train.py configs/tumtraf-i-baseline/det/transfusion/secfpn/lidar/voxelnet.yaml
+torchpack dist-run -np 1 python tools/train.py configs/tumtraf-i/baseline/transfusion/lidar/voxelnet-1600g-0xy1-0z20-gtp15.yaml
 ```
 
 OSDAR23
 
 ```bash
-torchpack dist-run -np 1 python tools/train.py configs/osdar23-baseline/det/transfusion/secfpn/lidar/voxelnet.yaml
+torchpack dist-run -np 1 python tools/train.py configs/osdar23/baseline/transfusion/lidar/voxelnet-1600g-0xy16-0z4-gtp15.yaml
 ```
 
 </details>
@@ -183,19 +194,19 @@ torchpack dist-run -np <number_of_gpus> python tools/train.py <config_path> --mo
 ```
 
 <details>
-  <summary>Click to see examples</summary>
+  <summary>Click to see examples</summary><br>
 
 TUMTraf-Intersection
 
 ```bash
-torchpack dist-run -np 1 python tools/train.py configs/tumtraf-i-baseline/det/centerhead/lssfpn/camera/256x704/swint/default.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth
+torchpack dist-run -np 1 python tools/train.py configs/tumtraf-i/baseline/centerhead/camera/swint-depthlss-256x704-1600g-0xy1-0z2-gm17-0p6.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth
 
 ```
 
 OSDAR23
 
 ```bash
-torchpack dist-run -np 1 python tools/train.py configs/osdar23-baseline/det/centerhead/lssfpn/camera/256x704/swint/default.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth
+torchpack dist-run -np 1 python tools/train.py configs/osdar23/baseline/centerhead/camera/swint-depthlss-256x704-1600g-0xy1-0z2-gm17-0p6.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth
 ```
 
 </details>
@@ -207,18 +218,55 @@ torchpack dist-run -np <number_of_gpus> python tools/train.py <config_path> --mo
 ```
 
 <details>
-  <summary>Click to see examples</summary>
+  <summary>Click to see examples</summary><br>
 
 TUMTraf-Intersection
 
 ```bash
-torchpack dist-run -np 2 python tools/train.py configs/tumtraf-i-baseline/det/transfusion/secfpn/camera+lidar/256x704/swint/convfuser.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from checkpoints/lidar-run/latest.pth
+torchpack dist-run -np 2 python tools/train.py configs/tumtraf-i/baseline/transfusion/fusion/convfuser-256x704-1600g-0xy1-0z2.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from <lidar_checkpoint_path>
 ```
 
 OSDAR23
 
 ```bash
-torchpack dist-run -np 2 python tools/train.py configs/osdar23-baseline/det/transfusion/secfpn/camera+lidar/256x704/swint/convfuser.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from checkpoints/lidar-run/latest.pth
+torchpack dist-run -np 2 python tools/train.py configs/osdar23/baseline/transfusion/fusion/convfuser-256x704-1600g-0xy15-0z4.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from <lidar_checkpoint_path>
+```
+
+</details>
+
+### Temporal<a name="temporal"></a>
+
+In order to train the model with temporal information, you need to load pre-trained weights of the model without temporal information.
+
+```bash
+torchpack dist-run -np <number_of_gpus> python tools/train.py <config_path> --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from <pretrained_checkpoint_path>
+```
+
+<details>
+  <summary>Click to see examples</summary><br>
+
+TUMTraf-Intersection - LiDAR-only
+
+```bash
+torchpack dist-run -np 2 python tools/train.py configs/tumtraf-i/temporal/transfusion/lidar/voxelnet-convlstm-1600g-0xy1-0z20-sameaugall-ql3-qrt1-gtp3-sameaug-rpd0p5-trans-rot-lfrz.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from <lidar_checkpoint_path>
+```
+
+TUMTraf-Intersection - Multi-modal
+
+```bash
+torchpack dist-run -np 2 python tools/train.py configs/tumtraf-i/temporal/transfusion/fusion/concatfuser-256x704-1600g-0xy1-0z2-lfrz.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from <lidar_checkpoint_path>
+```
+
+OsDAR23 - LiDAR-only
+
+```bash
+torchpack dist-run -np 2 python tools/train.py configs/osdar23/temporal/transfusion/lidar/voxelnet-convlstm-1600g-0xy1-0z20-sameaugall-ql3-qrt1-gtp3-sameaug-rpd0p5-trans-rot-lfrz.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from <lidar_checkpoint_path>
+```
+
+OsDAR23 - Multi-modal
+
+```bash
+torchpack dist-run -np 2 python tools/train.py configs/osdar23/temporal/transfusion/fusion/concatfuser-256x704-1600g-0xy1-0z2-lfrz.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from <lidar_checkpoint_path>
 ```
 
 </details>
@@ -238,7 +286,7 @@ You can also use the following optional arguments by putting first:
   - **save_summary_path=\<save_summary_path>** if you would like to save the evaluation summary
 
 <details>
-  <summary>Click to see an example</summary>
+  <summary>Click to see an example</summary><br>
 
 ```bash
 torchpack dist-run -np 1 python tools/test.py checkpoints/run/configs.yaml checkpoints/run/latest.pth --eval bbox --eval-options extensive_report=True save_summary_path=results/run/summary.json
@@ -256,15 +304,15 @@ torchpack dist-run -np 1 python tools/visualize.py <config_path> --checkpoint <c
 
 You can also use the following optional arguments:
 
-- **--include-combined** if you would like to save the visuals containing both predictions and ground truths
+- **--include-combined** if you would like to save visuals containing both predictions and ground truths
 - **--save-bboxes** if you would like to save the bounding boxes as npy files
 - **--save-scores** if you would like to save the scores as npy files
 - **--save-labels** if you would like to save the labels as npy files
 - **--max-samples N** if you would like to visualize only a subset of the dataset, example 100
-- **--bbox-score N** if you would like to visualize only the bounding boxes with a score higher than N, example: 0.1
+- **--bbox-score X** if you would like to visualize only the bounding boxes with a score higher than X, example: 0.1
 
 <details>
-  <summary>Click to see an example</summary>
+  <summary>Click to see an example</summary><br>
 
 ```bash
 torchpack dist-run -np 1 python tools/visualize.py checkpoints/run/configs.yaml --checkpoint checkpoints/run/latest.pth --mode pred --split test --out-dir results/run/visuals --include-combined --save-bboxes --save-labels --max-samples 100 --bbox-score 0.1
@@ -285,7 +333,7 @@ You can also use the following optional arguments:
 - **--out** if you would like to save the benchmark results in a file
 
 <details>
-  <summary>Click to see an example</summary>
+  <summary>Click to see an example</summary><br>
 
 ```bash
 python tools/benchmark.py checkpoints/run/configs.yaml checkpoints/run/latest.pth --out results/run/benchmark.json
@@ -295,7 +343,7 @@ python tools/benchmark.py checkpoints/run/configs.yaml checkpoints/run/latest.pt
 
 ## Compilation<a name="compilation"></a>
 
-Following command will compile every other scripts such as evaluation, visualization and benchmarking scripts into one script. In addition, if specific arguments provided, it will also include the bounding boxes and/or the labels in the compilation.
+Following command will compile every other scripts such as evaluation, visualization and benchmarking scripts into one script.
 
 ```bash
 python tools/compile.py <dataset> -c <checkpoints_folder_path> -i <compilation_id> -t <target_path> --include-bboxes --include-labels --images-include-combined --images-cam-bbox-score 0.15 --loglevel INFO
@@ -323,7 +371,7 @@ You can also use the following optional arguments:
 - **--skip-benchmark** if you would like to skip the benchmarking, Default: False
 
 <details>
-  <summary>Click to see examples</summary>
+  <summary>Click to see examples</summary><br>
 
 TUMTraf-Intersection
 
@@ -341,13 +389,16 @@ python tools/compile.py osdar23 -c checkpoints/osdar23 -i osdar23 -t results --i
 
 
 
-# gtp tunning
+# Hyper-parameter Tuning
+
+Current configurations are tuned for the best performance on the validation set of the respective datasets. However, you can tune the hyper-parameters for your own use-case. Sample commands are provided below.
 
 ```bash
-python ./tools/gtp_tune.py "configs/tumtraf-i/baseline/transfusion/lidar/voxelnet-1600g-0xy1-0z20-gtp15.yaml" --run-dir "checkpoints/tune/tumtraf-i" --n-epochs 20 --n-gpus 2 --n-trials 20 --CAR 8 15 --TRAILER 0 2 --TRUCK 0 4 --VAN 0 5 --PEDESTRIAN 0 8 --BUS 0 2 --MOTORCYCLE 0 4 --BICYCLE 0 4 --EMERGENCY_VEHICLE 0 2 --verbose --timeout 3 --enqueue 12 2 4 0 0 0 3 3 0
+python ./tools/gtp_tune.py <config_path> --run-dir "checkpoints/tune/tumtraf-i-ta-gtp-sampling" --n-epochs 20 --n-gpus 2 --n-trials 20 --CAR 8 15 --TRAILER 0 2 --TRUCK 0 4 --VAN 0 5 --PEDESTRIAN 0 8 --BUS 0 2 --MOTORCYCLE 0 4 --BICYCLE 0 4 --EMERGENCY_VEHICLE 0 2 --verbose --timeout 3 --enqueue 12 2 4 0 0 0 3 3 0
 ```
 
-```bash
-python tools/gtp_tune_temporal.py configs/tumtraf-i/temporal/transfusion/lidar/voxelnet-convlstm-1600g-0xy1-0z20-sameaugall-ql3-qrt2-gtp3-sameaug-trans-rot-lfrz.yaml --run-dir checkpoints/tune/tumtraf-i-t --load-from checkpoints/tumtraf-i/hp-lidar-best/latest.pth --n-gpus 2 --n-epochs 4 --n-trials 25 --timeout 2 --verbose --CAR 0.0 2.5 0.0 0.2 --TRAILER 0.0 2.5 0.0 0.2 --TRUCK 0.0 2.5 0.0 0.2 --VAN 0.0 2.5 0.0 0.2 --PEDESTRIAN 0.0 2.5 0.0 0.3 --BUS 0.0 2.5 0.0 0.2 --MOTORCYCLE 0.0 2.5 0.0 0.25 --BICYCLE 0.0 2.5 0.0 0.25 --EMERGENCY_VEHICLE 0.0 2.5 0.0 0.2;
+Then, you can use the following command to find optimal rotation and translation values for objects by first loading the best checkpoint from the first tuning and training on temporal information:
 
+```bash
+python tools/gtp_tune_temporal.py <config_path> --run-dir checkpoints/tune/tumtraf-i-ta-gtp-rt --load-from <lidar_checkpoint_path> --n-gpus 2 --n-epochs 4 --n-trials 25 --timeout 2 --verbose --CAR 0.0 2.5 0.0 0.2 --TRAILER 0.0 2.5 0.0 0.2 --TRUCK 0.0 2.5 0.0 0.2 --VAN 0.0 2.5 0.0 0.2 --PEDESTRIAN 0.0 2.5 0.0 0.3 --BUS 0.0 2.5 0.0 0.2 --MOTORCYCLE 0.0 2.5 0.0 0.25 --BICYCLE 0.0 2.5 0.0 0.25 --EMERGENCY_VEHICLE 0.0 2.5 0.0 0.2
 ```
