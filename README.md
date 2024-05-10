@@ -13,7 +13,8 @@
 The purpose of this codebase (master's thesis) is to investigate the impact of temporal information on the prediction accuracy of 3D objects in [TUMTraf-i](https://arxiv.org/abs/2306.09266) and [OSDaR23](https://arxiv.org/abs/2305.03001) datasets.
 
 Contributions:
-- Temporal Fusion Network
+
+- Temporal Fusion via ConvLSTM or ConvGRU
 - Temporally-Aware Ground Truth Paste Data Augmentation
 - Temporal Pipeline & Online Caching Mechanism
 - Temporal Dataset Split Search Algorithm
@@ -69,7 +70,6 @@ make
 <details>
   <summary>Click to see additional built-in docker.sh commands</summary><br>
 
-
 ```bash
 bash docker.sh stop <dev/prod>
 ```
@@ -100,7 +100,7 @@ bash docker.sh remove-all <dev/prod>
 1 - Merge all the files into one folder, then tokenize them by running the following command (if not tokenized already):
 
 ```bash
-python tools/preprocessing/a9_tokenize.py --root-path ./data/tumtraf-i-no-split --out-path ./data/tumtraf-i-no-split --loglevel INFO
+python tools/preprocessing/tumtraf_tokenize.py --root-path ./data/tumtraf-i-no-split --out-path ./data/tumtraf-i-no-split --loglevel INFO
 ```
 
 2 - Add difficulty labels to the dataset by running the following command:
@@ -281,7 +281,7 @@ torchpack dist-run -np 1 python tools/test.py <config_path> <checkpoint_path> --
 
 You can also use the following optional arguments by putting first:
 
-- **--eval-options**  and then putting the following arguments
+- **--eval-options** and then putting the following arguments
   - **extensive_report=True** if you would like to have an extensive report of the evaluation
   - **save_summary_path=\<save_summary_path>** if you would like to save the evaluation summary
 
@@ -386,8 +386,6 @@ python tools/compile.py osdar23 -c checkpoints/osdar23 -i osdar23 -t results --i
 ```
 
 </details>
-
-
 
 # Hyper-parameter Tuning
 
